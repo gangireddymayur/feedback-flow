@@ -86,7 +86,7 @@ After it finishes, force HTTPS in **Hosting Settings**.
 
 In the Lovable project, the file `.env` already contains:
 ```
-VITE_API_URL=https://ecstatic-shockley.103-69-196-157.plesk.page
+VITE_API_URL=https://silly-bhabha.103-69-196-157.plesk.page
 ```
 After you publish the frontend, log in with the seeded super-admin account.
 
