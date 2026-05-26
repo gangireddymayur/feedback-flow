@@ -1,15 +1,29 @@
 import * as React from "react";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FileText, Smartphone, MessageSquare, BarChart3,
-  Users, Settings, LogOut, Search, Bell, Sparkles,
+  LayoutDashboard,
+  FileText,
+  Smartphone,
+  MessageSquare,
+  BarChart3,
+  Users,
+  Settings,
+  LogOut,
+  Search,
+  Bell,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth, logout } from "@/lib/auth-store";
+import { getAuth, useAuth, logout } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type NavItem = { to: string; label: string; icon: React.ComponentType<{ className?: string }>; roles: Array<"super" | "sub"> };
+type NavItem = {
+  to: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles: Array<"super" | "sub">;
+};
 
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["super", "sub"] },
@@ -27,9 +41,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   React.useEffect(() => {
-    if (auth === null && typeof window !== "undefined") {
-      const stored = localStorage.getItem("rms_user");
-      if (!stored) router.navigate({ to: "/login" });
+    if (typeof window !== "undefined" && getAuth() === null) {
+      router.navigate({ to: "/login", replace: true });
     }
   }, [auth, router]);
 
@@ -46,7 +59,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <div className="font-semibold tracking-tight">ReviewOS</div>
-            <div className="text-[11px] text-muted-foreground capitalize">{auth.role === "super" ? "Super Admin" : "Sub Admin"}</div>
+            <div className="text-[11px] text-muted-foreground capitalize">
+              {auth.role === "super" ? "Super Admin" : "Sub Admin"}
+            </div>
           </div>
         </div>
         <nav className="glass rounded-2xl p-2 flex flex-col gap-0.5 flex-1">
@@ -72,7 +87,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="glass rounded-2xl p-3 flex items-center gap-3">
           <div className="size-9 rounded-full bg-gradient-to-br from-fuchsia-400/40 to-cyan-400/40 grid place-items-center text-xs font-semibold">
-            {auth.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}
+            {auth.name
+              .split(" ")
+              .map((p) => p[0])
+              .slice(0, 2)
+              .join("")}
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium truncate">{auth.name}</div>

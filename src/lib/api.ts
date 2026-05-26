@@ -14,6 +14,7 @@ export function setToken(t: string | null) {
   if (typeof window === "undefined") return;
   if (t) localStorage.setItem(TOKEN_KEY, t);
   else localStorage.removeItem(TOKEN_KEY);
+  window.dispatchEvent(new Event("rms-auth-change"));
 }
 
 export class ApiError extends Error {
@@ -47,9 +48,26 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
     );
   }
   const text = await res.text();
-  const data = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+  const data = text
+    ? (() => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      })()
+    : null;
   if (!res.ok) {
-    const msg = (data && typeof data === "object" && "error" in data) ? String((data as { error: unknown }).error) : `Request failed (${res.status})`;
+    if (res.status === 401 && opts.auth !== false) {
+      setToken(null);
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
+    }
+    const msg =
+      data && typeof data === "object" && "error" in data
+        ? String((data as { error: unknown }).error)
+        : `Request failed (${res.status})`;
     throw new ApiError(msg, res.status);
   }
   return data as T;
@@ -57,19 +75,39 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
 
 // ===== Typed wrappers =====
 
-export type Me = { id: number; name: string; email: string; role: "super" | "sub"; status?: string };
+export type Me = {
+  id: number;
+  name: string;
+  email: string;
+  role: "super" | "sub";
+  status?: string;
+};
 
 export const Auth = {
   login: (email: string, password: string) =>
-    api<{ token: string; user: Me }>("/api/auth/login", { method: "POST", body: { email, password }, auth: false }),
+    api<{ token: string; user: Me }>("/api/auth/login", {
+      method: "POST",
+      body: { email, password },
+      auth: false,
+    }),
   me: () => api<{ user: Me }>("/api/auth/me"),
 };
 
 export type ApiTemplate = {
-  id: number; name: string; description: string; category: string;
+  id: number;
+  name: string;
+  description: string;
+  category: string;
   status: "active" | "inactive" | "draft";
-  questions: Array<{ id: string; type: string; label: string; required: boolean; options?: string[] }>;
-  created_at: string; updated_at: string;
+  questions: Array<{
+    id: string;
+    type: string;
+    label: string;
+    required: boolean;
+    options?: string[];
+  }>;
+  created_at: string;
+  updated_at: string;
 };
 export const Templates = {
   list: () => api<{ templates: ApiTemplate[] }>("/api/templates"),
@@ -81,10 +119,14 @@ export const Templates = {
 };
 
 export type ApiDevice = {
-  id: number; name: string; location: string | null;
+  id: number;
+  name: string;
+  location: string | null;
   status: "online" | "offline" | "syncing";
-  android_version: string | null; last_sync: string | null;
-  template_id: number | null; responses_today: number;
+  android_version: string | null;
+  last_sync: string | null;
+  template_id: number | null;
+  responses_today: number;
 };
 export const Devices = {
   list: () => api<{ devices: ApiDevice[] }>("/api/devices"),
@@ -94,18 +136,29 @@ export const Devices = {
 };
 
 export type ApiResponse = {
-  id: number; template_id: number; template: string;
-  device_id: number; device: string;
-  rating: number | null; answers: Record<string, unknown>;
-  submitted_at: string; duration_seconds: number;
+  id: number;
+  template_id: number;
+  template: string;
+  device_id: number;
+  device: string;
+  rating: number | null;
+  answers: Record<string, unknown>;
+  submitted_at: string;
+  duration_seconds: number;
 };
 export const Responses = {
   list: () => api<{ responses: ApiResponse[] }>("/api/responses"),
 };
 
 export type ApiAdmin = {
-  id: number; name: string; email: string; role: "super" | "sub";
-  status: "active" | "disabled"; created_at: string; devices: number; templates: number;
+  id: number;
+  name: string;
+  email: string;
+  role: "super" | "sub";
+  status: "active" | "disabled";
+  created_at: string;
+  devices: number;
+  templates: number;
 };
 export const Admins = {
   list: () => api<{ admins: ApiAdmin[] }>("/api/admins"),
