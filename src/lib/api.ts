@@ -264,6 +264,12 @@ export const Devices = {
     });
     return { id };
   },
+  assignTemplate: async (id: number, template_id: number | null) => {
+    await delay(120);
+    const d = db.devices.find((x) => x.id === id);
+    if (d) d.template_id = template_id;
+    return { ok: true as const };
+  },
   remove: async (id: number) => {
     await delay();
     const i = db.devices.findIndex((d) => d.id === id);
