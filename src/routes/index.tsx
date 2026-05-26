@@ -2,15 +2,22 @@ import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { Star, MessageSquare, Smartphone, FileText, TrendingUp, ArrowUpRight, Sparkles } from "lucide-react";
+import { Star, MessageSquare, Smartphone, FileText, TrendingUp, ArrowUpRight, Sparkles, Users, ShieldCheck, Activity } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Devices, Responses, Templates } from "@/lib/api";
+import { Admins, Devices, Responses, Templates } from "@/lib/api";
+import { useAuth } from "@/lib/auth-store";
 
 export const Route = createFileRoute("/")({ component: DashboardPage });
 
 function DashboardPage() {
+  const auth = useAuth();
+  if (!auth) return null;
+  return auth.role === "super" ? <SuperDashboard /> : <SubDashboard />;
+}
+
+function SubDashboard() {
   const devicesQ = useQuery({ queryKey: ["devices"], queryFn: () => Devices.list() });
   const responsesQ = useQuery({ queryKey: ["responses"], queryFn: () => Responses.list(), refetchInterval: 15000 });
   const templatesQ = useQuery({ queryKey: ["templates"], queryFn: () => Templates.list() });
