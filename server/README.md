@@ -1,5 +1,7 @@
 # ReviewOS Backend (Express + MySQL) — Plesk Deployment
 
+This backend uses CommonJS (`require`) because some Plesk/iisnode setups do not support loading ES modules as the startup file.
+
 Self-hosted REST API for the ReviewOS dashboard and Android devices.
 Built for Plesk's **Node.js** extension + **MySQL** databases.
 

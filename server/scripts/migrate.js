@@ -1,8 +1,8 @@
-import "dotenv/config";
-import fs from "node:fs";
-import path from "node:path";
-import bcrypt from "bcryptjs";
-import { pool, query } from "../src/db.js";
+require("dotenv/config");
+const fs = require("node:fs");
+const path = require("node:path");
+const bcrypt = require("bcryptjs");
+const { pool, query } = require("../src/db.js");
 
 const sql = fs.readFileSync(path.join(process.cwd(), "scripts/schema.sql"), "utf8");
 

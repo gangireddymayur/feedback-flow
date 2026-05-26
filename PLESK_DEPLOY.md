@@ -56,7 +56,7 @@ CORS_ORIGINS=*
 
 ## 5. Install dependencies
 
-Plesk → **Node.js** → click **NPM Install**.
+Plesk → **Node.js** → click **NPM Install**. If Plesk runs `npm install --production` and says `npm is not recognized`, ask hosting support to add Node/npm to the Windows PATH for Plesk Node.js tasks, or install dependencies locally and upload the `node_modules` folder with the server files.
 Wait until you see the success banner.
 
 ## 6. Run the migration
