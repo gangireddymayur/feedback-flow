@@ -1,14 +1,14 @@
-import "dotenv/config";
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
-import morgan from "morgan";
-import { authRouter } from "./src/routes/auth.js";
-import { templatesRouter } from "./src/routes/templates.js";
-import { devicesRouter } from "./src/routes/devices.js";
-import { responsesRouter } from "./src/routes/responses.js";
-import { adminsRouter } from "./src/routes/admins.js";
-import { errorHandler } from "./src/middleware/error.js";
+require("dotenv/config");
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const { authRouter } = require("./src/routes/auth.js");
+const { templatesRouter } = require("./src/routes/templates.js");
+const { devicesRouter } = require("./src/routes/devices.js");
+const { responsesRouter } = require("./src/routes/responses.js");
+const { adminsRouter } = require("./src/routes/admins.js");
+const { errorHandler } = require("./src/middleware/error.js");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
