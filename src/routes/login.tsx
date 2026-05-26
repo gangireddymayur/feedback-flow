@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginWithApi } from "@/lib/auth-store";
-import { API_BASE } from "@/lib/api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
@@ -100,8 +99,8 @@ function LoginPage() {
               Sign-in failed: {error}
             </p>
           )}
-          <p className="text-[11px] text-center text-muted-foreground break-all">
-            API: {API_BASE || "Vercel /api proxy"}
+          <p className="text-[11px] text-center text-muted-foreground">
+            Demo mode — use any email and password to sign in.
           </p>
         </form>
       </div>
