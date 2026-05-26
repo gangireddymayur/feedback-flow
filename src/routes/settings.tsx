@@ -32,7 +32,7 @@ function SettingsPage() {
           <div className="space-y-4">
             <Toggle label="New review submitted" defaultChecked />
             <Toggle label="Low rating alert (≤2★)" defaultChecked />
-            <Toggle label="Tablet offline" defaultChecked />
+            <Toggle label="Device offline" defaultChecked />
             <Toggle label="Weekly summary email" />
             <Toggle label="Sync failures" defaultChecked />
           </div>
