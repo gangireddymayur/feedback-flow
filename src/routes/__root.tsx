@@ -72,14 +72,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "ReviewOS — Modern Review Management Platform" },
+      { name: "description", content: "Premium review & feedback management with tablet pairing, dynamic templates, and real-time analytics." },
+      { property: "og:title", content: "ReviewOS — Review Management Platform" },
+      { property: "og:description", content: "Manage reviews, tablets, and analytics in one premium dashboard." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       {
