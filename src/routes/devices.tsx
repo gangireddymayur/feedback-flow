@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, RefreshCw, MoreHorizontal, BatteryLow, Battery, MapPin } from "lucide-react";
+import { Plus, RefreshCw, MoreHorizontal, MapPin, Smartphone } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { devices } from "@/lib/mock-data";
@@ -13,24 +13,24 @@ function DevicesPage() {
   return (
     <DashboardLayout>
       <PageHeader
-        title="Tablets"
-        description="Pair Android tablets, monitor health, push templates instantly."
+        title="Devices"
+        description="Pair Android-based review devices, monitor health, push templates instantly."
         actions={
           <Dialog>
             <DialogTrigger asChild>
-              <Button><Plus className="size-4" /> Pair Tablet</Button>
+              <Button><Plus className="size-4" /> Pair Device</Button>
             </DialogTrigger>
             <DialogContent className="glass-strong border-white/10 sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Pair a new tablet</DialogTitle>
+                <DialogTitle>Pair a new device</DialogTitle>
                 <DialogDescription>
-                  Open the ReviewOS app on the tablet, then enter the 6-digit code shown on screen.
+                  Open the ReviewOS app on the Android device, then enter the 6-digit code shown on its screen.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 pt-2">
                 <Label htmlFor="code">Pairing code</Label>
                 <Input id="code" placeholder="• • • • • •" maxLength={6} className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14" />
-                <Button className="w-full">Pair tablet</Button>
+                <Button className="w-full">Pair device</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -52,7 +52,7 @@ function DevicesPage() {
                 <th className="text-left font-medium px-5 py-3">Device</th>
                 <th className="text-left font-medium px-3 py-3">Status</th>
                 <th className="text-left font-medium px-3 py-3">Template</th>
-                <th className="text-left font-medium px-3 py-3">Battery</th>
+                <th className="text-left font-medium px-3 py-3">Android</th>
                 <th className="text-left font-medium px-3 py-3">Last sync</th>
                 <th className="text-right font-medium px-3 py-3">Today</th>
                 <th className="px-3" />
@@ -62,25 +62,21 @@ function DevicesPage() {
               {devices.map((d) => (
                 <tr key={d.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors">
                   <td className="px-5 py-4">
-                    <div className="font-medium">{d.name}</div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <MapPin className="size-3" /> {d.location}
+                    <div className="flex items-center gap-2.5">
+                      <div className="size-8 rounded-lg bg-white/5 grid place-items-center">
+                        <Smartphone className="size-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <div className="font-medium">{d.name}</div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <MapPin className="size-3" /> {d.location}
+                        </div>
+                      </div>
                     </div>
                   </td>
-                  <td className="px-3 py-4">
-                    <StatusPill status={d.status} />
-                  </td>
+                  <td className="px-3 py-4"><StatusPill status={d.status} /></td>
                   <td className="px-3 py-4 text-muted-foreground">{d.template}</td>
-                  <td className="px-3 py-4">
-                    <div className="flex items-center gap-1.5">
-                      {d.battery < 20 ? (
-                        <BatteryLow className="size-4 text-rose-400" />
-                      ) : (
-                        <Battery className="size-4 text-emerald-400" />
-                      )}
-                      <span className={d.battery < 20 ? "text-rose-300" : ""}>{d.battery}%</span>
-                    </div>
-                  </td>
+                  <td className="px-3 py-4 text-muted-foreground">{d.androidVersion}</td>
                   <td className="px-3 py-4 text-muted-foreground">{d.lastSync}</td>
                   <td className="px-3 py-4 text-right font-semibold">{d.responsesToday}</td>
                   <td className="px-3 py-4">
@@ -100,12 +96,7 @@ function DevicesPage() {
 }
 
 function Stat({ label, value, tone = "default" }: { label: string; value: number; tone?: "default" | "success" | "warn" | "danger" }) {
-  const cls = {
-    default: "text-primary",
-    success: "text-emerald-300",
-    warn: "text-amber-300",
-    danger: "text-rose-300",
-  }[tone];
+  const cls = { default: "text-primary", success: "text-emerald-300", warn: "text-amber-300", danger: "text-rose-300" }[tone];
   return (
     <GlassCard>
       <div className="text-xs text-muted-foreground">{label}</div>
