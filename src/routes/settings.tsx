@@ -28,13 +28,28 @@ function SettingsPage() {
         </GlassCard>
 
         <GlassCard>
-          <h3 className="font-semibold mb-4">Notifications</h3>
+          <h3 className="font-semibold mb-1">Notifications</h3>
+          <p className="text-xs text-muted-foreground mb-4">
+            {auth.role === "super" ? "Org-level alerts only." : "Operational alerts for your devices."}
+          </p>
           <div className="space-y-4">
-            <Toggle label="New review submitted" defaultChecked />
-            <Toggle label="Low rating alert (≤2★)" defaultChecked />
-            <Toggle label="Device offline" defaultChecked />
-            <Toggle label="Weekly summary email" />
-            <Toggle label="Sync failures" defaultChecked />
+            {auth.role === "super" ? (
+              <>
+                <Toggle label="New sub-admin invited" defaultChecked />
+                <Toggle label="Sub-admin disabled" defaultChecked />
+                <Toggle label="Org weekly summary" defaultChecked />
+                <Toggle label="Billing &amp; usage alerts" defaultChecked />
+                <Toggle label="Security sign-in alerts" defaultChecked />
+              </>
+            ) : (
+              <>
+                <Toggle label="New review submitted" defaultChecked />
+                <Toggle label="Low rating alert (≤2★)" defaultChecked />
+                <Toggle label="Device offline" defaultChecked />
+                <Toggle label="Weekly summary email" />
+                <Toggle label="Sync failures" defaultChecked />
+              </>
+            )}
           </div>
         </GlassCard>
 
