@@ -1,96 +1,135 @@
+import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, RefreshCw, MoreHorizontal, MapPin, Smartphone } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, MoreHorizontal, MapPin, Smartphone, Trash2 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import { devices } from "@/lib/mock-data";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Devices } from "@/lib/api";
+import { LoadingState, ErrorState } from "@/routes/templates";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/devices")({ component: DevicesPage });
 
 function DevicesPage() {
+  const qc = useQueryClient();
+  const { data, isLoading, error } = useQuery({ queryKey: ["devices"], queryFn: () => Devices.list(), refetchInterval: 15000 });
+  const devices = data?.devices ?? [];
+
+  const [open, setOpen] = React.useState(false);
+  const [code, setCode] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [location, setLocation] = React.useState("");
+
+  const pair = useMutation({
+    mutationFn: () => Devices.pair(code, name, location),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["devices"] });
+      toast.success("Device paired");
+      setOpen(false); setCode(""); setName(""); setLocation("");
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => Devices.remove(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["devices"] }); toast.success("Removed"); },
+  });
+
   return (
     <DashboardLayout>
       <PageHeader
         title="Devices"
         description="Pair Android-based review devices, monitor health, push templates instantly."
         actions={
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button><Plus className="size-4" /> Pair Device</Button>
-            </DialogTrigger>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button><Plus className="size-4" /> Pair Device</Button></DialogTrigger>
             <DialogContent className="glass-strong border-white/10 sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Pair a new device</DialogTitle>
-                <DialogDescription>
-                  Open the ReviewOS app on the Android device, then enter the 6-digit code shown on its screen.
-                </DialogDescription>
+                <DialogDescription>Enter the 6-digit code shown by the ReviewOS app on the device.</DialogDescription>
               </DialogHeader>
               <div className="space-y-3 pt-2">
                 <Label htmlFor="code">Pairing code</Label>
-                <Input id="code" placeholder="• • • • • •" maxLength={6} className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14" />
-                <Button className="w-full">Pair device</Button>
+                <Input id="code" placeholder="• • • • • •" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14" />
+                <Label htmlFor="dname">Device name</Label>
+                <Input id="dname" value={name} onChange={(e) => setName(e.target.value)} className="bg-white/5 border-white/10" placeholder="Lobby Tablet" />
+                <Label htmlFor="dloc">Location</Label>
+                <Input id="dloc" value={location} onChange={(e) => setLocation(e.target.value)} className="bg-white/5 border-white/10" placeholder="Downtown Branch" />
               </div>
+              <DialogFooter>
+                <Button className="w-full" onClick={() => pair.mutate()} disabled={pair.isPending || code.length !== 6 || !name}>
+                  {pair.isPending ? "Pairing…" : "Pair device"}
+                </Button>
+              </DialogFooter>
             </DialogContent>
           </Dialog>
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Total" value={devices.length} />
-        <Stat label="Online" value={devices.filter((d) => d.status === "online").length} tone="success" />
-        <Stat label="Syncing" value={devices.filter((d) => d.status === "syncing").length} tone="warn" />
-        <Stat label="Offline" value={devices.filter((d) => d.status === "offline").length} tone="danger" />
-      </div>
+      {isLoading && <LoadingState />}
+      {error && <ErrorState message={(error as Error).message} />}
 
-      <GlassCard className="p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-xs text-muted-foreground border-b border-white/5">
-              <tr>
-                <th className="text-left font-medium px-5 py-3">Device</th>
-                <th className="text-left font-medium px-3 py-3">Status</th>
-                <th className="text-left font-medium px-3 py-3">Template</th>
-                <th className="text-left font-medium px-3 py-3">Android</th>
-                <th className="text-left font-medium px-3 py-3">Last sync</th>
-                <th className="text-right font-medium px-3 py-3">Today</th>
-                <th className="px-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {devices.map((d) => (
-                <tr key={d.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="size-8 rounded-lg bg-white/5 grid place-items-center">
-                        <Smartphone className="size-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{d.name}</div>
-                        <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <MapPin className="size-3" /> {d.location}
+      {!isLoading && !error && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <Stat label="Total" value={devices.length} />
+            <Stat label="Online" value={devices.filter((d) => d.status === "online").length} tone="success" />
+            <Stat label="Syncing" value={devices.filter((d) => d.status === "syncing").length} tone="warn" />
+            <Stat label="Offline" value={devices.filter((d) => d.status === "offline").length} tone="danger" />
+          </div>
+
+          <GlassCard className="p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground border-b border-white/5">
+                  <tr>
+                    <th className="text-left font-medium px-5 py-3">Device</th>
+                    <th className="text-left font-medium px-3 py-3">Status</th>
+                    <th className="text-left font-medium px-3 py-3">Android</th>
+                    <th className="text-left font-medium px-3 py-3">Last sync</th>
+                    <th className="text-right font-medium px-3 py-3">Today</th>
+                    <th className="px-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {devices.length === 0 && (
+                    <tr><td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">No devices yet. Click "Pair Device" to add one.</td></tr>
+                  )}
+                  {devices.map((d) => (
+                    <tr key={d.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="size-8 rounded-lg bg-white/5 grid place-items-center">
+                            <Smartphone className="size-4 text-muted-foreground" />
+                          </div>
+                          <div>
+                            <div className="font-medium">{d.name}</div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <MapPin className="size-3" /> {d.location || "—"}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-3 py-4"><StatusPill status={d.status} /></td>
-                  <td className="px-3 py-4 text-muted-foreground">{d.template}</td>
-                  <td className="px-3 py-4 text-muted-foreground">{d.androidVersion}</td>
-                  <td className="px-3 py-4 text-muted-foreground">{d.lastSync}</td>
-                  <td className="px-3 py-4 text-right font-semibold">{d.responsesToday}</td>
-                  <td className="px-3 py-4">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button size="icon" variant="ghost" className="size-7"><RefreshCw className="size-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="size-7"><MoreHorizontal className="size-3.5" /></Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </GlassCard>
+                      </td>
+                      <td className="px-3 py-4"><StatusPill status={d.status} /></td>
+                      <td className="px-3 py-4 text-muted-foreground">{d.android_version ?? "—"}</td>
+                      <td className="px-3 py-4 text-muted-foreground">{d.last_sync ? new Date(d.last_sync).toLocaleString() : "never"}</td>
+                      <td className="px-3 py-4 text-right font-semibold">{d.responses_today}</td>
+                      <td className="px-3 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button size="icon" variant="ghost" className="size-7 text-rose-300" onClick={() => del.mutate(d.id)}><Trash2 className="size-3.5" /></Button>
+                          <Button size="icon" variant="ghost" className="size-7"><MoreHorizontal className="size-3.5" /></Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </GlassCard>
+        </>
+      )}
     </DashboardLayout>
   );
 }

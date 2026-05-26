@@ -5,7 +5,7 @@ import {
   Users, Settings, LogOut, Search, Bell, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth, setAuth } from "@/lib/auth-store";
+import { useAuth, logout } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -28,7 +28,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (auth === null && typeof window !== "undefined") {
-      const stored = localStorage.getItem("rms_auth");
+      const stored = localStorage.getItem("rms_user");
       if (!stored) router.navigate({ to: "/login" });
     }
   }, [auth, router]);
@@ -83,7 +83,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             size="icon"
             className="size-8"
             onClick={() => {
-              setAuth(null);
+              logout();
               router.navigate({ to: "/login" });
             }}
             aria-label="Log out"
@@ -106,38 +106,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <Bell className="size-4" />
             <span className="absolute top-2 right-2 size-1.5 rounded-full bg-primary" />
           </Button>
-          <RoleSwitcher />
+          <span className="text-[11px] text-muted-foreground hidden md:inline capitalize px-2 py-1 rounded-full bg-white/5 border border-white/10">
+            {auth.role === "super" ? "Super Admin" : "Sub Admin"}
+          </span>
         </header>
         <div className="space-y-6">{children}</div>
       </main>
-    </div>
-  );
-}
-
-function RoleSwitcher() {
-  const auth = useAuth();
-  if (!auth) return null;
-  return (
-    <div className="flex items-center gap-1 rounded-full bg-white/5 border border-white/10 p-1 text-xs">
-      {(["sub", "super"] as const).map((r) => (
-        <button
-          key={r}
-          onClick={() =>
-            setAuth({
-              ...auth,
-              role: r,
-              name: r === "super" ? "Alex Morgan" : "Aisha Khan",
-              email: r === "super" ? "alex@reviewos.app" : "aisha@brand.co",
-            })
-          }
-          className={cn(
-            "px-3 py-1 rounded-full transition-colors",
-            auth.role === r ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {r === "super" ? "Super" : "Sub"}
-        </button>
-      ))}
     </div>
   );
 }
