@@ -119,7 +119,7 @@ const seed = () => {
     location: d.location,
     status: d.status,
     android_version: d.androidVersion,
-    last_sync: d.lastSync,
+    last_sync: new Date(Date.now() - i * 90 * 1000).toISOString(),
     template_id: templates.find((t) => t.name === d.template)?.id ?? null,
     responses_today: d.responsesToday,
   }));
@@ -202,7 +202,7 @@ export const Templates = {
   },
   create: async (body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) => {
     await delay();
-    const id = (db.templates.at(-1)?.id ?? 0) + 1;
+    const id = (db.templates[db.templates.length - 1]?.id ?? 0) + 1;
     const now = new Date().toISOString();
     db.templates.push({ ...body, id, created_at: now, updated_at: now });
     return { id };
@@ -238,7 +238,7 @@ export const Devices = {
   },
   pair: async (_code: string, name: string, location: string) => {
     await delay();
-    const id = (db.devices.at(-1)?.id ?? 0) + 1;
+    const id = (db.devices[db.devices.length - 1]?.id ?? 0) + 1;
     db.devices.push({
       id,
       name,
@@ -282,7 +282,7 @@ export const Admins = {
     role?: "sub" | "super";
   }) => {
     await delay();
-    const id = (db.admins.at(-1)?.id ?? 0) + 1;
+    const id = (db.admins[db.admins.length - 1]?.id ?? 0) + 1;
     db.admins.push({
       id,
       name: body.name,

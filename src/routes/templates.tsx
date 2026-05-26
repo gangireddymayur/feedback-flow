@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, MoreHorizontal, Trash2, Loader2 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
@@ -10,6 +10,7 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/templates")({ component: TemplatesPage });
 
 function TemplatesPage() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["templates"],
@@ -22,6 +23,8 @@ function TemplatesPage() {
   });
 
   const templates = data?.templates ?? [];
+
+  if (pathname !== "/templates") return <Outlet />;
 
   return (
     <DashboardLayout>
