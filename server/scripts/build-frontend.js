@@ -2,16 +2,23 @@ const { execSync } = require('child_process');
 const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
-const command = process.platform === 'win32'
-  ? 'cmd /d /s /c "npm install && npm run build:plesk"'
-  : 'npm install && npm run build:plesk';
+const npmExecPath = process.env.npm_execpath || 'npm';
 
-try {
+function runNpm(args) {
+  const command = npmExecPath.endsWith('.js')
+    ? `"${process.execPath}" "${npmExecPath}" ${args}`
+    : `"${npmExecPath}" ${args}`;
+
   execSync(command, {
     cwd: projectRoot,
     stdio: 'inherit',
     shell: true,
   });
+}
+
+try {
+  runNpm('install');
+  runNpm('run build:plesk');
 } catch (error) {
   process.exit(error.status || 1);
 }
