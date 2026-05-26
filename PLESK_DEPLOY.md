@@ -1,11 +1,15 @@
 # Deploying the ReviewOS Backend to Plesk
 
+> The dashboard frontend is now intended to be hosted on Vercel. See
+> [`VERCEL_DEPLOY.md`](./VERCEL_DEPLOY.md). Plesk remains responsible for the
+> Express API and MySQL database.
+
 Your API will live at:
 **`http://ecstatic-shockley.103-69-196-157.plesk.page`**
 
 > ⚠️ Plesk currently shows the Node.js Application URL as HTTP. This works only
-> when the frontend is also opened over HTTP. If your frontend is published on
-> HTTPS, enable SSL for this API domain and change `VITE_API_URL` back to HTTPS.
+> for temporary API proxying. Enable SSL for this API domain, then update the
+> Plesk destinations in `vercel.json` from `http://` to `https://`.
 > The server intentionally avoids CSP `upgrade-insecure-requests` while this
 > HTTP URL is in use, since that would keep the dashboard assets from loading.
 
@@ -92,15 +96,14 @@ Then open **`http://<your-domain>/api`** to see the API endpoint list, or
 Plesk → **SSL/TLS Certificates** → **Install Free Basic Certificate by Let's Encrypt**.
 After it finishes, force HTTPS in **Hosting Settings**.
 
-## 9. Connect the frontend
+## 9. Connect the Vercel frontend
 
-In the Lovable project, the file `.env` already contains:
+The Vercel frontend uses a same-origin `/api` rewrite configured in
+`vercel.json`, so do not set `VITE_API_URL` in Vercel.
 
-```
-VITE_API_URL=http://ecstatic-shockley.103-69-196-157.plesk.page
-```
-
-After you publish the frontend, log in with the seeded super-admin account.
+After SSL is enabled on this Plesk domain, change the rewrite destinations in
+`vercel.json` to use `https://`, redeploy the Vercel frontend, and log in with
+the seeded super-admin account.
 
 ---
 

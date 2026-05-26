@@ -101,7 +101,7 @@ function LoginPage() {
             </p>
           )}
           <p className="text-[11px] text-center text-muted-foreground break-all">
-            API: {API_BASE || <span className="text-rose-300">VITE_API_URL not set</span>}
+            API: {API_BASE || "Vercel /api proxy"}
           </p>
         </form>
       </div>

@@ -1,5 +1,5 @@
-// Lightweight typed fetch client for the Plesk Node.js backend.
-// Set VITE_API_URL in .env (no trailing slash). The site MUST be HTTPS.
+// Leave VITE_API_URL empty on Vercel so /api requests use its Plesk rewrite.
+// Set it locally only when directly connecting to a backend during development.
 
 const RAW = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 export const API_BASE = RAW.replace(/\/+$/, "");
@@ -28,7 +28,6 @@ export class ApiError extends Error {
 type Opts = { method?: string; body?: unknown; auth?: boolean };
 
 export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
-  if (!API_BASE) throw new ApiError("VITE_API_URL is not set", 0);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (opts.auth !== false) {
     const tok = getToken();
@@ -43,7 +42,7 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
     });
   } catch (e) {
     throw new ApiError(
-      `Network error reaching API. Check VITE_API_URL, CORS, and SSL. (${(e as Error).message})`,
+      `Network error reaching API. Check the Vercel /api rewrite and Plesk API status. (${(e as Error).message})`,
       0,
     );
   }

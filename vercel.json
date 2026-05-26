@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://ecstatic-shockley.103-69-196-157.plesk.page/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "http://ecstatic-shockley.103-69-196-157.plesk.page/health"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
+    }
+  ]
+}

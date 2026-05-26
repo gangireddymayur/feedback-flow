@@ -48,33 +48,34 @@ Password: changeme123
 
 **Change this password immediately after first login.**
 
-## 5. Point the frontend at the API
+## 5. Connect the Vercel frontend
 
-In your Lovable project, set the API base URL (e.g. `VITE_API_URL`) to
-your Plesk domain, e.g. `https://api.yourdomain.com`. Make sure
-`CORS_ORIGINS` in `.env` includes your Lovable frontend domain.
+The Vercel frontend uses its `/api` rewrite to forward requests to this Plesk
+application. Do not set `VITE_API_URL` in Vercel for that setup. After enabling
+SSL on this API domain, update the upstream URLs in the root `vercel.json` to
+use `https://`.
 
 ---
 
 ## Endpoints
 
-| Method | Path                          | Auth        | Purpose                         |
-|--------|-------------------------------|-------------|---------------------------------|
-| GET    | `/health`                     | none        | Health check                    |
-| POST   | `/api/auth/login`             | none        | Email + password login          |
-| GET    | `/api/auth/me`                | bearer      | Current user                    |
-| GET    | `/api/templates`              | bearer      | List templates                  |
-| POST   | `/api/templates`              | bearer      | Create template                 |
-| PUT    | `/api/templates/:id`          | bearer      | Update template                 |
-| DELETE | `/api/templates/:id`          | bearer      | Delete template                 |
-| GET    | `/api/devices`                | bearer      | List paired devices             |
-| POST   | `/api/devices/pair`           | bearer      | Pair a new Android device       |
-| POST   | `/api/devices/:id/heartbeat`  | device      | Device → server keepalive       |
-| GET    | `/api/responses`              | bearer      | Recent responses                |
-| POST   | `/api/responses/submit`       | device      | Device → server submit review   |
-| GET    | `/api/admins`                 | super only  | List sub admins                 |
-| POST   | `/api/admins`                 | super only  | Create sub admin                |
-| PATCH  | `/api/admins/:id/status`      | super only  | Enable / disable an admin       |
+| Method | Path                         | Auth       | Purpose                       |
+| ------ | ---------------------------- | ---------- | ----------------------------- |
+| GET    | `/health`                    | none       | Health check                  |
+| POST   | `/api/auth/login`            | none       | Email + password login        |
+| GET    | `/api/auth/me`               | bearer     | Current user                  |
+| GET    | `/api/templates`             | bearer     | List templates                |
+| POST   | `/api/templates`             | bearer     | Create template               |
+| PUT    | `/api/templates/:id`         | bearer     | Update template               |
+| DELETE | `/api/templates/:id`         | bearer     | Delete template               |
+| GET    | `/api/devices`               | bearer     | List paired devices           |
+| POST   | `/api/devices/pair`          | bearer     | Pair a new Android device     |
+| POST   | `/api/devices/:id/heartbeat` | device     | Device → server keepalive     |
+| GET    | `/api/responses`             | bearer     | Recent responses              |
+| POST   | `/api/responses/submit`      | device     | Device → server submit review |
+| GET    | `/api/admins`                | super only | List sub admins               |
+| POST   | `/api/admins`                | super only | Create sub admin              |
+| PATCH  | `/api/admins/:id/status`     | super only | Enable / disable an admin     |
 
 ## Local development
 
