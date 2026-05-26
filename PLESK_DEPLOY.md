@@ -1,11 +1,11 @@
 # Deploying the ReviewOS Backend to Plesk
 
 Your API will live at:
-**`https://silly-bhabha.103-69-196-157.plesk.page`**
+**`http://ecstatic-shockley.103-69-196-157.plesk.page`**
 
-> ⚠️ **You MUST enable SSL.** The Lovable frontend runs on HTTPS, and browsers
-> block any call from HTTPS → plain HTTP (mixed-content). Without SSL the
-> dashboard will show a "Network error reaching API" toast on login.
+> ⚠️ Plesk currently shows the Node.js Application URL as HTTP. This works only
+> when the frontend is also opened over HTTP. If your frontend is published on
+> HTTPS, enable SSL for this API domain and change `VITE_API_URL` back to HTTPS.
 
 ---
 
@@ -72,7 +72,8 @@ This creates the tables and the first super-admin:
 ## 7. Start the app
 
 Plesk → **Node.js** → **Restart App**.
-Open **`https://<your-domain>/health`** in your browser — you should see:
+Open **`http://<your-domain>/`** in your browser. You should see API status JSON.
+Then open **`http://<your-domain>/health`** — you should see:
 ```json
 {"ok":true,"ts":...}
 ```
@@ -86,7 +87,7 @@ After it finishes, force HTTPS in **Hosting Settings**.
 
 In the Lovable project, the file `.env` already contains:
 ```
-VITE_API_URL=https://silly-bhabha.103-69-196-157.plesk.page
+VITE_API_URL=http://ecstatic-shockley.103-69-196-157.plesk.page
 ```
 After you publish the frontend, log in with the seeded super-admin account.
 

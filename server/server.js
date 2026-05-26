@@ -19,7 +19,32 @@ app.use(cors({ origin: origins.includes("*") ? true : origins, credentials: true
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
+app.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "ReviewOS API",
+    health: "/health",
+    docs: "/api",
+  });
+});
+
 app.get("/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
+
+app.get("/api", (_req, res) => {
+  res.json({
+    service: "ReviewOS API",
+    endpoints: {
+      health: "GET /health",
+      login: "POST /api/auth/login",
+      me: "GET /api/auth/me",
+      templates: "GET|POST /api/templates",
+      devices: "GET /api/devices",
+      pairDevice: "POST /api/devices/pair",
+      responses: "GET /api/responses",
+      admins: "GET|POST /api/admins",
+    },
+  });
+});
 
 app.use("/api/auth", authRouter);
 app.use("/api/templates", templatesRouter);
