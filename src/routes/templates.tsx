@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Plus, MoreHorizontal, Copy, Eye, Power } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,8 @@ function TemplatesPage() {
         title="Templates"
         description="Drag-and-drop review forms — unlimited questions, conditional logic, live preview."
         actions={
-          <Button>
-            <Plus className="size-4" /> New Template
+          <Button asChild>
+            <Link to="/templates/builder"><Plus className="size-4" /> New Template</Link>
           </Button>
         }
       />
@@ -42,7 +42,7 @@ function TemplatesPage() {
             <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-white/5">
               <Stat label="Questions" value={t.questions} />
               <Stat label="Responses" value={t.responses.toLocaleString()} />
-              <Stat label="Tablets" value={t.assignedTablets} />
+              <Stat label="Devices" value={t.assignedDevices} />
             </div>
 
             <div className="flex items-center justify-between mt-4 text-xs text-muted-foreground">
@@ -56,15 +56,18 @@ function TemplatesPage() {
           </GlassCard>
         ))}
 
-        <GlassCard className="border-dashed border-white/10 grid place-items-center min-h-[220px] cursor-pointer hover:bg-white/5 transition-colors">
+        <Link
+          to="/templates/builder"
+          className="glass rounded-2xl p-5 border border-dashed border-white/10 grid place-items-center min-h-[220px] hover:bg-white/5 transition-colors"
+        >
           <div className="text-center">
             <div className="size-12 rounded-2xl bg-white/5 grid place-items-center mx-auto mb-3">
               <Plus className="size-5 text-muted-foreground" />
             </div>
             <div className="font-medium">Create new template</div>
-            <div className="text-xs text-muted-foreground mt-1">Start from scratch or clone existing</div>
+            <div className="text-xs text-muted-foreground mt-1">Open drag &amp; drop builder</div>
           </div>
-        </GlassCard>
+        </Link>
       </div>
     </DashboardLayout>
   );

@@ -31,7 +31,7 @@ function AdminsPage() {
               <Button variant="ghost" size="icon" className="size-8"><MoreHorizontal className="size-4" /></Button>
             </div>
             <div className="grid grid-cols-3 gap-2 mt-5 pt-4 border-t border-white/5">
-              <div><div className="text-[10px] uppercase text-muted-foreground">Tablets</div><div className="font-semibold mt-0.5">{a.tablets}</div></div>
+              <div><div className="text-[10px] uppercase text-muted-foreground">Devices</div><div className="font-semibold mt-0.5">{a.devices}</div></div>
               <div><div className="text-[10px] uppercase text-muted-foreground">Templates</div><div className="font-semibold mt-0.5">{a.templates}</div></div>
               <div><div className="text-[10px] uppercase text-muted-foreground">Responses</div><div className="font-semibold mt-0.5">{a.responses.toLocaleString()}</div></div>
             </div>
