@@ -1,0 +1,474 @@
+import * as React from "react";
+import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
+import {
+  DndContext, DragOverlay, KeyboardSensor, PointerSensor,
+  closestCenter, useDroppable, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext, arrayMove, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  ArrowLeft, GripVertical, Plus, Star, Smile, ListChecks, CheckCircle2,
+  Type, AlignLeft, ToggleLeft, Hash, Trash2, Copy, Eye, Save, Sparkles,
+} from "lucide-react";
+import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import {
+  QUESTION_LIBRARY, type BuilderQuestion, type QuestionType,
+} from "@/lib/mock-data";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+export const Route = createFileRoute("/templates/builder")({ component: BuilderPage });
+
+const ICONS: Record<QuestionType, React.ComponentType<{ className?: string }>> = {
+  rating: Star,
+  nps: Hash,
+  emoji: Smile,
+  yes_no: ToggleLeft,
+  single_choice: CheckCircle2,
+  multiple_choice: ListChecks,
+  short_text: Type,
+  long_text: AlignLeft,
+};
+
+function makeQuestion(type: QuestionType): BuilderQuestion {
+  const def = QUESTION_LIBRARY.find((q) => q.type === type)!;
+  const base: BuilderQuestion = {
+    id: `q_${Math.random().toString(36).slice(2, 9)}`,
+    type,
+    label: def.label + "?",
+    required: false,
+  };
+  if (type === "single_choice" || type === "multiple_choice") {
+    base.options = ["Option 1", "Option 2", "Option 3"];
+  }
+  return base;
+}
+
+function BuilderPage() {
+  const router = useRouter();
+  const [name, setName] = React.useState("Untitled Template");
+  const [description, setDescription] = React.useState("");
+  const [questions, setQuestions] = React.useState<BuilderQuestion[]>([
+    makeQuestion("rating"),
+    makeQuestion("short_text"),
+  ]);
+  const [selectedId, setSelectedId] = React.useState<string | null>(questions[0]?.id ?? null);
+  const [activeDrag, setActiveDrag] = React.useState<
+    | { kind: "library"; type: QuestionType }
+    | { kind: "sortable"; id: string }
+    | null
+  >(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function onDragStart(e: DragStartEvent) {
+    const data = e.active.data.current as
+      | { kind: "library"; type: QuestionType }
+      | { kind: "sortable"; id: string }
+      | undefined;
+    if (data) setActiveDrag(data);
+  }
+
+  function onDragEnd(e: DragEndEvent) {
+    setActiveDrag(null);
+    const { active, over } = e;
+    if (!over) return;
+    const aData = active.data.current as { kind?: string; type?: QuestionType } | undefined;
+
+    if (aData?.kind === "library" && aData.type) {
+      const newQ = makeQuestion(aData.type);
+      setQuestions((qs) => {
+        if (over.id === "canvas") return [...qs, newQ];
+        const overIdx = qs.findIndex((q) => q.id === over.id);
+        if (overIdx === -1) return [...qs, newQ];
+        const next = [...qs];
+        next.splice(overIdx + 1, 0, newQ);
+        return next;
+      });
+      setSelectedId(newQ.id);
+      return;
+    }
+
+    if (aData?.kind === "sortable" && active.id !== over.id) {
+      setQuestions((qs) => {
+        const from = qs.findIndex((q) => q.id === active.id);
+        const to = qs.findIndex((q) => q.id === over.id);
+        if (from === -1 || to === -1) return qs;
+        return arrayMove(qs, from, to);
+      });
+    }
+  }
+
+  const selected = questions.find((q) => q.id === selectedId) ?? null;
+
+  function updateSelected(patch: Partial<BuilderQuestion>) {
+    if (!selected) return;
+    setQuestions((qs) => qs.map((q) => (q.id === selected.id ? { ...q, ...patch } : q)));
+  }
+  function removeQuestion(id: string) {
+    setQuestions((qs) => qs.filter((q) => q.id !== id));
+    if (selectedId === id) setSelectedId(null);
+  }
+  function duplicateQuestion(id: string) {
+    setQuestions((qs) => {
+      const i = qs.findIndex((q) => q.id === id);
+      if (i === -1) return qs;
+      const copy: BuilderQuestion = { ...qs[i], id: `q_${Math.random().toString(36).slice(2, 9)}` };
+      const next = [...qs];
+      next.splice(i + 1, 0, copy);
+      return next;
+    });
+  }
+
+  function save(publish = false) {
+    toast.success(publish ? "Template published" : "Template saved as draft", {
+      description: `${name} · ${questions.length} questions`,
+    });
+    router.navigate({ to: "/templates" });
+  }
+
+  return (
+    <DashboardLayout>
+      <PageHeader
+        title="Template Builder"
+        description="Drag question types from the library, drop into the canvas, edit on the right."
+        actions={
+          <>
+            <Button variant="outline" className="bg-white/5 border-white/10" asChild>
+              <Link to="/templates"><ArrowLeft className="size-4" /> Back</Link>
+            </Button>
+            <Button variant="outline" className="bg-white/5 border-white/10" onClick={() => save(false)}>
+              <Save className="size-4" /> Save Draft
+            </Button>
+            <Button onClick={() => save(true)}>
+              <Sparkles className="size-4" /> Publish
+            </Button>
+          </>
+        }
+      />
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <div className="grid grid-cols-12 gap-4">
+          {/* Question Library */}
+          <GlassCard className="col-span-12 lg:col-span-3 p-4">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
+              Question Library
+            </div>
+            <div className="space-y-2">
+              {QUESTION_LIBRARY.map((q) => (
+                <LibraryItem key={q.type} type={q.type} label={q.label} hint={q.hint} />
+              ))}
+            </div>
+            <div className="mt-4 text-[11px] text-muted-foreground border-t border-white/5 pt-3">
+              Drag a card into the canvas, or click <Plus className="inline size-3 -mt-0.5" /> on any item to append.
+            </div>
+          </GlassCard>
+
+          {/* Canvas */}
+          <div className="col-span-12 lg:col-span-6 space-y-4">
+            <GlassCard className="p-5">
+              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Template name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="bg-transparent border-0 px-0 text-2xl font-semibold focus-visible:ring-0 h-auto mt-1"
+              />
+              <Textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Short description shown to customers…"
+                className="bg-white/5 border-white/10 mt-2 min-h-16 resize-none"
+              />
+            </GlassCard>
+
+            <Canvas
+              questions={questions}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onRemove={removeQuestion}
+              onDuplicate={duplicateQuestion}
+            />
+          </div>
+
+          {/* Inspector */}
+          <GlassCard className="col-span-12 lg:col-span-3 p-4 h-fit lg:sticky lg:top-6">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Eye className="size-3.5" /> Inspector
+            </div>
+            {selected ? (
+              <Inspector q={selected} onChange={updateSelected} />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select a question to edit its label, options, and validation.
+              </p>
+            )}
+          </GlassCard>
+        </div>
+
+        <DragOverlay dropAnimation={null}>
+          {activeDrag?.kind === "library" && (
+            <div className="glass-strong rounded-xl px-3 py-2.5 text-sm shadow-2xl border border-primary/30 inline-flex items-center gap-2">
+              <GripVertical className="size-3.5 text-muted-foreground" />
+              {QUESTION_LIBRARY.find((q) => q.type === activeDrag.type)?.label}
+            </div>
+          )}
+          {activeDrag?.kind === "sortable" && (
+            <div className="glass-strong rounded-xl p-3 shadow-2xl border border-primary/30 text-sm">
+              Moving…
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+    </DashboardLayout>
+  );
+}
+
+function LibraryItem({ type, label, hint }: { type: QuestionType; label: string; hint: string }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
+    id: `lib_${type}`,
+    data: { kind: "library", type },
+  });
+  const Icon = ICONS[type];
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing border border-white/5",
+        isDragging && "opacity-40",
+      )}
+    >
+      <div className="size-7 rounded-lg bg-primary/10 grid place-items-center text-primary">
+        <Icon className="size-3.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium truncate">{label}</div>
+        <div className="text-[10px] text-muted-foreground truncate">{hint}</div>
+      </div>
+      <GripVertical className="size-3.5 text-muted-foreground shrink-0" />
+    </div>
+  );
+}
+
+function Canvas({
+  questions, selectedId, onSelect, onRemove, onDuplicate,
+}: {
+  questions: BuilderQuestion[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  onRemove: (id: string) => void;
+  onDuplicate: (id: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "glass rounded-2xl p-4 min-h-[360px] transition-colors",
+        isOver && "ring-2 ring-primary/40 bg-primary/5",
+      )}
+    >
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground px-1 mb-2">
+        Canvas · {questions.length} question{questions.length === 1 ? "" : "s"}
+      </div>
+      {questions.length === 0 ? (
+        <div className="border border-dashed border-white/10 rounded-xl h-64 grid place-items-center text-sm text-muted-foreground">
+          Drag a question from the left to start.
+        </div>
+      ) : (
+        <SortableContext items={questions.map((q) => q.id)} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {questions.map((q, i) => (
+              <SortableQuestion
+                key={q.id}
+                q={q}
+                index={i}
+                selected={selectedId === q.id}
+                onSelect={() => onSelect(q.id)}
+                onRemove={() => onRemove(q.id)}
+                onDuplicate={() => onDuplicate(q.id)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      )}
+    </div>
+  );
+}
+
+function SortableQuestion({
+  q, index, selected, onSelect, onRemove, onDuplicate,
+}: {
+  q: BuilderQuestion;
+  index: number;
+  selected: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+  onDuplicate: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: q.id,
+    data: { kind: "sortable", id: q.id },
+  });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  const Icon = ICONS[q.type];
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      onClick={onSelect}
+      className={cn(
+        "group rounded-xl border bg-white/[0.03] p-3 flex items-start gap-3 transition-colors cursor-pointer",
+        selected ? "border-primary/40 bg-primary/[0.06]" : "border-white/5 hover:border-white/10 hover:bg-white/[0.06]",
+        isDragging && "opacity-50",
+      )}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        onClick={(e) => e.stopPropagation()}
+        className="size-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
+        aria-label="Drag"
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <div className="size-8 rounded-lg bg-primary/10 grid place-items-center text-primary shrink-0">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground">Q{index + 1}</span>
+          {q.required && <Badge variant="secondary" className="bg-rose-400/15 text-rose-300 text-[9px] px-1.5 py-0">Required</Badge>}
+        </div>
+        <div className="font-medium text-sm mt-0.5 truncate">{q.label}</div>
+        <QuestionPreview q={q} />
+      </div>
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Button size="icon" variant="ghost" className="size-7" onClick={(e) => { e.stopPropagation(); onDuplicate(); }}>
+          <Copy className="size-3.5" />
+        </Button>
+        <Button size="icon" variant="ghost" className="size-7 text-rose-300 hover:text-rose-200" onClick={(e) => { e.stopPropagation(); onRemove(); }}>
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function QuestionPreview({ q }: { q: BuilderQuestion }) {
+  switch (q.type) {
+    case "rating":
+      return (
+        <div className="flex gap-1 mt-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} className="size-4 text-muted-foreground/40" />
+          ))}
+        </div>
+      );
+    case "nps":
+      return (
+        <div className="flex gap-0.5 mt-2 flex-wrap">
+          {Array.from({ length: 11 }).map((_, i) => (
+            <span key={i} className="text-[10px] size-5 grid place-items-center rounded bg-white/5 text-muted-foreground">{i}</span>
+          ))}
+        </div>
+      );
+    case "emoji":
+      return <div className="text-lg mt-1.5 tracking-widest">😡 😕 😐 🙂 😍</div>;
+    case "yes_no":
+      return (
+        <div className="flex gap-1.5 mt-2">
+          <span className="text-[11px] px-2 py-0.5 rounded bg-white/5 text-muted-foreground">Yes</span>
+          <span className="text-[11px] px-2 py-0.5 rounded bg-white/5 text-muted-foreground">No</span>
+        </div>
+      );
+    case "single_choice":
+    case "multiple_choice":
+      return (
+        <div className="flex flex-wrap gap-1.5 mt-2">
+          {(q.options ?? []).map((o, i) => (
+            <span key={i} className="text-[11px] px-2 py-0.5 rounded bg-white/5 text-muted-foreground">{o}</span>
+          ))}
+        </div>
+      );
+    case "short_text":
+      return <div className="mt-2 h-7 rounded bg-white/5 border border-white/5" />;
+    case "long_text":
+      return <div className="mt-2 h-14 rounded bg-white/5 border border-white/5" />;
+  }
+}
+
+function Inspector({ q, onChange }: { q: BuilderQuestion; onChange: (patch: Partial<BuilderQuestion>) => void }) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Question label</Label>
+        <Input
+          value={q.label}
+          onChange={(e) => onChange({ label: e.target.value })}
+          className="bg-white/5 border-white/10 mt-1.5"
+        />
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+        <Label htmlFor="req" className="text-sm">Required</Label>
+        <Switch id="req" checked={q.required} onCheckedChange={(v) => onChange({ required: v })} />
+      </div>
+
+      {(q.type === "single_choice" || q.type === "multiple_choice") && (
+        <div>
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Options</Label>
+          <div className="space-y-1.5 mt-1.5">
+            {(q.options ?? []).map((opt, i) => (
+              <div key={i} className="flex gap-1">
+                <Input
+                  value={opt}
+                  onChange={(e) => {
+                    const next = [...(q.options ?? [])];
+                    next[i] = e.target.value;
+                    onChange({ options: next });
+                  }}
+                  className="bg-white/5 border-white/10"
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-9 shrink-0 text-rose-300"
+                  onClick={() => onChange({ options: (q.options ?? []).filter((_, j) => j !== i) })}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            ))}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full bg-white/5 border-white/10"
+              onClick={() => onChange({ options: [...(q.options ?? []), `Option ${(q.options?.length ?? 0) + 1}`] })}
+            >
+              <Plus className="size-3.5" /> Add option
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="text-[11px] text-muted-foreground border-t border-white/5 pt-3">
+        Type: <span className="text-foreground capitalize">{q.type.replace("_", " ")}</span>
+      </div>
+    </div>
+  );
+}
