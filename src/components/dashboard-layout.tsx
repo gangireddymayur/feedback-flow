@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link, useRouter, useRouterState } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FileText, Tablet, MessageSquare, BarChart3,
+  LayoutDashboard, FileText, Smartphone, MessageSquare, BarChart3,
   Users, Settings, LogOut, Search, Bell, Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ type NavItem = { to: string; label: string; icon: React.ComponentType<{ classNam
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["super", "sub"] },
   { to: "/templates", label: "Templates", icon: FileText, roles: ["sub"] },
-  { to: "/devices", label: "Tablets", icon: Tablet, roles: ["sub"] },
+  { to: "/devices", label: "Devices", icon: Smartphone, roles: ["sub"] },
   { to: "/responses", label: "Responses", icon: MessageSquare, roles: ["sub"] },
   { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["super", "sub"] },
   { to: "/admins", label: "Sub Admins", icon: Users, roles: ["super"] },
@@ -28,7 +28,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (auth === null && typeof window !== "undefined") {
-      // initial check completed and no auth — redirect
       const stored = localStorage.getItem("rms_auth");
       if (!stored) router.navigate({ to: "/login" });
     }
@@ -40,7 +39,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex text-foreground">
-      {/* Sidebar */}
       <aside className="hidden lg:flex w-64 shrink-0 flex-col p-4 gap-2 sticky top-0 h-screen">
         <div className="glass-strong rounded-2xl p-4 flex items-center gap-3">
           <div className="size-9 rounded-xl bg-gradient-to-br from-[oklch(0.82_0.16_200)] to-[oklch(0.78_0.18_300)] grid place-items-center">
@@ -53,7 +51,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="glass rounded-2xl p-2 flex flex-col gap-0.5 flex-1">
           {items.map((it) => {
-            const active = pathname === it.to;
+            const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
             const Icon = it.icon;
             return (
               <Link
@@ -95,13 +93,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 min-w-0 p-4 lg:p-6 lg:pl-0">
         <header className="glass rounded-2xl px-4 py-3 flex items-center gap-3 mb-6">
           <div className="relative flex-1 max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
-              placeholder="Search templates, tablets, responses…"
+              placeholder="Search templates, devices, responses…"
               className="pl-9 bg-white/5 border-white/10 focus-visible:ring-primary/40"
             />
           </div>

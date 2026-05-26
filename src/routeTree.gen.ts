@@ -17,6 +17,7 @@ import { Route as DevicesRouteImport } from './routes/devices'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AdminsRouteImport } from './routes/admins'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TemplatesBuilderRouteImport } from './routes/templates.builder'
 
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
@@ -58,6 +59,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TemplatesBuilderRoute = TemplatesBuilderRouteImport.update({
+  id: '/builder',
+  path: '/builder',
+  getParentRoute: () => TemplatesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -67,7 +73,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
   '/settings': typeof SettingsRoute
-  '/templates': typeof TemplatesRoute
+  '/templates': typeof TemplatesRouteWithChildren
+  '/templates/builder': typeof TemplatesBuilderRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -77,7 +84,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
   '/settings': typeof SettingsRoute
-  '/templates': typeof TemplatesRoute
+  '/templates': typeof TemplatesRouteWithChildren
+  '/templates/builder': typeof TemplatesBuilderRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -88,7 +96,8 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
   '/settings': typeof SettingsRoute
-  '/templates': typeof TemplatesRoute
+  '/templates': typeof TemplatesRouteWithChildren
+  '/templates/builder': typeof TemplatesBuilderRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/responses'
     | '/settings'
     | '/templates'
+    | '/templates/builder'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/responses'
     | '/settings'
     | '/templates'
+    | '/templates/builder'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/responses'
     | '/settings'
     | '/templates'
+    | '/templates/builder'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -131,7 +143,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResponsesRoute: typeof ResponsesRoute
   SettingsRoute: typeof SettingsRoute
-  TemplatesRoute: typeof TemplatesRoute
+  TemplatesRoute: typeof TemplatesRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -192,8 +204,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/templates/builder': {
+      id: '/templates/builder'
+      path: '/builder'
+      fullPath: '/templates/builder'
+      preLoaderRoute: typeof TemplatesBuilderRouteImport
+      parentRoute: typeof TemplatesRoute
+    }
   }
 }
+
+interface TemplatesRouteChildren {
+  TemplatesBuilderRoute: typeof TemplatesBuilderRoute
+}
+
+const TemplatesRouteChildren: TemplatesRouteChildren = {
+  TemplatesBuilderRoute: TemplatesBuilderRoute,
+}
+
+const TemplatesRouteWithChildren = TemplatesRoute._addFileChildren(
+  TemplatesRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -203,18 +234,8 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResponsesRoute: ResponsesRoute,
   SettingsRoute: SettingsRoute,
-  TemplatesRoute: TemplatesRoute,
+  TemplatesRoute: TemplatesRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

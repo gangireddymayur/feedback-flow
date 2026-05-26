@@ -12,7 +12,7 @@ function ResponsesPage() {
     <DashboardLayout>
       <PageHeader
         title="Responses"
-        description="Real-time customer feedback across all paired tablets."
+        description="Real-time customer feedback across all paired devices."
         actions={
           <>
             <Button variant="outline" className="bg-white/5 border-white/10"><Filter className="size-4" /> Filter</Button>

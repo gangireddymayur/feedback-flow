@@ -5,7 +5,7 @@ import {
   PieChart, Pie, Cell, BarChart, Bar,
 } from "recharts";
 import {
-  Star, MessageSquare, Tablet, FileText, TrendingUp, AlertTriangle,
+  Star, MessageSquare, Smartphone, FileText, TrendingUp, AlertTriangle,
   ArrowUpRight, Sparkles,
 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
@@ -22,7 +22,7 @@ function DashboardPage() {
     <DashboardLayout>
       <PageHeader
         title="Overview"
-        description="Live review pulse across all your tablets."
+        description="Live review pulse across all your devices."
         actions={
           <>
             <Button variant="outline" className="bg-white/5 border-white/10">Export</Button>
@@ -38,7 +38,7 @@ function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Kpi icon={MessageSquare} label="Total Reviews" value={KPIS.totalReviews.toLocaleString()} delta="+12.4%" />
         <Kpi icon={Star} label="Avg. Rating" value={KPIS.avgRating.toFixed(1)} delta="+0.2" tone="success" />
-        <Kpi icon={Tablet} label="Active Tablets" value={KPIS.totalTablets.toString()} delta="2 offline" tone="warn" />
+        <Kpi icon={Smartphone} label="Active Devices" value={KPIS.totalDevices.toString()} delta="2 offline" tone="warn" />
         <Kpi icon={FileText} label="Active Templates" value={KPIS.activeTemplates.toString()} delta="+1 this week" />
       </div>
 
@@ -166,7 +166,7 @@ function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <GlassCard className="lg:col-span-2">
           <div className="mb-4">
-            <h3 className="font-semibold">Tablet Activity</h3>
+            <h3 className="font-semibold">Device Activity</h3>
             <p className="text-xs text-muted-foreground">Best & worst performers today</p>
           </div>
           <div className="space-y-2">
