@@ -135,7 +135,7 @@ const seed = () => {
       device: r.device,
       rating: r.rating,
       answers: r.comment ? { comment: r.comment } : {},
-      submitted_at: r.submittedAt,
+      submitted_at: new Date(Date.now() - i * 7 * 60 * 1000).toISOString(),
       duration_seconds:
         r.duration.split(":").reduce((a, b) => a * 60 + Number(b), 0) || 0,
     };
