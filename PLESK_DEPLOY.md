@@ -84,7 +84,7 @@ Then open **`http://<your-domain>/api`** to see the API endpoint list, or
 **`http://<your-domain>/health`** — you should see:
 
 ```json
-{"ok":true,"ts":...}
+{"ok":true,"database":"ok","ts":...}
 ```
 
 ## 8. Enable SSL (CRITICAL)
@@ -106,11 +106,13 @@ After you publish the frontend, log in with the seeded super-admin account.
 
 ## Troubleshooting
 
-| Symptom                           | Cause                                                          | Fix                                                 |
-| --------------------------------- | -------------------------------------------------------------- | --------------------------------------------------- |
-| "Network error reaching API"      | Mixed content (HTTP API)                                       | Enable SSL in Plesk (step 8)                        |
-| Blank white dashboard on HTTP URL | Previous server upgraded dashboard assets to unavailable HTTPS | Deploy the latest `server.js`, then restart the app |
-| `401 Invalid credentials`         | Wrong password                                                 | Re-run migrate or reset via DB                      |
-| `CORS` error in browser console   | Origin not allowed                                             | Set `CORS_ORIGINS=*` then restart                   |
-| `ER_ACCESS_DENIED_ERROR` in logs  | DB password mismatch                                           | Fix `.env`, restart Node app                        |
-| 502 / 503 from Plesk              | App crashed at boot                                            | Check **Node.js → Show logs**                       |
+| Symptom                                     | Cause                                                             | Fix                                                                 |
+| ------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| "Network error reaching API"                | Mixed content (HTTP API)                                          | Enable SSL in Plesk (step 8)                                        |
+| Blank white dashboard on HTTP URL           | Previous server upgraded dashboard assets to unavailable HTTPS    | Deploy the latest `server.js`, then restart the app                 |
+| Sign-in fails with an internal server error | Database connection is unavailable or the schema was not migrated | Confirm `.env` database values, run `migrate`, then restart the app |
+| `/health` reports `database: "unavailable"` | Node cannot query MySQL                                           | Fix database access in `.env` and restart the app                   |
+| `401 Invalid credentials`                   | Wrong password                                                    | Re-run migrate or reset via DB                                      |
+| `CORS` error in browser console             | Origin not allowed                                                | Set `CORS_ORIGINS=*` then restart                                   |
+| `ER_ACCESS_DENIED_ERROR` in logs            | DB password mismatch                                              | Fix `.env`, restart Node app                                        |
+| 502 / 503 from Plesk                        | App crashed at boot                                               | Check **Node.js → Show logs**                                       |

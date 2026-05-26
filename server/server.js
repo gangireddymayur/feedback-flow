@@ -11,6 +11,7 @@ const { devicesRouter } = require("./src/routes/devices.js");
 const { responsesRouter } = require("./src/routes/responses.js");
 const { adminsRouter } = require("./src/routes/admins.js");
 const { errorHandler } = require("./src/middleware/error.js");
+const { query } = require("./src/db.js");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -33,7 +34,15 @@ app.use(cors({ origin: origins.includes("*") ? true : origins, credentials: true
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-app.get("/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
+app.get("/health", async (_req, res) => {
+  try {
+    await query("SELECT 1");
+    res.json({ ok: true, database: "ok", ts: Date.now() });
+  } catch (error) {
+    console.error("[ReviewOS] Database health check failed", error);
+    res.status(503).json({ ok: false, database: "unavailable", ts: Date.now() });
+  }
+});
 
 app.get("/api", (_req, res) => {
   res.json({

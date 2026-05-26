@@ -15,15 +15,23 @@ function LoginPage() {
   const [email, setEmail] = React.useState("admin@reviewos.app");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
+    if (!email.trim() || !password) {
+      setError("Enter your email and password to sign in.");
+      return;
+    }
     setLoading(true);
     try {
       await loginWithApi(email, password);
       router.navigate({ to: "/" });
     } catch (err) {
-      toast.error("Sign-in failed", { description: (err as Error).message });
+      const message = (err as Error).message;
+      setError(message);
+      toast.error("Sign-in failed", { description: message });
     } finally {
       setLoading(false);
     }
@@ -45,18 +53,53 @@ function LoginPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
         <p className="text-sm text-muted-foreground mt-1 mb-6">Sign in to manage your reviews.</p>
 
-        <form onSubmit={submit} className="space-y-4">
+        <form onSubmit={submit} noValidate className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="bg-white/5 border-white/10" />
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError("");
+              }}
+              className="bg-white/5 border-white/10"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="bg-white/5 border-white/10" />
+            <Input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError("");
+              }}
+              className="bg-white/5 border-white/10"
+            />
           </div>
           <Button type="submit" disabled={loading} className="w-full mt-2 group">
-            {loading ? <Loader2 className="size-4 animate-spin" /> : <>Sign in <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></>}
+            {loading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <>
+                Sign in{" "}
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </>
+            )}
           </Button>
+          {error && (
+            <p
+              role="alert"
+              className="rounded-lg border border-rose-400/25 bg-rose-400/10 px-3 py-2 text-xs text-rose-200"
+            >
+              Sign-in failed: {error}
+            </p>
+          )}
           <p className="text-[11px] text-center text-muted-foreground break-all">
             API: {API_BASE || <span className="text-rose-300">VITE_API_URL not set</span>}
           </p>

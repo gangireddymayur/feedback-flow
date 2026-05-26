@@ -7,6 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
 
@@ -73,9 +74,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ReviewOS — Modern Review Management Platform" },
-      { name: "description", content: "Premium review & feedback management with device pairing, dynamic templates, and real-time analytics." },
+      {
+        name: "description",
+        content:
+          "Premium review & feedback management with device pairing, dynamic templates, and real-time analytics.",
+      },
       { property: "og:title", content: "ReviewOS — Review Management Platform" },
-      { property: "og:description", content: "Manage reviews, devices, and analytics in one premium dashboard." },
+      {
+        property: "og:description",
+        content: "Manage reviews, devices, and analytics in one premium dashboard.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -112,6 +120,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <Toaster position="top-right" richColors />
     </QueryClientProvider>
   );
 }
