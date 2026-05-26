@@ -7,7 +7,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "migrate": "node scripts/migrate.js"
+    "migrate": "node scripts/migrate.js",
+    "build:frontend": "cd .. && npm install && npm run build:plesk",
+    "postinstall": "echo 'Run: npm run build:frontend to build the dashboard'"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
