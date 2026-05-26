@@ -19,7 +19,16 @@ const frontendIndex = path.join(frontendClientDir, "index.html");
 const hasFrontendBuild = fs.existsSync(frontendIndex);
 
 const origins = (process.env.CORS_ORIGINS || "*").split(",").map((s) => s.trim());
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        // The Plesk preview URL uses HTTP until SSL is enabled.
+        "upgrade-insecure-requests": null,
+      },
+    },
+  }),
+);
 app.use(cors({ origin: origins.includes("*") ? true : origins, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
@@ -61,7 +70,8 @@ if (hasFrontendBuild) {
       service: "ReviewOS API",
       health: "/health",
       docs: "/api",
-      frontend: "Run npm run build:plesk and deploy server/app-build/client to show the dashboard here.",
+      frontend:
+        "Run npm run build:plesk and deploy server/app-build/client to show the dashboard here.",
     });
   });
 }
