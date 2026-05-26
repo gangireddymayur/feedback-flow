@@ -17,7 +17,16 @@ export const Route = createFileRoute("/devices")({ component: DevicesPage });
 function DevicesPage() {
   const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({ queryKey: ["devices"], queryFn: () => Devices.list(), refetchInterval: 15000 });
+  const templatesQ = useQuery({ queryKey: ["templates"], queryFn: () => Templates.list() });
   const devices = data?.devices ?? [];
+  const templates = templatesQ.data?.templates ?? [];
+
+  const assign = useMutation({
+    mutationFn: ({ id, template_id }: { id: number; template_id: number | null }) =>
+      Devices.assignTemplate(id, template_id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["devices"] }); toast.success("Template assigned"); },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const [open, setOpen] = React.useState(false);
   const [code, setCode] = React.useState("");
