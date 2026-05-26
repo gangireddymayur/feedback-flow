@@ -83,8 +83,7 @@ This creates the tables and the first super-admin:
 ## 7. Start the app
 
 Plesk → **Node.js** → **Restart App**.
-Open **`http://<your-domain>/`** in your browser. You should see the ReviewOS dashboard.
-Then open **`http://<your-domain>/api`** to see the API endpoint list, or
+Open **`http://<your-domain>/api`** in your browser to see the API endpoint list, or
 **`http://<your-domain>/health`** — you should see:
 
 ```json
@@ -118,4 +117,5 @@ the seeded super-admin account.
 | `401 Invalid credentials`                   | Wrong password                                                    | Re-run migrate or reset via DB                                      |
 | `CORS` error in browser console             | Origin not allowed                                                | Set `CORS_ORIGINS=*` then restart                                   |
 | `ER_ACCESS_DENIED_ERROR` in logs            | DB password mismatch                                              | Fix `.env`, restart Node app                                        |
+| IIS `404 - File or directory not found` on `/health` | Plesk is serving static IIS files instead of the Node.js app | Enable Node.js for this exact domain, set Application root to the folder containing `server.js`, set startup file to `server.js`, then restart |
 | 502 / 503 from Plesk                        | App crashed at boot                                               | Check **Node.js → Show logs**                                       |

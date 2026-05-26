@@ -8,8 +8,8 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "migrate": "node scripts/migrate.js",
-    "build:frontend": "node scripts/build-frontend.js",
-    "postinstall": "echo 'Run: build:frontend from Plesk Node.js commands to build the dashboard'"
+    "build:frontend": "echo 'Frontend is deployed on Vercel; Plesk only runs the API.'",
+    "postinstall": "echo 'Dependencies installed. Run migrate once, then restart the Plesk Node.js app.'"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
