@@ -2,9 +2,8 @@ const { execSync } = require('child_process');
 const path = require('path');
 
 const projectRoot = path.resolve(__dirname, '..', '..');
-const command = process.platform === 'win32'
-  ? 'cmd /d /s /c "npm install && npm run build:plesk"'
-  : 'npm install && npm run build:plesk';
+const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+const command = `"${process.execPath}" "${npmCli}" install && "${process.execPath}" "${npmCli}" run build:plesk`;
 
 try {
   execSync(command, {
