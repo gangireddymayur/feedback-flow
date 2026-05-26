@@ -1,11 +1,11 @@
-import { Router } from "express";
-import bcrypt from "bcryptjs";
-import { z } from "zod";
-import { query } from "../db.js";
-import { requireAuth } from "../middleware/auth.js";
-import { asyncHandler } from "../middleware/error.js";
+const { Router } = require("express");
+const bcrypt = require("bcryptjs");
+const { z } = require("zod");
+const { query } = require("../db.js");
+const { requireAuth } = require("../middleware/auth.js");
+const { asyncHandler } = require("../middleware/error.js");
 
-export const adminsRouter = Router();
+const adminsRouter = Router();
 
 adminsRouter.get("/", requireAuth(["super"]), asyncHandler(async (_req, res) => {
   const rows = await query(
@@ -41,3 +41,5 @@ adminsRouter.patch("/:id/status", requireAuth(["super"]), asyncHandler(async (re
   await query(`UPDATE admins SET status = ? WHERE id = ?`, [status, req.params.id]);
   res.json({ ok: true });
 }));
+
+module.exports = { adminsRouter };

@@ -1,12 +1,12 @@
-import jwt from "jsonwebtoken";
+const jwt = require("jsonwebtoken");
 
-export function signToken(payload) {
+function signToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 }
 
-export function requireAuth(roles = []) {
+function requireAuth(roles = []) {
   return (req, res, next) => {
     const header = req.headers.authorization || "";
     const token = header.startsWith("Bearer ") ? header.slice(7) : null;
@@ -23,3 +23,5 @@ export function requireAuth(roles = []) {
     }
   };
 }
+
+module.exports = { signToken, requireAuth };

@@ -1,10 +1,10 @@
-import { Router } from "express";
-import { z } from "zod";
-import { query } from "../db.js";
-import { requireAuth } from "../middleware/auth.js";
-import { asyncHandler } from "../middleware/error.js";
+const { Router } = require("express");
+const { z } = require("zod");
+const { query } = require("../db.js");
+const { requireAuth } = require("../middleware/auth.js");
+const { asyncHandler } = require("../middleware/error.js");
 
-export const responsesRouter = Router();
+const responsesRouter = Router();
 
 responsesRouter.get("/", requireAuth(), asyncHandler(async (req, res) => {
   const rows = await query(
@@ -41,3 +41,5 @@ responsesRouter.post("/submit", asyncHandler(async (req, res) => {
   await query(`UPDATE devices SET responses_today = responses_today + 1 WHERE id = ?`, [body.device_id]);
   res.status(201).json({ id: result.insertId });
 }));
+
+module.exports = { responsesRouter };

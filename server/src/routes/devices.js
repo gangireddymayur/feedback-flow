@@ -1,10 +1,10 @@
-import { Router } from "express";
-import { z } from "zod";
-import { query } from "../db.js";
-import { requireAuth } from "../middleware/auth.js";
-import { asyncHandler } from "../middleware/error.js";
+const { Router } = require("express");
+const { z } = require("zod");
+const { query } = require("../db.js");
+const { requireAuth } = require("../middleware/auth.js");
+const { asyncHandler } = require("../middleware/error.js");
 
-export const devicesRouter = Router();
+const devicesRouter = Router();
 
 devicesRouter.get("/", requireAuth(), asyncHandler(async (req, res) => {
   const rows = await query(
@@ -44,3 +44,5 @@ devicesRouter.delete("/:id", requireAuth(), asyncHandler(async (req, res) => {
   await query("DELETE FROM devices WHERE id=? AND owner_id=?", [req.params.id, req.user.sub]);
   res.json({ ok: true });
 }));
+
+module.exports = { devicesRouter };

@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "ReviewOS — Express + MySQL backend (Plesk Node.js compatible)",
   "main": "server.js",
-  "type": "module",
   "engines": { "node": ">=18" },
   "scripts": {
     "start": "node server.js",
