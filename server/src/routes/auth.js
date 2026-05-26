@@ -1,11 +1,11 @@
-import { Router } from "express";
-import bcrypt from "bcryptjs";
-import { z } from "zod";
-import { query } from "../db.js";
-import { signToken, requireAuth } from "../middleware/auth.js";
-import { asyncHandler } from "../middleware/error.js";
+const { Router } = require("express");
+const bcrypt = require("bcryptjs");
+const { z } = require("zod");
+const { query } = require("../db.js");
+const { signToken, requireAuth } = require("../middleware/auth.js");
+const { asyncHandler } = require("../middleware/error.js");
 
-export const authRouter = Router();
+const authRouter = Router();
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -32,3 +32,5 @@ authRouter.get("/me", requireAuth(), asyncHandler(async (req, res) => {
   if (!rows[0]) return res.status(404).json({ error: "Not found" });
   res.json({ user: rows[0] });
 }));
+
+module.exports = { authRouter };
