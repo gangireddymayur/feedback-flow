@@ -34,6 +34,32 @@ app.use(cors({ origin: origins.includes("*") ? true : origins, credentials: true
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
+app.get("/interaction-test", (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ReviewOS Interaction Test</title>
+    <style>
+      body { font: 16px Arial, sans-serif; padding: 40px; background: #fff; color: #111; }
+      main { max-width: 520px; }
+      input, button { display: block; width: 100%; box-sizing: border-box; margin: 14px 0; padding: 12px; font-size: 16px; }
+      button { cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Interaction test</h1>
+      <p>This page contains no application JavaScript. Right-click this text, then type in the box.</p>
+      <label for="typing">Typing test</label>
+      <input id="typing" type="text" placeholder="Type here">
+      <button type="button">Normal button</button>
+    </main>
+  </body>
+</html>`);
+});
+
 app.get("/health", async (_req, res) => {
   try {
     await query("SELECT 1");
