@@ -1,8 +1,14 @@
-// Leave VITE_API_URL empty on Vercel so /api requests use its Plesk rewrite.
-// Set it locally only when directly connecting to a backend during development.
+// Pure client-side mock "API". No backend, no Plesk, no network.
+// All data lives in memory and resets on page reload.
 
-const RAW = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
-export const API_BASE = RAW.replace(/\/+$/, "");
+import {
+  templates as MOCK_TEMPLATES,
+  devices as MOCK_DEVICES,
+  responses as MOCK_RESPONSES,
+  subAdmins as MOCK_ADMINS,
+} from "./mock-data";
+
+export const API_BASE = "mock";
 
 const TOKEN_KEY = "rms_token";
 
@@ -25,54 +31,9 @@ export class ApiError extends Error {
   }
 }
 
-type Opts = { method?: string; body?: unknown; auth?: boolean };
+const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
 
-export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (opts.auth !== false) {
-    const tok = getToken();
-    if (tok) headers.Authorization = `Bearer ${tok}`;
-  }
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}${path}`, {
-      method: opts.method ?? "GET",
-      headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    });
-  } catch (e) {
-    throw new ApiError(
-      `Network error reaching API. Check the Vercel /api rewrite and Plesk API status. (${(e as Error).message})`,
-      0,
-    );
-  }
-  const text = await res.text();
-  const data = text
-    ? (() => {
-        try {
-          return JSON.parse(text);
-        } catch {
-          return text;
-        }
-      })()
-    : null;
-  if (!res.ok) {
-    if (res.status === 401 && opts.auth !== false) {
-      setToken(null);
-      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
-        window.location.replace("/login");
-      }
-    }
-    const msg =
-      data && typeof data === "object" && "error" in data
-        ? String((data as { error: unknown }).error)
-        : `Request failed (${res.status})`;
-    throw new ApiError(msg, res.status);
-  }
-  return data as T;
-}
-
-// ===== Typed wrappers =====
+// ===== Types (kept stable for the rest of the app) =====
 
 export type Me = {
   id: number;
@@ -80,16 +41,6 @@ export type Me = {
   email: string;
   role: "super" | "sub";
   status?: string;
-};
-
-export const Auth = {
-  login: (email: string, password: string) =>
-    api<{ token: string; user: Me }>("/api/auth/login", {
-      method: "POST",
-      body: { email, password },
-      auth: false,
-    }),
-  me: () => api<{ user: Me }>("/api/auth/me"),
 };
 
 export type ApiTemplate = {
@@ -108,14 +59,6 @@ export type ApiTemplate = {
   created_at: string;
   updated_at: string;
 };
-export const Templates = {
-  list: () => api<{ templates: ApiTemplate[] }>("/api/templates"),
-  create: (body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) =>
-    api<{ id: number }>("/api/templates", { method: "POST", body }),
-  update: (id: number, body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) =>
-    api<{ ok: true }>(`/api/templates/${id}`, { method: "PUT", body }),
-  remove: (id: number) => api<{ ok: true }>(`/api/templates/${id}`, { method: "DELETE" }),
-};
 
 export type ApiDevice = {
   id: number;
@@ -126,12 +69,6 @@ export type ApiDevice = {
   last_sync: string | null;
   template_id: number | null;
   responses_today: number;
-};
-export const Devices = {
-  list: () => api<{ devices: ApiDevice[] }>("/api/devices"),
-  pair: (code: string, name: string, location: string) =>
-    api<{ id: number }>("/api/devices/pair", { method: "POST", body: { code, name, location } }),
-  remove: (id: number) => api<{ ok: true }>(`/api/devices/${id}`, { method: "DELETE" }),
 };
 
 export type ApiResponse = {
@@ -145,9 +82,6 @@ export type ApiResponse = {
   submitted_at: string;
   duration_seconds: number;
 };
-export const Responses = {
-  list: () => api<{ responses: ApiResponse[] }>("/api/responses"),
-};
 
 export type ApiAdmin = {
   id: number;
@@ -159,10 +93,212 @@ export type ApiAdmin = {
   devices: number;
   templates: number;
 };
+
+// ===== Seed in-memory stores from mock-data =====
+
+const seed = () => {
+  const templates: ApiTemplate[] = MOCK_TEMPLATES.map((t, i) => ({
+    id: i + 1,
+    name: t.name,
+    description: t.description,
+    category: t.category,
+    status: t.status,
+    questions: Array.from({ length: t.questions }, (_, q) => ({
+      id: `q${q + 1}`,
+      type: q === 0 ? "rating" : "short_text",
+      label: q === 0 ? "How was your experience?" : `Question ${q + 1}`,
+      required: q === 0,
+    })),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }));
+
+  const devices: ApiDevice[] = MOCK_DEVICES.map((d, i) => ({
+    id: i + 1,
+    name: d.name,
+    location: d.location,
+    status: d.status,
+    android_version: d.androidVersion,
+    last_sync: d.lastSync,
+    template_id: templates.find((t) => t.name === d.template)?.id ?? null,
+    responses_today: d.responsesToday,
+  }));
+
+  const responses: ApiResponse[] = MOCK_RESPONSES.map((r, i) => {
+    const tpl = templates.find((t) => t.name === r.template);
+    const dev = devices.find((d) => d.name === r.device);
+    return {
+      id: i + 1,
+      template_id: tpl?.id ?? 1,
+      template: r.template,
+      device_id: dev?.id ?? 1,
+      device: r.device,
+      rating: r.rating,
+      answers: r.comment ? { comment: r.comment } : {},
+      submitted_at: r.submittedAt,
+      duration_seconds:
+        r.duration.split(":").reduce((a, b) => a * 60 + Number(b), 0) || 0,
+    };
+  });
+
+  const admins: ApiAdmin[] = [
+    {
+      id: 1,
+      name: "Therese",
+      email: "admin@reviewos.app",
+      role: "super",
+      status: "active",
+      created_at: new Date().toISOString(),
+      devices: devices.length,
+      templates: templates.length,
+    },
+    ...MOCK_ADMINS.map((a, i) => ({
+      id: i + 2,
+      name: a.name,
+      email: a.email,
+      role: "sub" as const,
+      status: a.status,
+      created_at: new Date().toISOString(),
+      devices: a.devices,
+      templates: a.templates,
+    })),
+  ];
+
+  return { templates, devices, responses, admins };
+};
+
+const db = seed();
+
+// ===== Auth =====
+
+const DEMO_USER: Me = {
+  id: 1,
+  name: "Therese",
+  email: "admin@reviewos.app",
+  role: "super",
+  status: "active",
+};
+
+export const Auth = {
+  login: async (email: string, _password: string) => {
+    await delay();
+    return {
+      token: "mock-token-" + Date.now(),
+      user: { ...DEMO_USER, email: email || DEMO_USER.email },
+    };
+  },
+  me: async () => {
+    await delay(80);
+    return { user: DEMO_USER };
+  },
+};
+
+// ===== Templates =====
+
+export const Templates = {
+  list: async () => {
+    await delay();
+    return { templates: db.templates };
+  },
+  create: async (body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) => {
+    await delay();
+    const id = (db.templates.at(-1)?.id ?? 0) + 1;
+    const now = new Date().toISOString();
+    db.templates.push({ ...body, id, created_at: now, updated_at: now });
+    return { id };
+  },
+  update: async (
+    id: number,
+    body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">,
+  ) => {
+    await delay();
+    const i = db.templates.findIndex((t) => t.id === id);
+    if (i >= 0)
+      db.templates[i] = {
+        ...db.templates[i],
+        ...body,
+        updated_at: new Date().toISOString(),
+      };
+    return { ok: true as const };
+  },
+  remove: async (id: number) => {
+    await delay();
+    const i = db.templates.findIndex((t) => t.id === id);
+    if (i >= 0) db.templates.splice(i, 1);
+    return { ok: true as const };
+  },
+};
+
+// ===== Devices =====
+
+export const Devices = {
+  list: async () => {
+    await delay();
+    return { devices: db.devices };
+  },
+  pair: async (_code: string, name: string, location: string) => {
+    await delay();
+    const id = (db.devices.at(-1)?.id ?? 0) + 1;
+    db.devices.push({
+      id,
+      name,
+      location,
+      status: "online",
+      android_version: "Android 14",
+      last_sync: "just now",
+      template_id: db.templates[0]?.id ?? null,
+      responses_today: 0,
+    });
+    return { id };
+  },
+  remove: async (id: number) => {
+    await delay();
+    const i = db.devices.findIndex((d) => d.id === id);
+    if (i >= 0) db.devices.splice(i, 1);
+    return { ok: true as const };
+  },
+};
+
+// ===== Responses =====
+
+export const Responses = {
+  list: async () => {
+    await delay();
+    return { responses: db.responses };
+  },
+};
+
+// ===== Admins =====
+
 export const Admins = {
-  list: () => api<{ admins: ApiAdmin[] }>("/api/admins"),
-  create: (body: { name: string; email: string; password: string; role?: "sub" | "super" }) =>
-    api<{ id: number }>("/api/admins", { method: "POST", body }),
-  setStatus: (id: number, status: "active" | "disabled") =>
-    api<{ ok: true }>(`/api/admins/${id}/status`, { method: "PATCH", body: { status } }),
+  list: async () => {
+    await delay();
+    return { admins: db.admins };
+  },
+  create: async (body: {
+    name: string;
+    email: string;
+    password: string;
+    role?: "sub" | "super";
+  }) => {
+    await delay();
+    const id = (db.admins.at(-1)?.id ?? 0) + 1;
+    db.admins.push({
+      id,
+      name: body.name,
+      email: body.email,
+      role: body.role ?? "sub",
+      status: "active",
+      created_at: new Date().toISOString(),
+      devices: 0,
+      templates: 0,
+    });
+    return { id };
+  },
+  setStatus: async (id: number, status: "active" | "disabled") => {
+    await delay();
+    const a = db.admins.find((x) => x.id === id);
+    if (a) a.status = status;
+    return { ok: true as const };
+  },
 };
