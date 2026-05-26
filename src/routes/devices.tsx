@@ -97,7 +97,7 @@ function DevicesPage() {
                   <tr>
                     <th className="text-left font-medium px-5 py-3">Device</th>
                     <th className="text-left font-medium px-3 py-3">Status</th>
-                    <th className="text-left font-medium px-3 py-3">Android</th>
+                    <th className="text-left font-medium px-3 py-3">Active Template</th>
                     <th className="text-left font-medium px-3 py-3">Last sync</th>
                     <th className="text-right font-medium px-3 py-3">Today</th>
                     <th className="px-3" />
@@ -107,7 +107,9 @@ function DevicesPage() {
                   {devices.length === 0 && (
                     <tr><td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">No devices yet. Click "Pair Device" to add one.</td></tr>
                   )}
-                  {devices.map((d) => (
+                  {devices.map((d) => {
+                    const current = templates.find((t) => t.id === d.template_id);
+                    return (
                     <tr key={d.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.03] transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2.5">
@@ -123,7 +125,34 @@ function DevicesPage() {
                         </div>
                       </td>
                       <td className="px-3 py-4"><StatusPill status={d.status} /></td>
-                      <td className="px-3 py-4 text-muted-foreground">{d.android_version ?? "—"}</td>
+                      <td className="px-3 py-4">
+                        <Select
+                          value={d.template_id ? String(d.template_id) : "none"}
+                          onValueChange={(v) =>
+                            assign.mutate({ id: d.id, template_id: v === "none" ? null : Number(v) })
+                          }
+                        >
+                          <SelectTrigger className="h-8 w-[200px] bg-white/5 border-white/10 text-xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <FileText className="size-3.5 text-muted-foreground shrink-0" />
+                              <SelectValue placeholder="No template" />
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent className="glass-strong border-white/10">
+                            <SelectItem value="none">No template</SelectItem>
+                            {templates.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)} disabled={t.status !== "active"}>
+                                {t.name} {t.status !== "active" && <span className="text-muted-foreground">({t.status})</span>}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {current && (
+                          <div className="text-[10px] text-muted-foreground mt-1 truncate max-w-[200px]">
+                            Showing on device · {(current.questions ?? []).length} questions
+                          </div>
+                        )}
+                      </td>
                       <td className="px-3 py-4 text-muted-foreground">{d.last_sync ? new Date(d.last_sync).toLocaleString() : "never"}</td>
                       <td className="px-3 py-4 text-right font-semibold">{d.responses_today}</td>
                       <td className="px-3 py-4">
@@ -133,7 +162,8 @@ function DevicesPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
