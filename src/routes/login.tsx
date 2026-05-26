@@ -100,7 +100,7 @@ function LoginPage() {
             </p>
           )}
           <p className="text-[11px] text-center text-muted-foreground">
-            Demo mode — use any email and password to sign in.
+            Demo mode — <b>admin@reviewos.app</b> signs in as Super Admin, any other email as Sub Admin.
           </p>
         </form>
       </div>

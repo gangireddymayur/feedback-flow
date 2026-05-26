@@ -179,12 +179,25 @@ const DEMO_USER: Me = {
   status: "active",
 };
 
+function roleFromEmail(email: string): "super" | "sub" {
+  const e = email.trim().toLowerCase();
+  if (!e) return "super";
+  if (e === DEMO_USER.email || e.includes("super") || e.startsWith("admin@")) return "super";
+  return "sub";
+}
+
 export const Auth = {
   login: async (email: string, _password: string) => {
     await delay();
+    const role = roleFromEmail(email);
     return {
       token: "mock-token-" + Date.now(),
-      user: { ...DEMO_USER, email: email || DEMO_USER.email },
+      user: {
+        ...DEMO_USER,
+        email: email || DEMO_USER.email,
+        name: role === "super" ? "Therese" : email.split("@")[0] || "Sub Admin",
+        role,
+      },
     };
   },
   me: async () => {
