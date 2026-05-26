@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "build:plesk": "vite build --config vite.spa.config.ts",
     "build:vercel": "vite build --config vite.vercel.config.ts",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
