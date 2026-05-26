@@ -99,8 +99,8 @@ function LoginPage() {
               Sign-in failed: {error}
             </p>
           )}
-          <p className="text-[11px] text-center text-muted-foreground break-all">
-            API: {API_BASE || "Vercel /api proxy"}
+          <p className="text-[11px] text-center text-muted-foreground">
+            Demo mode — use any email and password to sign in.
           </p>
         </form>
       </div>
