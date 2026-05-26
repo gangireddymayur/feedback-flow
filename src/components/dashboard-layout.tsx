@@ -25,11 +25,15 @@ type NavItem = {
   roles: Array<"super" | "sub">;
 };
 
+// Role split:
+//  - Super admin oversees the org: manages sub-admins + sees analytics.
+//    Does NOT create templates and does NOT browse raw responses.
+//  - Sub admin runs day-to-day: templates, devices, responses.
 const NAV: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, roles: ["super", "sub"] },
-  { to: "/templates", label: "Templates", icon: FileText, roles: ["super", "sub"] },
-  { to: "/devices", label: "Devices", icon: Smartphone, roles: ["super", "sub"] },
-  { to: "/responses", label: "Responses", icon: MessageSquare, roles: ["super", "sub"] },
+  { to: "/templates", label: "Templates", icon: FileText, roles: ["sub"] },
+  { to: "/devices", label: "Devices", icon: Smartphone, roles: ["sub"] },
+  { to: "/responses", label: "Responses", icon: MessageSquare, roles: ["sub"] },
   { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["super", "sub"] },
   { to: "/admins", label: "Sub Admins", icon: Users, roles: ["super"] },
   { to: "/settings", label: "Settings", icon: Settings, roles: ["super", "sub"] },
