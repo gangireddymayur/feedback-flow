@@ -72,8 +72,9 @@ This creates the tables and the first super-admin:
 ## 7. Start the app
 
 Plesk → **Node.js** → **Restart App**.
-Open **`http://<your-domain>/`** in your browser. You should see API status JSON.
-Then open **`http://<your-domain>/health`** — you should see:
+Open **`http://<your-domain>/`** in your browser. You should see the ReviewOS dashboard.
+Then open **`http://<your-domain>/api`** to see the API endpoint list, or
+**`http://<your-domain>/health`** — you should see:
 ```json
 {"ok":true,"ts":...}
 ```

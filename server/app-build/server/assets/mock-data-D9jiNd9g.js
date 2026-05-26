@@ -1,0 +1,40 @@
+const KPIS = {
+  npsScore: 72
+};
+const responseTrend = [
+  { day: "Mon", responses: 220, rating: 4.4 },
+  { day: "Tue", responses: 285, rating: 4.5 },
+  { day: "Wed", responses: 312, rating: 4.6 },
+  { day: "Thu", responses: 298, rating: 4.5 },
+  { day: "Fri", responses: 410, rating: 4.7 },
+  { day: "Sat", responses: 502, rating: 4.8 },
+  { day: "Sun", responses: 388, rating: 4.6 }
+];
+const peakHours = Array.from({ length: 12 }, (_, i) => ({
+  hour: `${i * 2}:00`,
+  responses: Math.round(40 + Math.sin(i / 2) * 30 + Math.random() * 40)
+}));
+const templates = [
+  { id: "t1", name: "Restaurant Feedback", description: "Post-meal customer experience", category: "F&B", status: "active", questions: 8, responses: 4210, assignedDevices: 6, updatedAt: "2h ago" },
+  { id: "t2", name: "Hotel Check-out Survey", description: "Stay satisfaction & NPS", category: "Hospitality", status: "active", questions: 12, responses: 2890, assignedDevices: 4, updatedAt: "1d ago" },
+  { id: "t3", name: "Retail Store Visit", description: "Quick 3-tap rating", category: "Retail", status: "active", questions: 3, responses: 5102, assignedDevices: 10, updatedAt: "3h ago" },
+  { id: "t4", name: "Clinic Visit Survey", description: "Patient experience", category: "Healthcare", status: "inactive", questions: 6, responses: 645, assignedDevices: 2, updatedAt: "5d ago" },
+  { id: "t5", name: "Event Booth Demo", description: "Trade show feedback", category: "Events", status: "draft", questions: 5, responses: 0, assignedDevices: 0, updatedAt: "just now" }
+];
+const QUESTION_LIBRARY = [
+  { type: "rating", label: "Star Rating", hint: "1–5 stars" },
+  { type: "nps", label: "NPS Score", hint: "0–10 recommendation" },
+  { type: "emoji", label: "Emoji Reaction", hint: "😡 😕 😐 🙂 😍" },
+  { type: "yes_no", label: "Yes / No", hint: "Single boolean" },
+  { type: "single_choice", label: "Single Choice", hint: "Pick one option" },
+  { type: "multiple_choice", label: "Multiple Choice", hint: "Pick many" },
+  { type: "short_text", label: "Short Text", hint: "One-line input" },
+  { type: "long_text", label: "Long Text", hint: "Comment box" }
+];
+export {
+  KPIS as K,
+  QUESTION_LIBRARY as Q,
+  peakHours as p,
+  responseTrend as r,
+  templates as t
+};

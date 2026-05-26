@@ -1,4 +1,7 @@
 require("dotenv/config");
+const fs = require("fs");
+const path = require("path");
+const { pathToFileURL } = require("url");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -12,6 +15,15 @@ const { errorHandler } = require("./src/middleware/error.js");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const bundledFrontendDir = path.join(__dirname, "app-build");
+const localFrontendDir = path.join(__dirname, "..", "dist");
+const frontendBuildDir = fs.existsSync(path.join(bundledFrontendDir, "server", "index.js"))
+  ? bundledFrontendDir
+  : localFrontendDir;
+const frontendClientDir = path.join(frontendBuildDir, "client");
+const frontendServerEntry = path.join(frontendBuildDir, "server", "index.js");
+const hasFrontendBuild = fs.existsSync(frontendServerEntry);
+let frontendEntryPromise;
 
 const origins = (process.env.CORS_ORIGINS || "*").split(",").map((s) => s.trim());
 app.use(helmet());
@@ -19,14 +31,28 @@ app.use(cors({ origin: origins.includes("*") ? true : origins, credentials: true
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
-app.get("/", (_req, res) => {
-  res.json({
-    ok: true,
-    service: "ReviewOS API",
-    health: "/health",
-    docs: "/api",
+async function getFrontendEntry() {
+  if (!frontendEntryPromise) {
+    frontendEntryPromise = import(pathToFileURL(frontendServerEntry).href).then((m) => m.default ?? m);
+  }
+  return frontendEntryPromise;
+}
+
+function toWebRequest(req) {
+  const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  return new Request(`${protocol}://${host}${req.originalUrl}`, {
+    method: req.method,
+    headers: req.headers,
   });
-});
+}
+
+async function sendWebResponse(res, webResponse) {
+  res.status(webResponse.status);
+  webResponse.headers.forEach((value, key) => res.setHeader(key, value));
+  const body = Buffer.from(await webResponse.arrayBuffer());
+  res.send(body);
+}
 
 app.get("/health", (_req, res) => res.json({ ok: true, ts: Date.now() }));
 
@@ -51,6 +77,30 @@ app.use("/api/templates", templatesRouter);
 app.use("/api/devices", devicesRouter);
 app.use("/api/responses", responsesRouter);
 app.use("/api/admins", adminsRouter);
+
+if (hasFrontendBuild) {
+  app.use(express.static(frontendClientDir));
+  app.use(async (req, res, next) => {
+    if (req.path.startsWith("/api/")) return next();
+    try {
+      const frontend = await getFrontendEntry();
+      const response = await frontend.fetch(toWebRequest(req), {}, {});
+      return await sendWebResponse(res, response);
+    } catch (error) {
+      return next(error);
+    }
+  });
+} else {
+  app.get("/", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "ReviewOS API",
+      health: "/health",
+      docs: "/api",
+      frontend: "Build the React app and copy dist/client and dist/server into server/app-build to show the dashboard here.",
+    });
+  });
+}
 
 app.use((req, res) => res.status(404).json({ error: "Not found" }));
 app.use(errorHandler);
