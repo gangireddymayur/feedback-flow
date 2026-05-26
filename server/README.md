@@ -36,6 +36,8 @@ Built for Plesk's **Node.js** extension + **MySQL** databases.
 3. Click **NPM install** — Plesk installs the dependencies.
 4. Click **Restart App**.
 
+Plesk only runs this API. The dashboard frontend is deployed separately on Vercel.
+
 ## 4. Run migrations (one time)
 
 In Plesk → **Node.js** → **Run script** → enter `migrate` → Run.
@@ -54,6 +56,13 @@ The Vercel frontend uses its `/api` rewrite to forward requests to this Plesk
 application. Do not set `VITE_API_URL` in Vercel for that setup. After enabling
 SSL on this API domain, update the upstream URLs in the root `vercel.json` to
 use `https://`.
+
+Before testing login from Vercel, confirm this Plesk URL returns JSON instead of
+an IIS 404 page:
+
+```text
+http://<your-plesk-domain>/health
+```
 
 ---
 
