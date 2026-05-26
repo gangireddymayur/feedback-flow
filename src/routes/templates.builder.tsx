@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   QUESTION_LIBRARY, type BuilderQuestion, type QuestionType,
 } from "@/lib/mock-data";
+import { Templates } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -133,11 +134,24 @@ function BuilderPage() {
     });
   }
 
-  function save(publish = false) {
-    toast.success(publish ? "Template published" : "Template saved as draft", {
-      description: `${name} · ${questions.length} questions`,
-    });
-    router.navigate({ to: "/templates" });
+  const [saving, setSaving] = React.useState(false);
+  async function save(publish = false) {
+    setSaving(true);
+    try {
+      await Templates.create({
+        name,
+        description,
+        category: "General",
+        status: publish ? "active" : "draft",
+        questions,
+      });
+      toast.success(publish ? "Template published" : "Template saved as draft");
+      router.navigate({ to: "/templates" });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

@@ -1,25 +1,44 @@
 import * as React from "react";
-import type { Role } from "./mock-data";
+import { Auth, getToken, setToken, type Me } from "./api";
 
-type AuthState = { role: Role; name: string; email: string };
+export type Role = "super" | "sub";
+export type AuthState = { role: Role; name: string; email: string; id: number };
 
-const KEY = "rms_auth";
+const USER_KEY = "rms_user";
 
 export function getAuth(): AuthState | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as AuthState) : null;
+    const raw = localStorage.getItem(USER_KEY);
+    if (!raw || !getToken()) return null;
+    return JSON.parse(raw) as AuthState;
   } catch {
     return null;
   }
 }
 
-export function setAuth(a: AuthState | null) {
+function persist(a: AuthState | null) {
   if (typeof window === "undefined") return;
-  if (a) localStorage.setItem(KEY, JSON.stringify(a));
-  else localStorage.removeItem(KEY);
+  if (a) localStorage.setItem(USER_KEY, JSON.stringify(a));
+  else localStorage.removeItem(USER_KEY);
   window.dispatchEvent(new Event("rms-auth-change"));
+}
+
+function toState(u: Me): AuthState {
+  return { id: u.id, name: u.name, email: u.email, role: u.role };
+}
+
+export async function loginWithApi(email: string, password: string) {
+  const { token, user } = await Auth.login(email, password);
+  setToken(token);
+  const state = toState(user);
+  persist(state);
+  return state;
+}
+
+export function logout() {
+  setToken(null);
+  persist(null);
 }
 
 export function useAuth() {
