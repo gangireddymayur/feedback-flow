@@ -164,11 +164,11 @@ function BuilderPage() {
             <Button variant="outline" className="bg-white/5 border-white/10" asChild>
               <Link to="/templates"><ArrowLeft className="size-4" /> Back</Link>
             </Button>
-            <Button variant="outline" className="bg-white/5 border-white/10" onClick={() => save(false)}>
-              <Save className="size-4" /> Save Draft
+            <Button variant="outline" className="bg-white/5 border-white/10" disabled={saving} onClick={() => save(false)}>
+              <Save className="size-4" /> {saving ? "Saving…" : "Save Draft"}
             </Button>
-            <Button onClick={() => save(true)}>
-              <Sparkles className="size-4" /> Publish
+            <Button disabled={saving} onClick={() => save(true)}>
+              <Sparkles className="size-4" /> {saving ? "Publishing…" : "Publish"}
             </Button>
           </>
         }
