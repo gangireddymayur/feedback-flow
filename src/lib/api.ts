@@ -1,5 +1,10 @@
-// Pure client-side mock "API". No backend, no Plesk, no network.
-// All data lives in memory and resets on page reload.
+// Hybrid API client:
+//  • In production (Plesk) it calls real /api/* endpoints backed by MariaDB.
+//  • In the Lovable preview / dev sandbox (no backend), it transparently
+//    falls back to in-memory mock data so the UI keeps working.
+//
+// The mode is decided lazily: the first failed network call (or a 404)
+// flips the client into mock mode for the rest of the session.
 
 import {
   templates as MOCK_TEMPLATES,
@@ -8,9 +13,8 @@ import {
   subAdmins as MOCK_ADMINS,
 } from "./mock-data";
 
-export const API_BASE = "mock";
-
 const TOKEN_KEY = "rms_token";
+const MOCK_FLAG = "rms_mock_mode";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -23,6 +27,16 @@ export function setToken(t: string | null) {
   window.dispatchEvent(new Event("rms-auth-change"));
 }
 
+function isMockMode(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(MOCK_FLAG) === "1";
+}
+function enableMockMode() {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(MOCK_FLAG, "1");
+  console.info("[api] backend unreachable — using in-memory mock data");
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
@@ -31,9 +45,42 @@ export class ApiError extends Error {
   }
 }
 
-const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
+async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
 
-// ===== Types (kept stable for the rest of the app) =====
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, { ...init, headers });
+  } catch {
+    enableMockMode();
+    throw new ApiError("Network error", 0);
+  }
+  if (res.status === 404 || res.status === 0) {
+    enableMockMode();
+    throw new ApiError("Not found", res.status);
+  }
+  const text = await res.text();
+  const body = text ? safeJson(text) : null;
+  if (!res.ok) throw new ApiError(body?.error || res.statusText, res.status);
+  return body as T;
+}
+
+function safeJson(s: string) {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
+
+// =================================================================
+// Types
+// =================================================================
 
 export type Me = {
   id: number;
@@ -94,7 +141,9 @@ export type ApiAdmin = {
   templates: number;
 };
 
-// ===== Seed in-memory stores from mock-data =====
+// =================================================================
+// Mock store (used only when backend is unreachable)
+// =================================================================
 
 const seed = () => {
   const templates: ApiTemplate[] = MOCK_TEMPLATES.map((t, i) => ({
@@ -169,8 +218,6 @@ const seed = () => {
 
 const db = seed();
 
-// ===== Auth =====
-
 const DEMO_USER: Me = {
   id: 1,
   name: "Therese",
@@ -178,16 +225,29 @@ const DEMO_USER: Me = {
   role: "super",
   status: "active",
 };
-
 function roleFromEmail(email: string): "super" | "sub" {
   const e = email.trim().toLowerCase();
-  if (!e) return "super";
-  if (e === DEMO_USER.email || e.includes("super") || e.startsWith("admin@")) return "super";
+  if (!e || e === DEMO_USER.email || e.startsWith("admin@") || e.includes("super")) return "super";
   return "sub";
 }
 
+// =================================================================
+// Auth — tries real backend first, falls back to mock
+// =================================================================
+
 export const Auth = {
-  login: async (email: string, _password: string) => {
+  login: async (email: string, password: string) => {
+    if (!isMockMode()) {
+      try {
+        return await http<{ token: string; user: Me }>("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+        // network failure → fall through to mock
+      }
+    }
     await delay();
     const role = roleFromEmail(email);
     return {
@@ -201,40 +261,56 @@ export const Auth = {
     };
   },
   me: async () => {
-    await delay(80);
+    if (!isMockMode()) {
+      try {
+        return await http<{ user: Me }>("/me");
+      } catch {
+        /* fall through */
+      }
+    }
+    await delay(50);
     return { user: DEMO_USER };
   },
 };
 
-// ===== Templates =====
+// =================================================================
+// Resources — real first, mock fallback (auto via http())
+// =================================================================
 
 export const Templates = {
   list: async () => {
-    await delay();
-    return { templates: db.templates };
+    if (!isMockMode()) {
+      try { return await http<{ templates: ApiTemplate[] }>("/templates"); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(); return { templates: db.templates };
   },
   create: async (body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) => {
+    if (!isMockMode()) {
+      try { return await http<{ id: number }>("/templates", { method: "POST", body: JSON.stringify(body) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay();
     const id = (db.templates[db.templates.length - 1]?.id ?? 0) + 1;
     const now = new Date().toISOString();
     db.templates.push({ ...body, id, created_at: now, updated_at: now });
     return { id };
   },
-  update: async (
-    id: number,
-    body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">,
-  ) => {
+  update: async (id: number, body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) => {
+    if (!isMockMode()) {
+      try { return await http<{ ok: true }>(`/templates/${id}`, { method: "PUT", body: JSON.stringify(body) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay();
     const i = db.templates.findIndex((t) => t.id === id);
-    if (i >= 0)
-      db.templates[i] = {
-        ...db.templates[i],
-        ...body,
-        updated_at: new Date().toISOString(),
-      };
+    if (i >= 0) db.templates[i] = { ...db.templates[i], ...body, updated_at: new Date().toISOString() };
     return { ok: true as const };
   },
   remove: async (id: number) => {
+    if (!isMockMode()) {
+      try { return await http<{ ok: true }>(`/templates/${id}`, { method: "DELETE" }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay();
     const i = db.templates.findIndex((t) => t.id === id);
     if (i >= 0) db.templates.splice(i, 1);
@@ -242,35 +318,45 @@ export const Templates = {
   },
 };
 
-// ===== Devices =====
-
 export const Devices = {
   list: async () => {
-    await delay();
-    return { devices: db.devices };
+    if (!isMockMode()) {
+      try { return await http<{ devices: ApiDevice[] }>("/devices"); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(); return { devices: db.devices };
   },
-  pair: async (_code: string, name: string, location: string) => {
+  pair: async (code: string, name: string, location: string) => {
+    if (!isMockMode()) {
+      try { return await http<{ id: number }>("/devices/pair", { method: "POST", body: JSON.stringify({ code, name, location }) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay();
     const id = (db.devices[db.devices.length - 1]?.id ?? 0) + 1;
     db.devices.push({
-      id,
-      name,
-      location,
-      status: "online",
+      id, name, location, status: "online",
       android_version: "Android 14",
-      last_sync: "just now",
+      last_sync: new Date().toISOString(),
       template_id: db.templates[0]?.id ?? null,
       responses_today: 0,
     });
     return { id };
   },
   assignTemplate: async (id: number, template_id: number | null) => {
+    if (!isMockMode()) {
+      try { return await http<{ ok: true }>(`/devices/${id}/template`, { method: "PUT", body: JSON.stringify({ template_id }) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay(120);
     const d = db.devices.find((x) => x.id === id);
     if (d) d.template_id = template_id;
     return { ok: true as const };
   },
   remove: async (id: number) => {
+    if (!isMockMode()) {
+      try { return await http<{ ok: true }>(`/devices/${id}`, { method: "DELETE" }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay();
     const i = db.devices.findIndex((d) => d.id === id);
     if (i >= 0) db.devices.splice(i, 1);
@@ -278,43 +364,44 @@ export const Devices = {
   },
 };
 
-// ===== Responses =====
-
 export const Responses = {
   list: async () => {
-    await delay();
-    return { responses: db.responses };
+    if (!isMockMode()) {
+      try { return await http<{ responses: ApiResponse[] }>("/responses"); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(); return { responses: db.responses };
   },
 };
 
-// ===== Admins =====
-
 export const Admins = {
   list: async () => {
-    await delay();
-    return { admins: db.admins };
+    if (!isMockMode()) {
+      try { return await http<{ admins: ApiAdmin[] }>("/admins"); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(); return { admins: db.admins };
   },
-  create: async (body: {
-    name: string;
-    email: string;
-    password: string;
-    role?: "sub" | "super";
-  }) => {
+  create: async (body: { name: string; email: string; password: string; role?: "sub" | "super" }) => {
+    if (!isMockMode()) {
+      try { return await http<{ id: number }>("/admins", { method: "POST", body: JSON.stringify(body) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay();
     const id = (db.admins[db.admins.length - 1]?.id ?? 0) + 1;
     db.admins.push({
-      id,
-      name: body.name,
-      email: body.email,
-      role: body.role ?? "sub",
-      status: "active",
+      id, name: body.name, email: body.email,
+      role: body.role ?? "sub", status: "active",
       created_at: new Date().toISOString(),
-      devices: 0,
-      templates: 0,
+      devices: 0, templates: 0,
     });
     return { id };
   },
   setStatus: async (id: number, status: "active" | "disabled") => {
+    if (!isMockMode()) {
+      try { return await http<{ ok: true }>(`/admins/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
     await delay();
     const a = db.admins.find((x) => x.id === id);
     if (a) a.status = status;
