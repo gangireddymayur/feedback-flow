@@ -158,7 +158,6 @@ function DevicesPage() {
                       <td className="px-3 py-4">
                         <div className="flex items-center justify-end gap-1">
                           <Button size="icon" variant="ghost" className="size-7 text-rose-300" onClick={() => del.mutate(d.id)}><Trash2 className="size-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="size-7"><MoreHorizontal className="size-3.5" /></Button>
                         </div>
                       </td>
                     </tr>
