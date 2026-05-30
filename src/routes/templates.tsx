@@ -69,7 +69,25 @@ function TemplatesPage() {
                   <h3 className="font-semibold tracking-tight truncate">{t.name}</h3>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
                 </div>
-                <Button size="icon" variant="ghost" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="glass-strong border-white/10">
+                    <DropdownMenuItem onClick={() => setStatusMut.mutate({ id: t.id, status: t.status === "active" ? "inactive" : "active", t })}>
+                      {t.status === "active"
+                        ? <><PowerOff className="size-3.5 mr-2" /> Deactivate</>
+                        : <><Power className="size-3.5 mr-2" /> Activate</>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => dup.mutate(t)}>
+                      <Copy className="size-3.5 mr-2" /> Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => del.mutate(t.id)} className="text-rose-300 focus:text-rose-200">
+                      <Trash2 className="size-3.5 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <div className="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-white/5">
