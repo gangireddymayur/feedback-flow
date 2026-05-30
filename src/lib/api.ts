@@ -415,6 +415,14 @@ export const Devices = {
     });
     return { id };
   },
+  generatePairingCode: async (): Promise<{ code: string; expires_in_seconds: number }> => {
+    if (!isMockMode()) {
+      try { return await http<{ code: string; expires_in_seconds: number }>("/devices/pairing-code", { method: "POST" }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(120);
+    return { code: String(Math.floor(100000 + Math.random() * 900000)), expires_in_seconds: 600 };
+  },
   assignTemplate: async (id: number, template_id: number | null) => {
     if (!isMockMode()) {
       try { return await http<{ ok: true }>(`/devices/${id}/template`, { method: "PUT", body: JSON.stringify({ template_id }) }); }
