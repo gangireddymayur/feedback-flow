@@ -8,6 +8,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "start": "node server.js",
+    "db:check": "node scripts/check-db.cjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
