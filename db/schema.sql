@@ -75,12 +75,11 @@ SET FOREIGN_KEY_CHECKS = 1;
 INSERT INTO users (name, email, password_hash, role, status) VALUES
   ('Therese',  'admin@reviewos.app', '$2b$10$alt8uoHymwrSMN4fPJFw0uUFGeKLIpAm9L3B8PCOn1Li8YXj2Dzeu', 'super', 'active');
 
--- A couple of demo sub-admins (password for all demo subs: ChangeMe!2026 → bcrypt below)
--- $2b$10$rEHrnq.4Vj1xVUiUPC.NXOaP3wWcL0PpkLPP7eYI3nQ1XlqFZQXmO  ← ChangeMe!2026
+-- A couple of demo sub-admins (password for all demo subs: ChangeMe!2026)
 INSERT INTO users (name, email, password_hash, role, status) VALUES
-  ('Aisha Khan',  'aisha@brand.co',         '$2b$10$rEHrnq.4Vj1xVUiUPC.NXOaP3wWcL0PpkLPP7eYI3nQ1XlqFZQXmO', 'sub', 'active'),
-  ('Marco Rossi', 'marco@hotelnorth.com',   '$2b$10$rEHrnq.4Vj1xVUiUPC.NXOaP3wWcL0PpkLPP7eYI3nQ1XlqFZQXmO', 'sub', 'active'),
-  ('Priya Shah',  'priya@retailgroup.in',   '$2b$10$rEHrnq.4Vj1xVUiUPC.NXOaP3wWcL0PpkLPP7eYI3nQ1XlqFZQXmO', 'sub', 'active');
+  ('Aisha Khan',  'aisha@brand.co',         '$2b$10$kZI0O2y9tQWaLQdzwk.iNuISlHrHdMlTxIaCwEa6RFbA6rZROsdgq', 'sub', 'active'),
+  ('Marco Rossi', 'marco@hotelnorth.com',   '$2b$10$kZI0O2y9tQWaLQdzwk.iNuISlHrHdMlTxIaCwEa6RFbA6rZROsdgq', 'sub', 'active'),
+  ('Priya Shah',  'priya@retailgroup.in',   '$2b$10$kZI0O2y9tQWaLQdzwk.iNuISlHrHdMlTxIaCwEa6RFbA6rZROsdgq', 'sub', 'active');
 
 -- Demo templates owned by Aisha (user id 2)
 INSERT INTO templates (owner_id, name, description, category, status, questions) VALUES
