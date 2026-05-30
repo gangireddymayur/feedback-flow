@@ -271,6 +271,79 @@ export const Auth = {
     await delay(50);
     return { user: DEMO_USER };
   },
+  changePassword: async (current_password: string, new_password: string) => {
+    if (!isMockMode()) {
+      try {
+        return await http<{ ok: true }>("/auth/password", {
+          method: "PUT",
+          body: JSON.stringify({ current_password, new_password }),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
+    }
+    await delay();
+    return { ok: true as const };
+  },
+};
+
+// =================================================================
+// Profile (org / timezone)
+// =================================================================
+export type ApiProfile = { organization: string | null; timezone: string | null; avatar_url: string | null };
+
+const PROFILE_LS = "rms_profile_extra";
+export const Profile = {
+  get: async (): Promise<{ profile: ApiProfile }> => {
+    if (!isMockMode()) {
+      try { return await http<{ profile: ApiProfile }>("/profile"); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(50);
+    try {
+      const v = JSON.parse(localStorage.getItem(PROFILE_LS) || "{}");
+      return { profile: { organization: v.organization ?? null, timezone: v.timezone ?? "UTC", avatar_url: null } };
+    } catch { return { profile: { organization: null, timezone: "UTC", avatar_url: null } }; }
+  },
+  update: async (body: Partial<ApiProfile>) => {
+    if (!isMockMode()) {
+      try { return await http<{ ok: true }>("/profile", { method: "PUT", body: JSON.stringify(body) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(50);
+    localStorage.setItem(PROFILE_LS, JSON.stringify(body));
+    return { ok: true as const };
+  },
+};
+
+// =================================================================
+// Notification preferences
+// =================================================================
+export const Notifications = {
+  get: async (): Promise<{ prefs: Record<string, boolean> }> => {
+    if (!isMockMode()) {
+      try { return await http<{ prefs: Record<string, boolean> }>("/notifications/prefs"); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(50);
+    const prefs: Record<string, boolean> = {};
+    if (typeof window !== "undefined") {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)!;
+        if (k.startsWith("rms_notif_")) prefs[k.slice(10)] = localStorage.getItem(k) === "1";
+      }
+    }
+    return { prefs };
+  },
+  update: async (prefs: Record<string, boolean>) => {
+    if (!isMockMode()) {
+      try { return await http<{ ok: true }>("/notifications/prefs", { method: "PUT", body: JSON.stringify({ prefs }) }); }
+      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+    }
+    await delay(30);
+    for (const [k, v] of Object.entries(prefs)) localStorage.setItem(`rms_notif_${k}`, v ? "1" : "0");
+    return { ok: true as const };
+  },
 };
 
 // =================================================================
