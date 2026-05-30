@@ -67,7 +67,12 @@ function DevicesPage() {
               </DialogHeader>
               <div className="space-y-3 pt-2">
                 <Label htmlFor="code">Pairing code</Label>
-                <Input id="code" placeholder="• • • • • •" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14" />
+                <div className="flex gap-2">
+                  <Input id="code" placeholder="• • • • • •" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14 flex-1" />
+                  <Button type="button" variant="outline" className="h-14" onClick={() => genCode.mutate()} disabled={genCode.isPending}>
+                    {genCode.isPending ? "…" : "Generate"}
+                  </Button>
+                </div>
                 <Label htmlFor="dname">Device name</Label>
                 <Input id="dname" value={name} onChange={(e) => setName(e.target.value)} className="bg-white/5 border-white/10" placeholder="Lobby Tablet" />
                 <Label htmlFor="dloc">Location</Label>
