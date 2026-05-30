@@ -24,6 +24,22 @@ function TemplatesPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template deleted"); },
     onError: (e) => toast.error((e as Error).message),
   });
+  const setStatusMut = useMutation({
+    mutationFn: ({ id, status, t }: { id: number; status: "active" | "draft" | "inactive"; t: any }) =>
+      Templates.update(id, {
+        name: t.name, description: t.description, category: t.category, status, questions: t.questions ?? [],
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template updated"); },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const dup = useMutation({
+    mutationFn: (t: any) => Templates.create({
+      name: `${t.name} (copy)`, description: t.description, category: t.category,
+      status: "draft", questions: t.questions ?? [],
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template duplicated"); },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const templates = data?.templates ?? [];
 
