@@ -359,24 +359,6 @@ app.post(
   }),
 );
 
-// ---------------- audit log (super only) ----------------
-app.get(
-  "/api/audit",
-  auth(),
-  requireSuper,
-  asyncH(async (_req, res) => {
-    const [rows] = await pool.query(
-      `SELECT a.id, a.actor_id, u.name AS actor_name, u.email AS actor_email,
-              a.action, a.subject, a.meta, a.created_at
-       FROM audit_log a
-       LEFT JOIN users u ON u.id = a.actor_id
-       ORDER BY a.created_at DESC LIMIT 200`,
-    );
-    res.json({
-      entries: rows.map((r) => ({ ...r, meta: parseJson(r.meta, null) })),
-    });
-  }),
-);
 
 app.use("/api", (err, _req, res, _next) => {
   console.error("[api error]", err);
