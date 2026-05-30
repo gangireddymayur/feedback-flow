@@ -46,11 +46,6 @@ function DevicesPage() {
     mutationFn: (id: number) => Devices.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["devices"] }); toast.success("Removed"); },
   });
-  const genCode = useMutation({
-    mutationFn: () => Devices.generatePairingCode(),
-    onSuccess: (r) => { setCode(r.code); toast.success(`Code ${r.code} · valid 10 min`); },
-    onError: (e) => toast.error((e as Error).message),
-  });
 
   return (
     <DashboardLayout>
@@ -63,16 +58,11 @@ function DevicesPage() {
             <DialogContent className="glass-strong border-white/10 sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Pair a new device</DialogTitle>
-                <DialogDescription>Enter the 6-digit code shown by the ReviewOS app on the device.</DialogDescription>
+                <DialogDescription>Open the ReviewOS app on the tablet and enter the 6-digit code it displays.</DialogDescription>
               </DialogHeader>
               <div className="space-y-3 pt-2">
                 <Label htmlFor="code">Pairing code</Label>
-                <div className="flex gap-2">
-                  <Input id="code" placeholder="• • • • • •" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14 flex-1" />
-                  <Button type="button" variant="outline" className="h-14" onClick={() => genCode.mutate()} disabled={genCode.isPending}>
-                    {genCode.isPending ? "…" : "Generate"}
-                  </Button>
-                </div>
+                <Input id="code" placeholder="• • • • • •" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14" />
                 <Label htmlFor="dname">Device name</Label>
                 <Input id="dname" value={name} onChange={(e) => setName(e.target.value)} className="bg-white/5 border-white/10" placeholder="Lobby Tablet" />
                 <Label htmlFor="dloc">Location</Label>
