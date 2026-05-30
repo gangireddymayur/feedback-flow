@@ -256,6 +256,128 @@ app.put(
   }),
 );
 
+// ---------------- user profile (org + timezone) ----------------
+app.get(
+  "/api/profile",
+  auth(),
+  asyncH(async (req, res) => {
+    const [rows] = await pool.query(
+      "SELECT organization, timezone, avatar_url FROM user_profiles WHERE user_id = ? LIMIT 1",
+      [req.user.id],
+    );
+    res.json({ profile: rows[0] || { organization: null, timezone: "UTC", avatar_url: null } });
+  }),
+);
+
+app.put(
+  "/api/profile",
+  auth(),
+  asyncH(async (req, res) => {
+    const { organization = null, timezone = "UTC", avatar_url = null } = req.body || {};
+    await pool.query(
+      `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url)`,
+      [req.user.id, organization, timezone, avatar_url],
+    );
+    res.json({ ok: true });
+  }),
+);
+
+// ---------------- update password ----------------
+app.put(
+  "/api/auth/password",
+  auth(),
+  asyncH(async (req, res) => {
+    const { current_password, new_password } = req.body || {};
+    if (!current_password || !new_password) return res.status(400).json({ error: "current and new password required" });
+    if (new_password.length < 8) return res.status(400).json({ error: "new password must be >=8 chars" });
+    const [rows] = await pool.query("SELECT password_hash FROM users WHERE id = ? LIMIT 1", [req.user.id]);
+    if (!rows[0]) return res.status(404).json({ error: "Not found" });
+    const ok = await bcrypt.compare(current_password, rows[0].password_hash);
+    if (!ok) return res.status(401).json({ error: "Current password is incorrect" });
+    const hash = await bcrypt.hash(new_password, 10);
+    await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [hash, req.user.id]);
+    res.json({ ok: true });
+  }),
+);
+
+// ---------------- notification preferences ----------------
+app.get(
+  "/api/notifications/prefs",
+  auth(),
+  asyncH(async (req, res) => {
+    const [rows] = await pool.query(
+      "SELECT pref_key, enabled FROM notification_prefs WHERE user_id = ?",
+      [req.user.id],
+    );
+    const prefs = {};
+    for (const r of rows) prefs[r.pref_key] = !!r.enabled;
+    res.json({ prefs });
+  }),
+);
+
+app.put(
+  "/api/notifications/prefs",
+  auth(),
+  asyncH(async (req, res) => {
+    const { prefs } = req.body || {};
+    if (!prefs || typeof prefs !== "object") return res.status(400).json({ error: "prefs object required" });
+    const entries = Object.entries(prefs);
+    if (entries.length === 0) return res.json({ ok: true });
+    const values = entries.map(([k, v]) => [req.user.id, String(k).slice(0, 64), v ? 1 : 0]);
+    await pool.query(
+      `INSERT INTO notification_prefs (user_id, pref_key, enabled) VALUES ?
+       ON DUPLICATE KEY UPDATE enabled=VALUES(enabled)`,
+      [values],
+    );
+    res.json({ ok: true });
+  }),
+);
+
+// ---------------- device pairing codes (6-digit) ----------------
+app.post(
+  "/api/devices/pairing-code",
+  auth(),
+  asyncH(async (req, res) => {
+    // Generate unique 6-digit code, valid for 10 minutes
+    let code;
+    for (let i = 0; i < 5; i++) {
+      const c = String(Math.floor(100000 + Math.random() * 900000));
+      const [exist] = await pool.query(
+        "SELECT code FROM device_pairing_codes WHERE code = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1",
+        [c],
+      );
+      if (!exist.length) { code = c; break; }
+    }
+    if (!code) return res.status(500).json({ error: "Could not generate code" });
+    await pool.query(
+      "INSERT INTO device_pairing_codes (code, owner_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))",
+      [code, req.user.id],
+    );
+    res.json({ code, expires_in_seconds: 600 });
+  }),
+);
+
+// ---------------- audit log (super only) ----------------
+app.get(
+  "/api/audit",
+  auth(),
+  requireSuper,
+  asyncH(async (_req, res) => {
+    const [rows] = await pool.query(
+      `SELECT a.id, a.actor_id, u.name AS actor_name, u.email AS actor_email,
+              a.action, a.subject, a.meta, a.created_at
+       FROM audit_log a
+       LEFT JOIN users u ON u.id = a.actor_id
+       ORDER BY a.created_at DESC LIMIT 200`,
+    );
+    res.json({
+      entries: rows.map((r) => ({ ...r, meta: parseJson(r.meta, null) })),
+    });
+  }),
+);
+
 app.use("/api", (err, _req, res, _next) => {
   console.error("[api error]", err);
   res.status(500).json({ error: err.message || "Server error" });
