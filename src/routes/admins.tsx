@@ -79,7 +79,21 @@ function AdminsPage() {
                     <Mail className="size-3" /> {a.email}
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="glass-strong border-white/10">
+                    <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(a.email); toast.success("Email copied"); }}>
+                      <Copy className="size-3.5 mr-2" /> Copy email
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setStatus.mutate({ id: a.id, status: a.status === "active" ? "disabled" : "active" })}>
+                      {a.status === "active"
+                        ? <><PowerOff className="size-3.5 mr-2" /> Disable</>
+                        : <><Power className="size-3.5 mr-2" /> Enable</>}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-white/5">
                 <div><div className="text-[10px] uppercase text-muted-foreground">Devices</div><div className="font-semibold mt-0.5">{a.devices}</div></div>
