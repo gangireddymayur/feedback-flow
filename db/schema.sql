@@ -7,6 +7,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS responses;
+DROP TABLE IF EXISTS device_pairing_codes;
 DROP TABLE IF EXISTS devices;
 DROP TABLE IF EXISTS templates;
 DROP TABLE IF EXISTS users;
@@ -49,6 +50,19 @@ CREATE TABLE devices (
   created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_devices_owner    FOREIGN KEY (owner_id)    REFERENCES users(id)     ON DELETE SET NULL,
   CONSTRAINT fk_devices_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- device pairing codes ----------------
+CREATE TABLE device_pairing_codes (
+  code       CHAR(6) PRIMARY KEY,
+  owner_id   INT NULL,
+  device_id  INT NULL,
+  expires_at DATETIME NOT NULL,
+  used_at    DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_pair_expires (expires_at),
+  CONSTRAINT fk_pair_user   FOREIGN KEY (owner_id)  REFERENCES users(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_pair_device FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------- responses ----------------

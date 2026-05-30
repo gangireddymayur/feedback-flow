@@ -45,13 +45,18 @@ app.use(express.json({ limit: "1mb" }));
 const signToken = (user) =>
   jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
 
+const signDeviceToken = (device) =>
+  jwt.sign({ type: "device", id: device.id, owner_id: device.owner_id }, JWT_SECRET, { expiresIn: "365d" });
+
 function auth(required = true) {
   return (req, res, next) => {
     const h = req.headers.authorization || "";
     const token = h.startsWith("Bearer ") ? h.slice(7) : null;
     if (!token) return required ? res.status(401).json({ error: "No token" }) : next();
     try {
-      req.user = jwt.verify(token, JWT_SECRET);
+      const payload = jwt.verify(token, JWT_SECRET);
+      if (payload?.type === "device") req.device = payload;
+      else req.user = payload;
       next();
     } catch {
       return res.status(401).json({ error: "Invalid token" });
@@ -62,7 +67,57 @@ function auth(required = true) {
 const requireSuper = (req, res, next) =>
   req.user?.role === "super" ? next() : res.status(403).json({ error: "Super admin only" });
 
+const deviceAuth = (req, res, next) =>
+  req.device?.type === "device" ? next() : res.status(403).json({ error: "Device token required" });
+
 const asyncH = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+async function createPairingCode(ownerId = null) {
+  for (let i = 0; i < 8; i++) {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const [exist] = await pool.query(
+      "SELECT code FROM device_pairing_codes WHERE code = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1",
+      [code],
+    );
+    if (exist.length) continue;
+    await pool.query(
+      "INSERT INTO device_pairing_codes (code, owner_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))",
+      [code, ownerId],
+    );
+    return { code, expires_in_seconds: 600 };
+  }
+  throw new Error("Could not generate code");
+}
+
+// ---------------- public tablet pairing ----------------
+app.post(
+  "/api/public/devices/request-code",
+  asyncH(async (_req, res) => {
+    res.json(await createPairingCode(null));
+  }),
+);
+
+app.get(
+  "/api/public/devices/pair-status",
+  asyncH(async (req, res) => {
+    const code = String(req.query.code || "").replace(/\D/g, "").slice(0, 6);
+    if (code.length !== 6) return res.status(400).json({ error: "6-digit code required" });
+    const [rows] = await pool.query(
+      `SELECT pc.code, pc.used_at, pc.expires_at, d.id, d.owner_id, d.name, d.location, d.template_id
+       FROM device_pairing_codes pc
+       LEFT JOIN devices d ON d.id = pc.device_id
+       WHERE pc.code = ? LIMIT 1`,
+      [code],
+    );
+    const row = rows[0];
+    if (!row || (!row.used_at && new Date(row.expires_at).getTime() <= Date.now())) {
+      return res.json({ paired: false, expired: true });
+    }
+    if (!row.used_at || !row.id) return res.json({ paired: false });
+    const device = { id: row.id, owner_id: row.owner_id, name: row.name, location: row.location, template_id: row.template_id };
+    res.json({ paired: true, device_token: signDeviceToken(device), device });
+  }),
+);
 
 app.post(
   "/api/auth/login",
@@ -121,6 +176,21 @@ app.post(
   }),
 );
 
+app.get(
+  "/api/templates/:id",
+  auth(),
+  asyncH(async (req, res) => {
+    const id = Number(req.params.id);
+    const [rows] = await pool.query(
+      "SELECT id, name, description, category, status, questions, created_at, updated_at FROM templates WHERE id = ? LIMIT 1",
+      [id],
+    );
+    const template = rows[0];
+    if (!template) return res.status(404).json({ error: "Template not found" });
+    res.json({ ...template, questions: parseJson(template.questions, []) });
+  }),
+);
+
 app.put(
   "/api/templates/:id",
   auth(),
@@ -144,6 +214,30 @@ app.delete(
 );
 
 app.get(
+  "/api/devices/me",
+  auth(),
+  deviceAuth,
+  asyncH(async (req, res) => {
+    const [rows] = await pool.query(
+      "SELECT id, owner_id, name, location, status, android_version, last_sync, template_id, created_at FROM devices WHERE id = ? LIMIT 1",
+      [req.device.id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Device not found" });
+    res.json(rows[0]);
+  }),
+);
+
+app.post(
+  "/api/devices/heartbeat",
+  auth(),
+  deviceAuth,
+  asyncH(async (req, res) => {
+    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [req.device.id]);
+    res.json({ ok: true });
+  }),
+);
+
+app.get(
   "/api/devices",
   auth(),
   asyncH(async (_req, res) => {
@@ -162,11 +256,26 @@ app.post(
   asyncH(async (req, res) => {
     const { code, name, location } = req.body || {};
     if (!code || !name) return res.status(400).json({ error: "code and name required" });
+    const normalizedCode = String(code).replace(/\D/g, "").slice(0, 6);
+    const [codes] = await pool.query(
+      `SELECT code, owner_id, used_at, expires_at FROM device_pairing_codes
+       WHERE code = ? AND used_at IS NULL AND expires_at > NOW()
+         AND (owner_id IS NULL OR owner_id = ?)
+       LIMIT 1`,
+      [normalizedCode, req.user.id],
+    );
+    if (!codes[0]) return res.status(404).json({ error: "Pairing code not found or expired" });
     const [r] = await pool.query(
       "INSERT INTO devices (owner_id, name, location, status, android_version, last_sync) VALUES (?, ?, ?, 'online', 'Android 14', NOW())",
       [req.user.id, name, location || null],
     );
-    res.json({ id: r.insertId });
+    const device = { id: r.insertId, owner_id: req.user.id, name, location: location || null, template_id: null };
+    await pool.query("UPDATE device_pairing_codes SET owner_id = ?, device_id = ?, used_at = NOW() WHERE code = ?", [
+      req.user.id,
+      r.insertId,
+      normalizedCode,
+    ]);
+    res.json({ id: r.insertId, device_token: signDeviceToken(device) });
   }),
 );
 
@@ -185,6 +294,22 @@ app.delete(
   auth(),
   asyncH(async (req, res) => {
     await pool.query("DELETE FROM devices WHERE id = ?", [Number(req.params.id)]);
+    res.json({ ok: true });
+  }),
+);
+
+app.post(
+  "/api/responses",
+  auth(),
+  deviceAuth,
+  asyncH(async (req, res) => {
+    const { template_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
+    if (!template_id) return res.status(400).json({ error: "template_id required" });
+    await pool.query(
+      "INSERT INTO responses (template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, NOW())",
+      [Number(template_id), req.device.id, rating, JSON.stringify(answers || {}), Number(duration_seconds) || 0],
+    );
+    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [req.device.id]);
     res.json({ ok: true });
   }),
 );
@@ -340,22 +465,7 @@ app.post(
   "/api/devices/pairing-code",
   auth(),
   asyncH(async (req, res) => {
-    // Generate unique 6-digit code, valid for 10 minutes
-    let code;
-    for (let i = 0; i < 5; i++) {
-      const c = String(Math.floor(100000 + Math.random() * 900000));
-      const [exist] = await pool.query(
-        "SELECT code FROM device_pairing_codes WHERE code = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1",
-        [c],
-      );
-      if (!exist.length) { code = c; break; }
-    }
-    if (!code) return res.status(500).json({ error: "Could not generate code" });
-    await pool.query(
-      "INSERT INTO device_pairing_codes (code, owner_id, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE))",
-      [code, req.user.id],
-    );
-    res.json({ code, expires_in_seconds: 600 });
+    res.json(await createPairingCode(req.user.id));
   }),
 );
 

@@ -44,7 +44,8 @@ INSERT IGNORE INTO notification_prefs (user_id, pref_key, enabled) VALUES
 -- ---------------- device pairing codes ----------------
 CREATE TABLE IF NOT EXISTS device_pairing_codes (
   code       CHAR(6)  PRIMARY KEY,
-  owner_id   INT      NOT NULL,
+  owner_id   INT      NULL,
+  device_id  INT      NULL,
   expires_at DATETIME NOT NULL,
   used_at    DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -52,3 +53,5 @@ CREATE TABLE IF NOT EXISTS device_pairing_codes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX IF NOT EXISTS idx_pair_expires ON device_pairing_codes(expires_at);
 
+ALTER TABLE device_pairing_codes MODIFY owner_id INT NULL;
+ALTER TABLE device_pairing_codes ADD COLUMN IF NOT EXISTS device_id INT NULL AFTER owner_id;
