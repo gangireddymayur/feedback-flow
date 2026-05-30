@@ -8,7 +8,6 @@
 --    • user_profiles        — organization + timezone (Settings page)
 --    • notification_prefs   — per-user notification toggles (Settings page)
 --    • device_pairing_codes — 6-digit pair flow (Devices page)
---    • audit_log            — sub-admin invite/disable/enable history
 -- ============================================================
 
 SET NAMES utf8mb4;
@@ -53,14 +52,3 @@ CREATE TABLE IF NOT EXISTS device_pairing_codes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE INDEX IF NOT EXISTS idx_pair_expires ON device_pairing_codes(expires_at);
 
--- ---------------- audit log ----------------
-CREATE TABLE IF NOT EXISTS audit_log (
-  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
-  actor_id   INT NULL,
-  action     VARCHAR(64)  NOT NULL,         -- 'admin.invite', 'admin.disable', 'template.publish', ...
-  subject    VARCHAR(64)  NULL,             -- e.g. 'user:42', 'template:7'
-  meta       JSON NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX idx_audit_actor (actor_id),
-  INDEX idx_audit_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
