@@ -1,9 +1,12 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, Trash2, Loader2 } from "lucide-react";
+import { Plus, MoreHorizontal, Trash2, Loader2, Power, PowerOff, Copy } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Templates } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -19,6 +22,22 @@ function TemplatesPage() {
   const del = useMutation({
     mutationFn: (id: number) => Templates.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template deleted"); },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const setStatusMut = useMutation({
+    mutationFn: ({ id, status, t }: { id: number; status: "active" | "draft" | "inactive"; t: any }) =>
+      Templates.update(id, {
+        name: t.name, description: t.description, category: t.category, status, questions: t.questions ?? [],
+      }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template updated"); },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const dup = useMutation({
+    mutationFn: (t: any) => Templates.create({
+      name: `${t.name} (copy)`, description: t.description, category: t.category,
+      status: "draft", questions: t.questions ?? [],
+    }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template duplicated"); },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -50,7 +69,25 @@ function TemplatesPage() {
                   <h3 className="font-semibold tracking-tight truncate">{t.name}</h3>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
                 </div>
-                <Button size="icon" variant="ghost" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="glass-strong border-white/10">
+                    <DropdownMenuItem onClick={() => setStatusMut.mutate({ id: t.id, status: t.status === "active" ? "inactive" : "active", t })}>
+                      {t.status === "active"
+                        ? <><PowerOff className="size-3.5 mr-2" /> Deactivate</>
+                        : <><Power className="size-3.5 mr-2" /> Activate</>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => dup.mutate(t)}>
+                      <Copy className="size-3.5 mr-2" /> Duplicate
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => del.mutate(t.id)} className="text-rose-300 focus:text-rose-200">
+                      <Trash2 className="size-3.5 mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <div className="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-white/5">

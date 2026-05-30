@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, MapPin, Smartphone, Trash2, FileText } from "lucide-react";
+import { Plus, MapPin, Smartphone, Trash2, FileText } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -158,7 +158,6 @@ function DevicesPage() {
                       <td className="px-3 py-4">
                         <div className="flex items-center justify-end gap-1">
                           <Button size="icon" variant="ghost" className="size-7 text-rose-300" onClick={() => del.mutate(d.id)}><Trash2 className="size-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="size-7"><MoreHorizontal className="size-3.5" /></Button>
                         </div>
                       </td>
                     </tr>

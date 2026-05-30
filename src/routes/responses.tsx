@@ -1,21 +1,49 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Star, Download, Filter, Search } from "lucide-react";
+import { Star, Download, Filter, Search, Check } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Responses } from "@/lib/api";
 import { LoadingState, ErrorState } from "@/routes/templates";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/responses")({ component: ResponsesPage });
 
 function ResponsesPage() {
   const { data, isLoading, error } = useQuery({ queryKey: ["responses"], queryFn: () => Responses.list(), refetchInterval: 10000 });
   const [q, setQ] = React.useState("");
-  const list = (data?.responses ?? []).filter((r) =>
-    !q || r.template.toLowerCase().includes(q.toLowerCase()) || r.device.toLowerCase().includes(q.toLowerCase()),
-  );
+  const [minRating, setMinRating] = React.useState(0); // 0 = any
+
+  const all = data?.responses ?? [];
+  const list = all.filter((r) => {
+    if (minRating > 0 && (r.rating ?? 0) < minRating) return false;
+    if (!q) return true;
+    const needle = q.toLowerCase();
+    return r.template.toLowerCase().includes(needle) || r.device.toLowerCase().includes(needle);
+  });
+
+  function exportCsv() {
+    if (list.length === 0) return toast.error("Nothing to export");
+    const header = ["id", "template", "device", "rating", "submitted_at", "duration_seconds"];
+    const rows = list.map((r) => [
+      r.id, esc(r.template), esc(r.device), r.rating ?? "",
+      new Date(r.submitted_at).toISOString(), r.duration_seconds,
+    ].join(","));
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `responses-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${list.length} responses`);
+  }
 
   return (
     <DashboardLayout>
@@ -24,8 +52,24 @@ function ResponsesPage() {
         description="Real-time customer feedback across all paired devices."
         actions={
           <>
-            <Button variant="outline" className="bg-white/5 border-white/10"><Filter className="size-4" /> Filter</Button>
-            <Button><Download className="size-4" /> Export</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="bg-white/5 border-white/10">
+                  <Filter className="size-4" /> Filter{minRating > 0 ? ` · ≥${minRating}★` : ""}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="glass-strong border-white/10">
+                <DropdownMenuLabel>Minimum rating</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {[0, 1, 2, 3, 4, 5].map((n) => (
+                  <DropdownMenuItem key={n} onClick={() => setMinRating(n)}>
+                    {n === 0 ? "Any rating" : `${n}★ or higher`}
+                    {minRating === n && <Check className="size-3.5 ml-auto" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={exportCsv}><Download className="size-4" /> Export</Button>
           </>
         }
       />
@@ -43,7 +87,9 @@ function ResponsesPage() {
       {!isLoading && !error && (
         <div className="space-y-3">
           {list.length === 0 && (
-            <GlassCard className="text-center text-muted-foreground py-10 text-sm">No responses yet.</GlassCard>
+            <GlassCard className="text-center text-muted-foreground py-10 text-sm">
+              {all.length === 0 ? "No responses yet." : "No responses match your filters."}
+            </GlassCard>
           )}
           {list.map((r) => {
             const rating = r.rating ?? 0;
@@ -69,4 +115,11 @@ function ResponsesPage() {
       )}
     </DashboardLayout>
   );
+}
+
+function esc(s: string) {
+  if (s == null) return "";
+  const needs = /[",\n]/.test(s);
+  const v = s.replace(/"/g, '""');
+  return needs ? `"${v}"` : v;
 }
