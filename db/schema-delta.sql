@@ -8,7 +8,6 @@
 --    • user_profiles        — organization + timezone (Settings page)
 --    • notification_prefs   — per-user notification toggles (Settings page)
 --    • device_pairing_codes — 6-digit pair flow (Devices page)
---    • audit_log            — sub-admin invite/disable/enable history
 -- ============================================================
 
 SET NAMES utf8mb4;
