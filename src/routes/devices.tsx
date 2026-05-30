@@ -46,6 +46,11 @@ function DevicesPage() {
     mutationFn: (id: number) => Devices.remove(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["devices"] }); toast.success("Removed"); },
   });
+  const genCode = useMutation({
+    mutationFn: () => Devices.generatePairingCode(),
+    onSuccess: (r) => { setCode(r.code); toast.success(`Code ${r.code} · valid 10 min`); },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   return (
     <DashboardLayout>
