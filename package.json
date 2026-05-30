@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
-    "build:vercel": "vite build --config vite.vercel.config.ts",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "start": "node app.js",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
