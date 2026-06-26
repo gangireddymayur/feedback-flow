@@ -310,33 +310,31 @@ app.get(
   auth(),
   asyncH(async (_req, res) => {
     const [rows] = await pool.query(
-      `SELECT d.id, d.name, d.location, d.status, d.android_version, d.last_sync, d.template_id,
+      `SELECT d.id, d.name, d.location, d.status, d.android_version, d.last_sync,
+              d.template_id,
+              TIMESTAMPDIFF(SECOND, d.last_sync, NOW()) AS seconds_since_sync,
               (SELECT COUNT(*) FROM responses r WHERE r.device_id = d.id AND DATE(r.submitted_at) = CURDATE()) AS responses_today
        FROM devices d ORDER BY d.id DESC`,
     );
-    const now = Date.now();
     const processedDevices = rows.map((d) => {
-      let calcStatus = d.status || "offline";
-      if (calcStatus !== "paused") {
-        if (d.last_sync) {
-          const lastSyncTime = d.last_sync instanceof Date ? d.last_sync.getTime() : new Date(d.last_sync).getTime();
-          if (now - lastSyncTime < 180000) {
-            calcStatus = "online";
-          } else {
-            calcStatus = "offline";
-          }
-        } else {
-          calcStatus = "offline";
-        }
+      let calcStatus = "offline";
+      if (d.status === "paused") {
+        calcStatus = "paused";
+      } else if (d.seconds_since_sync !== null && d.seconds_since_sync <= 180) {
+        calcStatus = "online";
+      } else {
+        calcStatus = "offline";
       }
       return {
         ...d,
         status: calcStatus,
+        seconds_since_sync: undefined, // don't expose internal field to client
       };
     });
     res.json({ devices: processedDevices });
   }),
 );
+
 
 app.post(
   "/api/devices/pair",
