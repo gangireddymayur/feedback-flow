@@ -2,13 +2,7 @@ require("dotenv/config");
 
 const mysql = require("mysql2/promise");
 
-const {
-  DB_HOST = "localhost",
-  DB_PORT = "3306",
-  DB_USER,
-  DB_PASSWORD,
-  DB_NAME,
-} = process.env;
+const { DB_HOST = "localhost", DB_PORT = "3306", DB_USER, DB_PASSWORD, DB_NAME } = process.env;
 
 console.log("[db-check] config", {
   host: DB_HOST,

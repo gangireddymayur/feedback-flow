@@ -31,10 +31,23 @@ function SettingsPage() {
   const auth = useAuth();
   const qc = useQueryClient();
 
-  const profileQ = useQuery({ queryKey: ["profile"], queryFn: () => Profile.get(), enabled: !!auth });
-  const prefsQ = useQuery({ queryKey: ["notif-prefs"], queryFn: () => Notifications.get(), enabled: !!auth });
+  const profileQ = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => Profile.get(),
+    enabled: !!auth,
+  });
+  const prefsQ = useQuery({
+    queryKey: ["notif-prefs"],
+    queryFn: () => Notifications.get(),
+    enabled: !!auth,
+  });
 
-  const [profile, setProfile] = React.useState({ name: "", email: "", organization: "", timezone: "UTC" });
+  const [profile, setProfile] = React.useState({
+    name: "",
+    email: "",
+    organization: "",
+    timezone: "UTC",
+  });
   const [pw, setPw] = React.useState({ current: "", next: "", confirm: "" });
 
   React.useEffect(() => {
@@ -49,14 +62,24 @@ function SettingsPage() {
 
   const saveProfile = useMutation({
     mutationFn: () =>
-      Profile.update({ organization: profile.organization, timezone: profile.timezone, avatar_url: null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["profile"] }); toast.success("Profile updated"); },
+      Profile.update({
+        organization: profile.organization,
+        timezone: profile.timezone,
+        avatar_url: null,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Profile updated");
+    },
     onError: (e) => toast.error((e as Error).message),
   });
 
   const changePw = useMutation({
     mutationFn: () => Auth.changePassword(pw.current, pw.next),
-    onSuccess: () => { toast.success("Password updated"); setPw({ current: "", next: "", confirm: "" }); },
+    onSuccess: () => {
+      toast.success("Password updated");
+      setPw({ current: "", next: "", confirm: "" });
+    },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -71,18 +94,37 @@ function SettingsPage() {
 
   return (
     <DashboardLayout>
-      <PageHeader title="Settings" description="Profile, notifications, and workspace preferences." />
+      <PageHeader
+        title="Settings"
+        description="Profile, notifications, and workspace preferences."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <GlassCard className="lg:col-span-2">
           <h3 className="font-semibold mb-4">Profile</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Full name" value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} />
+            <Field
+              label="Full name"
+              value={profile.name}
+              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+            />
             <Field label="Email" value={profile.email} disabled />
-            <Field label="Organization" value={profile.organization} onChange={(e) => setProfile({ ...profile, organization: e.target.value })} />
-            <Field label="Timezone" value={profile.timezone} onChange={(e) => setProfile({ ...profile, timezone: e.target.value })} />
+            <Field
+              label="Organization"
+              value={profile.organization}
+              onChange={(e) => setProfile({ ...profile, organization: e.target.value })}
+            />
+            <Field
+              label="Timezone"
+              value={profile.timezone}
+              onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
+            />
           </div>
-          <Button className="mt-5" onClick={() => saveProfile.mutate()} disabled={saveProfile.isPending}>
+          <Button
+            className="mt-5"
+            onClick={() => saveProfile.mutate()}
+            disabled={saveProfile.isPending}
+          >
             {saveProfile.isPending ? "Saving…" : "Save changes"}
           </Button>
         </GlassCard>
@@ -90,7 +132,9 @@ function SettingsPage() {
         <GlassCard>
           <h3 className="font-semibold mb-1">Notifications</h3>
           <p className="text-xs text-muted-foreground mb-4">
-            {auth.role === "super" ? "Org-level alerts only." : "Operational alerts for your devices."}
+            {auth.role === "super"
+              ? "Org-level alerts only."
+              : "Operational alerts for your devices."}
           </p>
           <div className="space-y-4">
             {toggles.map((t) => (
@@ -108,9 +152,24 @@ function SettingsPage() {
           <h3 className="font-semibold mb-1">Security</h3>
           <p className="text-xs text-muted-foreground mb-4">Update your account password.</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field label="Current password" type="password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
-            <Field label="New password" type="password" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
-            <Field label="Confirm new password" type="password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
+            <Field
+              label="Current password"
+              type="password"
+              value={pw.current}
+              onChange={(e) => setPw({ ...pw, current: e.target.value })}
+            />
+            <Field
+              label="New password"
+              type="password"
+              value={pw.next}
+              onChange={(e) => setPw({ ...pw, next: e.target.value })}
+            />
+            <Field
+              label="Confirm new password"
+              type="password"
+              value={pw.confirm}
+              onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+            />
           </div>
           <Button className="mt-5" onClick={onChangePassword} disabled={changePw.isPending}>
             {changePw.isPending ? "Updating…" : "Update password"}
@@ -140,7 +199,10 @@ function Toggle({ name, label, checked }: { name: string; label: string; checked
       qc.setQueryData(["notif-prefs"], { prefs: { ...(prev?.prefs ?? {}), [name]: v } });
       return { prev };
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(["notif-prefs"], ctx.prev); toast.error("Couldn't save"); },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["notif-prefs"], ctx.prev);
+      toast.error("Couldn't save");
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notif-prefs"] }),
   });
   return (

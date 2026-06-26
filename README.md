@@ -4,6 +4,7 @@ Self-hosted review-management platform. Runs as a single Node.js app on Plesk
 (Node 18+) talking to MariaDB.
 
 Stack:
+
 - **Frontend**: React 19 + Vite + TanStack Router (client-side SPA in `dist/`)
 - **Backend**: Express 5 + mysql2 + JWT (`app.js`)
 - **DB**: MariaDB / MySQL (`db/schema.sql`)
@@ -29,12 +30,12 @@ preview keeps working without a database.
 Plesk → **Databases** → your `Review_Management_System` DB → **phpMyAdmin** →
 **Import** → upload `db/schema.sql`. This creates all tables and seeds:
 
-| Email                | Password       | Role  |
-| -------------------- | -------------- | ----- |
-| `admin@reviewos.app` | `1m2a3y4u5r`   | super |
-| `aisha@brand.co`     | `ChangeMe!2026`| sub   |
-| `marco@hotelnorth.com` | `ChangeMe!2026` | sub |
-| `priya@retailgroup.in` | `ChangeMe!2026` | sub |
+| Email                  | Password        | Role  |
+| ---------------------- | --------------- | ----- |
+| `admin@reviewos.app`   | `1m2a3y4u5r`    | super |
+| `aisha@brand.co`       | `ChangeMe!2026` | sub   |
+| `marco@hotelnorth.com` | `ChangeMe!2026` | sub   |
+| `priya@retailgroup.in` | `ChangeMe!2026` | sub   |
 
 **Change these passwords from the app immediately after first login.**
 
@@ -44,6 +45,7 @@ Plesk → **Websites & Domains** → `exciting-greider.103-69-196-157.plesk.page
 → **Git** → Connect your GitHub repo (branch `main`).
 
 In the **Repository → Deployment** panel, enable:
+
 - **Automatic deployment** when commits are pushed
 - **Additional deploy actions** (shell script):
   ```sh
@@ -55,23 +57,23 @@ In the **Repository → Deployment** panel, enable:
 
 Plesk → **Node.js** panel for the same domain:
 
-| Setting                    | Value                                                          |
-| -------------------------- | -------------------------------------------------------------- |
-| Node.js Version            | 18.20.6                                                        |
-| Package Manager            | npm                                                            |
-| Application Mode           | production                                                     |
-| Application Root           | `/exciting-greider.103-69-196-157.plesk.page`                  |
-| Application Startup File   | `app.js`                                                       |
+| Setting                  | Value                                         |
+| ------------------------ | --------------------------------------------- |
+| Node.js Version          | 18.20.6                                       |
+| Package Manager          | npm                                           |
+| Application Mode         | production                                    |
+| Application Root         | `/exciting-greider.103-69-196-157.plesk.page` |
+| Application Startup File | `app.js`                                      |
 
 **Environment Variables** (click "Add"):
 
-| Name          | Value                                  |
-| ------------- | -------------------------------------- |
-| `DB_HOST`     | `localhost`                            |
-| `DB_PORT`     | `3306`                                 |
-| `DB_USER`     | `Review_Management_System`             |
-| `DB_PASSWORD` | (your MariaDB password)                |
-| `DB_NAME`     | `Review_Management_System`             |
+| Name          | Value                                    |
+| ------------- | ---------------------------------------- |
+| `DB_HOST`     | `localhost`                              |
+| `DB_PORT`     | `3306`                                   |
+| `DB_USER`     | `Review_Management_System`               |
+| `DB_PASSWORD` | (your MariaDB password)                  |
+| `DB_NAME`     | `Review_Management_System`               |
 | `JWT_SECRET`  | (run `openssl rand -hex 32` to generate) |
 
 ### 4 · First deploy

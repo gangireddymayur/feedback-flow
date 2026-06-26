@@ -46,7 +46,9 @@ const signToken = (user) =>
   jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
 
 const signDeviceToken = (device) =>
-  jwt.sign({ type: "device", id: device.id, owner_id: device.owner_id }, JWT_SECRET, { expiresIn: "365d" });
+  jwt.sign({ type: "device", id: device.id, owner_id: device.owner_id }, JWT_SECRET, {
+    expiresIn: "365d",
+  });
 
 function auth(required = true) {
   return (req, res, next) => {
@@ -100,7 +102,9 @@ app.post(
 app.get(
   "/api/public/devices/pair-status",
   asyncH(async (req, res) => {
-    const code = String(req.query.code || "").replace(/\D/g, "").slice(0, 6);
+    const code = String(req.query.code || "")
+      .replace(/\D/g, "")
+      .slice(0, 6);
     if (code.length !== 6) return res.status(400).json({ error: "6-digit code required" });
     const [rows] = await pool.query(
       `SELECT pc.code, pc.used_at, pc.expires_at, d.id, d.owner_id, d.name, d.location, d.template_id
@@ -114,7 +118,13 @@ app.get(
       return res.json({ paired: false, expired: true });
     }
     if (!row.used_at || !row.id) return res.json({ paired: false });
-    const device = { id: row.id, owner_id: row.owner_id, name: row.name, location: row.location, template_id: row.template_id };
+    const device = {
+      id: row.id,
+      owner_id: row.owner_id,
+      name: row.name,
+      location: row.location,
+      template_id: row.template_id,
+    };
     res.json({ paired: true, device_token: signDeviceToken(device), device });
   }),
 );
@@ -129,7 +139,8 @@ app.post(
       [email.trim().toLowerCase()],
     );
     const u = rows[0];
-    if (!u || u.status === "disabled") return res.status(401).json({ error: "Invalid credentials" });
+    if (!u || u.status === "disabled")
+      return res.status(401).json({ error: "Invalid credentials" });
     const ok = await bcrypt.compare(password, u.password_hash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
     const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status };
@@ -141,9 +152,10 @@ app.get(
   "/api/me",
   auth(),
   asyncH(async (req, res) => {
-    const [rows] = await pool.query("SELECT id, name, email, role, status FROM users WHERE id = ? LIMIT 1", [
-      req.user.id,
-    ]);
+    const [rows] = await pool.query(
+      "SELECT id, name, email, role, status FROM users WHERE id = ? LIMIT 1",
+      [req.user.id],
+    );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
     res.json({ user: rows[0] });
   }),
@@ -166,7 +178,13 @@ app.post(
   "/api/templates",
   auth(),
   asyncH(async (req, res) => {
-    const { name, description = "", category = "General", status = "draft", questions = [] } = req.body || {};
+    const {
+      name,
+      description = "",
+      category = "General",
+      status = "draft",
+      questions = [],
+    } = req.body || {};
     if (!name) return res.status(400).json({ error: "name required" });
     const [r] = await pool.query(
       "INSERT INTO templates (owner_id, name, description, category, status, questions) VALUES (?, ?, ?, ?, ?, ?)",
@@ -232,7 +250,9 @@ app.post(
   auth(),
   deviceAuth,
   asyncH(async (req, res) => {
-    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [req.device.id]);
+    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
+      req.device.id,
+    ]);
     res.json({ ok: true });
   }),
 );
@@ -269,12 +289,17 @@ app.post(
       "INSERT INTO devices (owner_id, name, location, status, android_version, last_sync) VALUES (?, ?, ?, 'online', 'Android 14', NOW())",
       [req.user.id, name, location || null],
     );
-    const device = { id: r.insertId, owner_id: req.user.id, name, location: location || null, template_id: null };
-    await pool.query("UPDATE device_pairing_codes SET owner_id = ?, device_id = ?, used_at = NOW() WHERE code = ?", [
-      req.user.id,
-      r.insertId,
-      normalizedCode,
-    ]);
+    const device = {
+      id: r.insertId,
+      owner_id: req.user.id,
+      name,
+      location: location || null,
+      template_id: null,
+    };
+    await pool.query(
+      "UPDATE device_pairing_codes SET owner_id = ?, device_id = ?, used_at = NOW() WHERE code = ?",
+      [req.user.id, r.insertId, normalizedCode],
+    );
     res.json({ id: r.insertId, device_token: signDeviceToken(device) });
   }),
 );
@@ -284,7 +309,26 @@ app.put(
   auth(),
   asyncH(async (req, res) => {
     const tid = req.body?.template_id ?? null;
-    await pool.query("UPDATE devices SET template_id = ? WHERE id = ?", [tid, Number(req.params.id)]);
+    await pool.query("UPDATE devices SET template_id = ? WHERE id = ?", [
+      tid,
+      Number(req.params.id),
+    ]);
+    res.json({ ok: true });
+  }),
+);
+
+app.put(
+  "/api/devices/:id",
+  auth(),
+  asyncH(async (req, res) => {
+    const { name, location, status } = req.body || {};
+    if (!name) return res.status(400).json({ error: "name required" });
+    await pool.query("UPDATE devices SET name = ?, location = ?, status = ? WHERE id = ?", [
+      name,
+      location || null,
+      status || "online",
+      Number(req.params.id),
+    ]);
     res.json({ ok: true });
   }),
 );
@@ -307,9 +351,17 @@ app.post(
     if (!template_id) return res.status(400).json({ error: "template_id required" });
     await pool.query(
       "INSERT INTO responses (template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, NOW())",
-      [Number(template_id), req.device.id, rating, JSON.stringify(answers || {}), Number(duration_seconds) || 0],
+      [
+        Number(template_id),
+        req.device.id,
+        rating,
+        JSON.stringify(answers || {}),
+        Number(duration_seconds) || 0,
+      ],
     );
-    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [req.device.id]);
+    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
+      req.device.id,
+    ]);
     res.json({ ok: true });
   }),
 );
@@ -379,7 +431,8 @@ app.put(
   requireSuper,
   asyncH(async (req, res) => {
     const { status } = req.body || {};
-    if (!["active", "disabled"].includes(status)) return res.status(400).json({ error: "bad status" });
+    if (!["active", "disabled"].includes(status))
+      return res.status(400).json({ error: "bad status" });
     await pool.query("UPDATE users SET status = ? WHERE id = ?", [status, Number(req.params.id)]);
     res.json({ ok: true });
   }),
@@ -419,9 +472,13 @@ app.put(
   auth(),
   asyncH(async (req, res) => {
     const { current_password, new_password } = req.body || {};
-    if (!current_password || !new_password) return res.status(400).json({ error: "current and new password required" });
-    if (new_password.length < 8) return res.status(400).json({ error: "new password must be >=8 chars" });
-    const [rows] = await pool.query("SELECT password_hash FROM users WHERE id = ? LIMIT 1", [req.user.id]);
+    if (!current_password || !new_password)
+      return res.status(400).json({ error: "current and new password required" });
+    if (new_password.length < 8)
+      return res.status(400).json({ error: "new password must be >=8 chars" });
+    const [rows] = await pool.query("SELECT password_hash FROM users WHERE id = ? LIMIT 1", [
+      req.user.id,
+    ]);
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
     const ok = await bcrypt.compare(current_password, rows[0].password_hash);
     if (!ok) return res.status(401).json({ error: "Current password is incorrect" });
@@ -451,7 +508,8 @@ app.put(
   auth(),
   asyncH(async (req, res) => {
     const { prefs } = req.body || {};
-    if (!prefs || typeof prefs !== "object") return res.status(400).json({ error: "prefs object required" });
+    if (!prefs || typeof prefs !== "object")
+      return res.status(400).json({ error: "prefs object required" });
     const entries = Object.entries(prefs);
     if (entries.length === 0) return res.json({ ok: true });
     const values = entries.map(([k, v]) => [req.user.id, String(k).slice(0, 64), v ? 1 : 0]);
@@ -472,7 +530,6 @@ app.post(
     res.json(await createPairingCode(req.user.id));
   }),
 );
-
 
 app.use("/api", (err, _req, res, _next) => {
   console.error("[api error]", err);

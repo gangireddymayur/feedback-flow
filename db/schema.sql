@@ -43,7 +43,7 @@ CREATE TABLE devices (
   owner_id        INT NULL,
   name            VARCHAR(255) NOT NULL,
   location        VARCHAR(255),
-  status          ENUM('online','offline','syncing') NOT NULL DEFAULT 'offline',
+  status          ENUM('online','offline','syncing','paused') NOT NULL DEFAULT 'offline',
   android_version VARCHAR(64),
   last_sync       DATETIME NULL,
   template_id     INT NULL,

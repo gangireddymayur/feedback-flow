@@ -1,13 +1,18 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, Trash2, Loader2, Power, PowerOff, Copy } from "lucide-react";
+import { Plus, MoreHorizontal, Trash2, Loader2, Power, PowerOff, Copy, Edit2 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Templates } from "@/lib/api";
+import { Templates, ApiTemplate } from "@/lib/api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/templates")({ component: TemplatesPage });
@@ -21,23 +26,48 @@ function TemplatesPage() {
   });
   const del = useMutation({
     mutationFn: (id: number) => Templates.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template deleted"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Template deleted");
+    },
     onError: (e) => toast.error((e as Error).message),
   });
   const setStatusMut = useMutation({
-    mutationFn: ({ id, status, t }: { id: number; status: "active" | "draft" | "inactive"; t: any }) =>
+    mutationFn: ({
+      id,
+      status,
+      t,
+    }: {
+      id: number;
+      status: "active" | "draft" | "inactive";
+      t: ApiTemplate;
+    }) =>
       Templates.update(id, {
-        name: t.name, description: t.description, category: t.category, status, questions: t.questions ?? [],
+        name: t.name,
+        description: t.description,
+        category: t.category,
+        status,
+        questions: t.questions ?? [],
       }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template updated"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Template updated");
+    },
     onError: (e) => toast.error((e as Error).message),
   });
   const dup = useMutation({
-    mutationFn: (t: any) => Templates.create({
-      name: `${t.name} (copy)`, description: t.description, category: t.category,
-      status: "draft", questions: t.questions ?? [],
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["templates"] }); toast.success("Template duplicated"); },
+    mutationFn: (t: ApiTemplate) =>
+      Templates.create({
+        name: `${t.name} (copy)`,
+        description: t.description,
+        category: t.category,
+        status: "draft",
+        questions: t.questions ?? [],
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Template duplicated");
+    },
     onError: (e) => toast.error((e as Error).message),
   });
 
@@ -50,7 +80,13 @@ function TemplatesPage() {
       <PageHeader
         title="Templates"
         description="Drag-and-drop review forms — unlimited questions, live preview."
-        actions={<Button asChild><Link to="/templates/builder"><Plus className="size-4" /> New Template</Link></Button>}
+        actions={
+          <Button asChild>
+            <Link to="/templates/builder">
+              <Plus className="size-4" /> New Template
+            </Link>
+          </Button>
+        }
       />
 
       {isLoading && <LoadingState />}
@@ -59,31 +95,70 @@ function TemplatesPage() {
       {!isLoading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {templates.map((t) => (
-            <GlassCard key={t.id} className="group hover:bg-white/[0.07] transition-colors relative">
+            <GlassCard
+              key={t.id}
+              className="group hover:bg-white/[0.07] transition-colors relative"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <Badge variant="secondary" className="bg-white/5 text-[10px] uppercase tracking-wide">{t.category}</Badge>
+                    <Badge
+                      variant="secondary"
+                      className="bg-white/5 text-[10px] uppercase tracking-wide"
+                    >
+                      {t.category}
+                    </Badge>
                     <StatusBadge status={t.status} />
+                    <Switch
+                      checked={t.status === "active"}
+                      onCheckedChange={(checked) =>
+                        setStatusMut.mutate({
+                          id: t.id,
+                          status: checked ? "active" : "inactive",
+                          t,
+                        })
+                      }
+                      disabled={setStatusMut.isPending}
+                      className="scale-75 cursor-pointer"
+                    />
                   </div>
                   <h3 className="font-semibold tracking-tight truncate">{t.name}</h3>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size="icon" variant="ghost" className="size-8"><MoreHorizontal className="size-4" /></Button>
+                    <Button size="icon" variant="ghost" className="size-8">
+                      <MoreHorizontal className="size-4" />
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="glass-strong border-white/10">
-                    <DropdownMenuItem onClick={() => setStatusMut.mutate({ id: t.id, status: t.status === "active" ? "inactive" : "active", t })}>
-                      {t.status === "active"
-                        ? <><PowerOff className="size-3.5 mr-2" /> Deactivate</>
-                        : <><Power className="size-3.5 mr-2" /> Activate</>}
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setStatusMut.mutate({
+                          id: t.id,
+                          status: t.status === "active" ? "inactive" : "active",
+                          t,
+                        })
+                      }
+                    >
+                      {t.status === "active" ? (
+                        <>
+                          <PowerOff className="size-3.5 mr-2" /> Deactivate
+                        </>
+                      ) : (
+                        <>
+                          <Power className="size-3.5 mr-2" /> Activate
+                        </>
+                      )}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => dup.mutate(t)}>
                       <Copy className="size-3.5 mr-2" /> Duplicate
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => del.mutate(t.id)} className="text-rose-300 focus:text-rose-200">
+                    <DropdownMenuItem
+                      onClick={() => del.mutate(t.id)}
+                      className="text-rose-300 focus:text-rose-200"
+                    >
                       <Trash2 className="size-3.5 mr-2" /> Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -96,14 +171,34 @@ function TemplatesPage() {
               </div>
 
               <div className="flex items-center justify-end mt-4 gap-1">
-                <Button size="icon" variant="ghost" className="size-7 text-rose-300" onClick={() => del.mutate(t.id)}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-7 text-primary hover:text-primary/80"
+                  asChild
+                  title="Edit Template in Builder"
+                >
+                  <Link to="/templates/builder" search={{ templateId: t.id }}>
+                    <Edit2 className="size-3.5" />
+                  </Link>
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-7 text-rose-300 hover:text-rose-200"
+                  onClick={() => del.mutate(t.id)}
+                  title="Delete Template"
+                >
                   <Trash2 className="size-3.5" />
                 </Button>
               </div>
             </GlassCard>
           ))}
 
-          <Link to="/templates/builder" className="glass rounded-2xl p-5 border border-dashed border-white/10 grid place-items-center min-h-[220px] hover:bg-white/5 transition-colors">
+          <Link
+            to="/templates/builder"
+            className="glass rounded-2xl p-5 border border-dashed border-white/10 grid place-items-center min-h-[220px] hover:bg-white/5 transition-colors"
+          >
             <div className="text-center">
               <div className="size-12 rounded-2xl bg-white/5 grid place-items-center mx-auto mb-3">
                 <Plus className="size-5 text-muted-foreground" />
@@ -133,7 +228,13 @@ function StatusBadge({ status }: { status: "active" | "inactive" | "draft" }) {
     inactive: "bg-rose-400/15 text-rose-300 border-rose-400/20",
     draft: "bg-amber-400/15 text-amber-300 border-amber-400/20",
   } as const;
-  return <span className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${map[status]}`}>{status}</span>;
+  return (
+    <span
+      className={`text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded border ${map[status]}`}
+    >
+      {status}
+    </span>
+  );
 }
 
 export function LoadingState() {

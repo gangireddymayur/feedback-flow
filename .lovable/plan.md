@@ -1,4 +1,3 @@
-
 # Switch from Vercel/TanStack Start → Plesk Node 18 + MariaDB
 
 You want one box on Plesk to host site + API + DB, deployed via GitHub. The current app is TanStack Start (built for edge/Vercel) with mocked data. To run cleanly on Plesk Node 18 with MariaDB, the cleanest path is to swap the framework for a plain Express + Vite SPA setup. TanStack Start's edge bundler fights Plesk's classic Node runtime; Express + SPA "just works" with Plesk's "Application Startup File".
@@ -17,14 +16,14 @@ Plesk box (Node 18 + MariaDB)
 
 ## Tech changes
 
-| Area | Now | After |
-|---|---|---|
-| Framework | TanStack Start (SSR, edge) | Vite SPA + Express API |
-| Routing | File-based `src/routes/*` | React Router (client-side) |
-| Auth | Mock (localStorage role) | JWT, bcrypt, MariaDB `users` table |
-| Data | `src/lib/mock-data.ts` | `mysql2/promise` pool → MariaDB |
-| Build | `vinxi build` for Vercel | `vite build` → `dist/`, server is `app.js` |
-| Deploy | `vercel deploy` | `git push` → Plesk Git pulls → `npm install && npm run build` → restart Node app |
+| Area      | Now                        | After                                                                            |
+| --------- | -------------------------- | -------------------------------------------------------------------------------- |
+| Framework | TanStack Start (SSR, edge) | Vite SPA + Express API                                                           |
+| Routing   | File-based `src/routes/*`  | React Router (client-side)                                                       |
+| Auth      | Mock (localStorage role)   | JWT, bcrypt, MariaDB `users` table                                               |
+| Data      | `src/lib/mock-data.ts`     | `mysql2/promise` pool → MariaDB                                                  |
+| Build     | `vinxi build` for Vercel   | `vite build` → `dist/`, server is `app.js`                                       |
+| Deploy    | `vercel deploy`            | `git push` → Plesk Git pulls → `npm install && npm run build` → restart Node app |
 
 ## Work to do
 

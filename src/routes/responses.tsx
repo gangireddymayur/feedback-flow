@@ -13,12 +13,12 @@ import {
   MapPin,
   X,
   MessageSquare,
-  Sparkles,
   HelpCircle,
-  Activity,
-  CheckCircle,
   Database,
   History,
+  ArrowUpRight,
+  Filter,
+  User,
 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/responses")({ component: ResponsesPage });
+
+type ViewMode = "explorer" | "fullscreen";
 
 function ResponsesPage() {
   const responsesQ = useQuery({
@@ -51,7 +53,9 @@ function ResponsesPage() {
 
   const [selectedDeviceId, setSelectedDeviceId] = React.useState<number | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = React.useState<number | null>(null);
+  const [viewMode, setViewMode] = React.useState<ViewMode>("explorer");
   const [q, setQ] = React.useState("");
+  const [dynamicFilters, setDynamicFilters] = React.useState<Record<string, string>>({});
 
   const allResponses = responsesQ.data?.responses ?? [];
   const devices = devicesQ.data?.devices ?? [];
@@ -60,6 +64,11 @@ function ResponsesPage() {
   const isLoading = responsesQ.isLoading || devicesQ.isLoading || templatesQ.isLoading;
   const isError = responsesQ.isError || devicesQ.isError || templatesQ.isError;
   const errorObj = responsesQ.error || devicesQ.error || templatesQ.error;
+
+  // Clear dynamic filters when selected tablet or template changes
+  React.useEffect(() => {
+    setDynamicFilters({});
+  }, [selectedDeviceId, selectedTemplateId]);
 
   // 1. Calculate review counters for each device
   const deviceResponseCounts = React.useMemo(() => {
@@ -78,13 +87,11 @@ function ResponsesPage() {
     const device = devices.find((d) => d.id === selectedDeviceId);
     const activeTemplateId = device?.template_id;
 
-    // Map to track unique templates for this device
     const templatesMap = new Map<
       number,
       { id: number; name: string; isActive: boolean; responseCount: number }
     >();
 
-    // Always include the current active template in the list if set on device
     if (activeTemplateId) {
       const activeTpl = templates.find((t) => t.id === activeTemplateId);
       templatesMap.set(activeTemplateId, {
@@ -95,7 +102,6 @@ function ResponsesPage() {
       });
     }
 
-    // Traverse responses to find any historical templates used by this device
     allResponses.forEach((r) => {
       if (r.device_id === selectedDeviceId && r.template_id) {
         const existing = templatesMap.get(r.template_id);
@@ -115,21 +121,32 @@ function ResponsesPage() {
     return Array.from(templatesMap.values());
   }, [selectedDeviceId, devices, allResponses, templates]);
 
-  // Auto-select the first device and its active template for convenience
+  // Resolve dynamic questions list for the selected template
+  const selectedTemplateQuestions = React.useMemo(() => {
+    if (selectedTemplateId === null) return [];
+
+    // Look up in loaded templates list first
+    const tpl = templates.find((t) => t.id === selectedTemplateId);
+    if (tpl?.questions && tpl.questions.length > 0) {
+      return tpl.questions;
+    }
+
+    // Fallback: look up in responses list for a matching response template
+    const match = allResponses.find((r) => r.template_id === selectedTemplateId);
+    return match?.template_questions || [];
+  }, [selectedTemplateId, templates, allResponses]);
+
+  // Auto-select the first device and its active template
   React.useEffect(() => {
     if (selectedDeviceId === null && devices.length > 0) {
-      // Find the first device
       const firstDev = devices[0];
       setSelectedDeviceId(firstDev.id);
-
-      // Auto-select active template if set
       if (firstDev.template_id) {
         setSelectedTemplateId(firstDev.template_id);
       }
     }
   }, [devices, selectedDeviceId]);
 
-  // Reset selected template if we switch devices, and auto-select its active one if available
   const handleDeviceSelect = (devId: number) => {
     setSelectedDeviceId(devId);
     const dev = devices.find((d) => d.id === devId);
@@ -139,14 +156,16 @@ function ResponsesPage() {
       setSelectedTemplateId(null);
     }
     setQ("");
+    setDynamicFilters({});
   };
 
-  // 3. Filter responses based on selected device, template, and search query
+  // 3. Filter responses based on selected device, template, search query, and dynamic filters
   const list = React.useMemo(() => {
     if (selectedDeviceId === null || selectedTemplateId === null) return [];
     return allResponses.filter((r) => {
       if (r.device_id !== selectedDeviceId || r.template_id !== selectedTemplateId) return false;
 
+      // Text search match
       if (q.trim()) {
         const needle = q.toLowerCase();
         const matchesSearch =
@@ -155,11 +174,87 @@ function ResponsesPage() {
           (r.answers && JSON.stringify(r.answers).toLowerCase().includes(needle));
         if (!matchesSearch) return false;
       }
+
+      // Dynamic question-level filters
+      for (const [qId, filterVal] of Object.entries(dynamicFilters)) {
+        if (filterVal === "all") continue;
+
+        const ans = r.answers?.[qId];
+        const qDef = selectedTemplateQuestions.find((qt) => qt.id === qId);
+        if (!qDef) continue;
+
+        if (ans === undefined || ans === null) return false;
+
+        // Star Ratings
+        if (qDef.type === "rating") {
+          if (String(ans) !== filterVal) return false;
+        }
+        // NPS score ranges
+        else if (qDef.type === "nps") {
+          const score = Number(ans);
+          if (filterVal === "promoters") {
+            if (score < 9) return false;
+          } else if (filterVal === "passives") {
+            if (score !== 7 && score !== 8) return false;
+          } else if (filterVal === "detractors") {
+            if (score > 6) return false;
+          } else {
+            if (String(score) !== filterVal) return false;
+          }
+        }
+        // Emojis options
+        else if (qDef.type === "emoji") {
+          const ansStr = String(ans);
+          if (filterVal === "5" && ansStr !== "5" && ansStr !== "😍") return false;
+          if (filterVal === "4" && ansStr !== "4" && ansStr !== "🙂") return false;
+          if (filterVal === "3" && ansStr !== "3" && ansStr !== "😐") return false;
+          if (filterVal === "2" && ansStr !== "2" && ansStr !== "😕") return false;
+          if (filterVal === "1" && ansStr !== "1" && ansStr !== "😡") return false;
+        }
+        // Yes / No values
+        else if (qDef.type === "yes_no") {
+          const ansStr = String(ans).toLowerCase();
+          const yes = ansStr === "yes" || ans === true || ansStr === "1";
+          const filterYes = filterVal === "yes";
+          if (yes !== filterYes) return false;
+        }
+        // Choice selection options
+        else if (qDef.type === "single_choice" || qDef.type === "multiple_choice") {
+          if (Array.isArray(ans)) {
+            if (!ans.includes(filterVal)) return false;
+          } else {
+            const ansStr = String(ans);
+            if (!ansStr.includes(filterVal)) return false;
+          }
+        }
+      }
+
       return true;
     });
-  }, [allResponses, selectedDeviceId, selectedTemplateId, q]);
+  }, [
+    allResponses,
+    selectedDeviceId,
+    selectedTemplateId,
+    q,
+    dynamicFilters,
+    selectedTemplateQuestions,
+  ]);
 
-  // Export responses specific to selected tablet + template
+  const hasActiveFilters = q !== "" || Object.values(dynamicFilters).some((v) => v !== "all");
+
+  const resetFilters = () => {
+    setQ("");
+    setDynamicFilters({});
+    toast.info("All filters cleared");
+  };
+
+  const handleDynamicFilterChange = (qId: string, val: string) => {
+    setDynamicFilters((prev) => ({
+      ...prev,
+      [qId]: val,
+    }));
+  };
+
   function exportCsv() {
     if (list.length === 0) return toast.error("Nothing to export");
     const activeDevice = devices.find((d) => d.id === selectedDeviceId);
@@ -202,17 +297,135 @@ function ResponsesPage() {
   const selectedDeviceObj = devices.find((d) => d.id === selectedDeviceId);
   const selectedTemplateObj = deviceTemplates.find((t) => t.id === selectedTemplateId);
 
+  // Renders dynamic selector dropdowns for the selected template's questions
+  const renderDynamicFilters = () => {
+    if (selectedTemplateQuestions.length === 0) return null;
+
+    // Filter out text/unfilterable types
+    const filterableQuestions = selectedTemplateQuestions.filter(
+      (q) => !["short_text", "long_text"].includes(q.type),
+    );
+
+    if (filterableQuestions.length === 0) return null;
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-white/5">
+        {filterableQuestions.map((qItem) => {
+          const currentVal = dynamicFilters[qItem.id] || "all";
+          return (
+            <div key={qItem.id} className="space-y-1">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block truncate select-none">
+                {qItem.label}
+              </label>
+              <select
+                value={currentVal}
+                onChange={(e) => handleDynamicFilterChange(qItem.id, e.target.value)}
+                className="w-full bg-white/5 border border-white/10 text-xs rounded-xl h-8 px-2 text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+              >
+                <option value="all" className="bg-popover text-foreground">
+                  Any
+                </option>
+                {qItem.type === "rating" && (
+                  <>
+                    <option value="5" className="bg-popover text-foreground">
+                      5 Stars
+                    </option>
+                    <option value="4" className="bg-popover text-foreground">
+                      4 Stars
+                    </option>
+                    <option value="3" className="bg-popover text-foreground">
+                      3 Stars
+                    </option>
+                    <option value="2" className="bg-popover text-foreground">
+                      2 Stars
+                    </option>
+                    <option value="1" className="bg-popover text-foreground">
+                      1 Star
+                    </option>
+                  </>
+                )}
+                {qItem.type === "nps" && (
+                  <>
+                    <option value="promoters" className="bg-popover text-foreground">
+                      9-10 (Promoter)
+                    </option>
+                    <option value="passives" className="bg-popover text-foreground">
+                      7-8 (Passive)
+                    </option>
+                    <option value="detractors" className="bg-popover text-foreground">
+                      0-6 (Detractor)
+                    </option>
+                    {Array.from({ length: 11 }).map((_, n) => (
+                      <option key={n} value={String(n)} className="bg-popover text-foreground">
+                        Score: {n}
+                      </option>
+                    ))}
+                  </>
+                )}
+                {qItem.type === "emoji" && (
+                  <>
+                    <option value="5" className="bg-popover text-foreground">
+                      😍 Extremely Satisfied
+                    </option>
+                    <option value="4" className="bg-popover text-foreground">
+                      🙂 Satisfied
+                    </option>
+                    <option value="3" className="bg-popover text-foreground">
+                      😐 Neutral
+                    </option>
+                    <option value="2" className="bg-popover text-foreground">
+                      😕 Unsatisfied
+                    </option>
+                    <option value="1" className="bg-popover text-foreground">
+                      😡 Very Unsatisfied
+                    </option>
+                  </>
+                )}
+                {qItem.type === "yes_no" && (
+                  <>
+                    <option value="yes" className="bg-popover text-foreground">
+                      Yes
+                    </option>
+                    <option value="no" className="bg-popover text-foreground">
+                      No
+                    </option>
+                  </>
+                )}
+                {(qItem.type === "single_choice" || qItem.type === "multiple_choice") &&
+                  (qItem.options ?? []).map((opt) => (
+                    <option key={opt} value={opt} className="bg-popover text-foreground">
+                      {opt}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout>
       <PageHeader
-        title="Responses Explorer"
+        title={viewMode === "fullscreen" ? "Responses Explorer (Full View)" : "Responses Explorer"}
         description="Browse structured review logs grouped by physical tablet terminal and template versions."
         actions={
+          viewMode === "explorer" &&
           selectedDeviceObj &&
           selectedTemplateObj && (
-            <Button onClick={exportCsv} disabled={list.length === 0}>
-              <Download className="size-4" /> Export CSV
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="bg-white/5 border-white/10"
+                onClick={() => setViewMode("fullscreen")}
+              >
+                <ArrowUpRight className="size-4 mr-1" /> Full View
+              </Button>
+              <Button onClick={exportCsv} disabled={list.length === 0}>
+                <Download className="size-4" /> Export CSV
+              </Button>
+            </div>
           )
         }
       />
@@ -221,207 +434,368 @@ function ResponsesPage() {
       {isError && <ErrorState message={errorMessage(errorObj)} />}
 
       {!isLoading && !isError && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-          {/* Column 1: Devices list */}
-          <div className="lg:col-span-4 xl:col-span-3 space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                1. Tablets
-              </span>
-              <Badge variant="secondary" className="bg-white/5 text-[10px] text-muted-foreground">
-                {devices.length} paired
-              </Badge>
-            </div>
-            <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-              {devices.length === 0 && (
-                <GlassCard className="py-8 text-center text-xs text-muted-foreground italic">
-                  No tablets paired. Go to Devices tab to pair one.
-                </GlassCard>
-              )}
-              {devices.map((d) => {
-                const isSelected = selectedDeviceId === d.id;
-                const reviewCount = deviceResponseCounts[d.id] || 0;
-                return (
-                  <div
-                    key={d.id}
-                    onClick={() => handleDeviceSelect(d.id)}
-                    className={cn(
-                      "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
-                      isSelected
-                        ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
-                        : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
-                    )}
+        <>
+          {viewMode === "fullscreen" ? (
+            /* FULLSCREEN LAYOUT */
+            <div className="space-y-4 animate-in fade-in duration-300">
+              {/* Breadcrumbs / Mode selector bar */}
+              <div className="flex items-center justify-between border-b border-white/5 pb-4 flex-wrap gap-2">
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    onClick={() => setViewMode("explorer")}
+                    className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-1 font-medium"
                   >
-                    <div className="flex items-start gap-2.5">
-                      <div
-                        className={cn(
-                          "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
-                          isSelected ? "bg-primary/20 text-primary" : "bg-white/5 text-muted-foreground group-hover:text-foreground",
-                        )}
-                      >
-                        <Smartphone className="size-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-semibold text-sm truncate">{d.name}</div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
-                          <MapPin className="size-3 shrink-0" /> {d.location || "No location set"}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5 text-[10px]">
-                      <StatusIndicator status={d.status} />
-                      <span className="text-muted-foreground font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded">
-                        <MessageSquare className="size-2.5" /> {reviewCount} reviews
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Column 2: Template History list */}
-          <div className="lg:col-span-4 xl:col-span-3 space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                2. Template History
-              </span>
-              {selectedDeviceObj && (
-                <Badge variant="secondary" className="bg-white/5 text-[10px] text-muted-foreground">
-                  {deviceTemplates.length} templates
-                </Badge>
-              )}
-            </div>
-            <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-              {selectedDeviceId === null ? (
-                <GlassCard className="py-12 text-center text-xs text-muted-foreground italic flex flex-col items-center justify-center gap-2">
-                  <Smartphone className="size-5 text-muted-foreground/30" />
-                  Select a tablet to load its templates.
-                </GlassCard>
-              ) : deviceTemplates.length === 0 ? (
-                <GlassCard className="py-12 text-center text-xs text-muted-foreground italic">
-                  No templates recorded on this tablet yet.
-                </GlassCard>
-              ) : (
-                deviceTemplates.map((t) => {
-                  const isSelected = selectedTemplateId === t.id;
-                  return (
-                    <div
-                      key={t.id}
-                      onClick={() => {
-                        setSelectedTemplateId(t.id);
-                        setQ("");
-                      }}
-                      className={cn(
-                        "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
-                        isSelected
-                          ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
-                          : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
-                      )}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <div
-                          className={cn(
-                            "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
-                            isSelected ? "bg-primary/20 text-primary" : "bg-white/5 text-muted-foreground group-hover:text-foreground",
-                          )}
-                        >
-                          <FileText className="size-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-sm truncate">{t.name}</div>
-                          <div className="flex items-center gap-1.5 mt-2">
-                            {t.isActive ? (
-                              <Badge className="bg-emerald-400/10 text-emerald-300 border border-emerald-400/20 text-[8px] px-1 py-0 uppercase tracking-wide">
-                                Active Now
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground border-white/5 text-[8px] px-1 py-0 uppercase tracking-wide">
-                                Past Version
-                              </Badge>
-                            )}
-                            <span className="text-[10px] text-muted-foreground ml-auto bg-white/5 px-1.5 py-0.5 rounded">
-                              {t.responseCount} reviews
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {/* Column 3: Detailed Feedback Feed */}
-          <div className="lg:col-span-4 xl:col-span-6 space-y-4">
-            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              3. Detailed Survey Responses
-            </div>
-
-            {selectedDeviceId === null || selectedTemplateId === null ? (
-              <GlassCard className="py-24 text-center text-xs text-muted-foreground italic flex flex-col items-center justify-center gap-3">
-                <Database className="size-8 text-muted-foreground/20" />
-                <div>
-                  Select a tablet on the left and a template version from history to view responses.
+                    <History className="size-3.5" /> Explorer
+                  </button>
+                  <span className="text-muted-foreground/35 select-none">/</span>
+                  <span className="text-muted-foreground flex items-center gap-1 select-none">
+                    <Smartphone className="size-3.5" /> {selectedDeviceObj?.name}
+                  </span>
+                  <span className="text-muted-foreground/35 select-none">/</span>
+                  <span className="text-foreground font-semibold flex items-center gap-1 select-none">
+                    <FileText className="size-3.5 text-primary" /> {selectedTemplateObj?.name}
+                  </span>
                 </div>
-              </GlassCard>
-            ) : (
-              <div className="space-y-4">
-                {/* Selected context header & search */}
-                <GlassCard className="p-4 space-y-3">
-                  <div className="flex items-start justify-between flex-wrap gap-2">
-                    <div>
-                      <h3 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                        {selectedTemplateObj?.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Showing responses recorded on{" "}
-                        <span className="text-foreground font-medium">
-                          {selectedDeviceObj?.name}
-                        </span>
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="bg-white/5 text-xs">
-                      {list.length} matches
-                    </Badge>
-                  </div>
-
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                    <Input
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="Search comments and raw answers..."
-                      className="pl-9 bg-white/5 border-white/10 text-xs focus-visible:ring-primary/40"
-                    />
-                    {q && (
-                      <button
-                        onClick={() => setQ("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                      >
-                        <X className="size-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </GlassCard>
-
-                {/* Responses scrollbox */}
-                <div className="space-y-3 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
-                  {list.length === 0 ? (
-                    <GlassCard className="text-center text-muted-foreground py-16 text-sm">
-                      {q.trim()
-                        ? "No responses match your search text."
-                        : "No responses recorded yet for this survey on this tablet."}
-                    </GlassCard>
-                  ) : (
-                    list.map((r) => <ResponseDetailCard key={r.id} r={r} />
-                  ))}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="bg-white/5 border-white/10 text-xs h-8"
+                    onClick={() => setViewMode("explorer")}
+                  >
+                    <X className="size-3.5 mr-1" /> Exit Full View
+                  </Button>
+                  <Button onClick={exportCsv} disabled={list.length === 0} className="text-xs h-8">
+                    <Download className="size-3.5 mr-1" /> Export CSV
+                  </Button>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+                {/* Fullscreen Filters Left panel */}
+                <div className="xl:col-span-4 space-y-4">
+                  <GlassCard className="p-4 space-y-4 border border-white/10 bg-white/[0.02]">
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                        <Filter className="size-3.5 text-primary" /> Advanced Filters
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Refining {list.length} matches
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block select-none">
+                          Text Search
+                        </label>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <Input
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            placeholder="Search comments and answers..."
+                            className="pl-9 bg-white/5 border-white/10 text-xs focus-visible:ring-primary/40 h-8"
+                          />
+                          {q && (
+                            <button
+                              onClick={() => setQ("")}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Render dynamic question selects */}
+                      {renderDynamicFilters()}
+                    </div>
+
+                    {hasActiveFilters && (
+                      <Button
+                        variant="ghost"
+                        onClick={resetFilters}
+                        className="w-full text-xs text-rose-300 hover:text-rose-200 hover:bg-rose-500/5 h-8 border border-dashed border-rose-500/20"
+                      >
+                        <X className="size-3.5 mr-1" /> Clear All Filters
+                      </Button>
+                    )}
+                  </GlassCard>
+                </div>
+
+                {/* Fullscreen Feed Right Panel (No height constraint except screen viewport) */}
+                <div className="xl:col-span-8 space-y-3">
+                  <div className="flex items-center justify-between px-1 text-xs text-muted-foreground select-none">
+                    <span>Responses list</span>
+                    <span>Showing {list.length} results</span>
+                  </div>
+
+                  <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto pr-1 custom-scrollbar">
+                    {list.length === 0 ? (
+                      <GlassCard className="text-center text-muted-foreground py-24 text-sm">
+                        No responses match your filter conditions.
+                      </GlassCard>
+                    ) : (
+                      list.map((r) => <ResponseDetailCard key={r.id} r={r} />)
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* EXPLORER LAYOUT (Capped to max 5 items in viewport scrollboxes) */
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch animate-in fade-in duration-300">
+              {/* Column 1: Devices list (Capped to 5 items height scrollbox) */}
+              <div className="lg:col-span-4 xl:col-span-3 space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    1. Tablets
+                  </span>
+                  <Badge
+                    variant="secondary"
+                    className="bg-white/5 text-[10px] text-muted-foreground"
+                  >
+                    {devices.length} paired
+                  </Badge>
+                </div>
+                <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
+                  {devices.length === 0 && (
+                    <GlassCard className="py-8 text-center text-xs text-muted-foreground italic">
+                      No tablets paired. Go to Devices tab to pair one.
+                    </GlassCard>
+                  )}
+                  {devices.map((d) => {
+                    const isSelected = selectedDeviceId === d.id;
+                    const reviewCount = deviceResponseCounts[d.id] || 0;
+                    return (
+                      <div
+                        key={d.id}
+                        onClick={() => handleDeviceSelect(d.id)}
+                        className={cn(
+                          "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
+                          isSelected
+                            ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
+                            : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
+                        )}
+                      >
+                        <div className="flex items-start gap-2.5">
+                          <div
+                            className={cn(
+                              "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
+                              isSelected
+                                ? "bg-primary/20 text-primary"
+                                : "bg-white/5 text-muted-foreground group-hover:text-foreground",
+                            )}
+                          >
+                            <Smartphone className="size-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-sm truncate">{d.name}</div>
+                            <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                              <MapPin className="size-3 shrink-0" />{" "}
+                              {d.location || "No location set"}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5 text-[10px]">
+                          <StatusIndicator status={d.status} />
+                          <span className="text-muted-foreground font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded">
+                            <MessageSquare className="size-2.5" /> {reviewCount} reviews
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Column 2: Template History list (Capped to 5 items height scrollbox) */}
+              <div className="lg:col-span-4 xl:col-span-3 space-y-3">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    2. Template History
+                  </span>
+                  {selectedDeviceObj && (
+                    <Badge
+                      variant="secondary"
+                      className="bg-white/5 text-[10px] text-muted-foreground"
+                    >
+                      {deviceTemplates.length} templates
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+                  {selectedDeviceId === null ? (
+                    <GlassCard className="py-12 text-center text-xs text-muted-foreground italic flex flex-col items-center justify-center gap-2">
+                      <Smartphone className="size-5 text-muted-foreground/30" />
+                      Select a tablet to load templates.
+                    </GlassCard>
+                  ) : deviceTemplates.length === 0 ? (
+                    <GlassCard className="py-12 text-center text-xs text-muted-foreground italic">
+                      No templates recorded on this tablet.
+                    </GlassCard>
+                  ) : (
+                    deviceTemplates.map((t) => {
+                      const isSelected = selectedTemplateId === t.id;
+                      return (
+                        <div
+                          key={t.id}
+                          onClick={() => setSelectedTemplateId(t.id)}
+                          className={cn(
+                            "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
+                            isSelected
+                              ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
+                              : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
+                          )}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div
+                              className={cn(
+                                "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
+                                isSelected
+                                  ? "bg-primary/20 text-primary"
+                                  : "bg-white/5 text-muted-foreground group-hover:text-foreground",
+                              )}
+                            >
+                              <FileText className="size-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-sm truncate">{t.name}</div>
+                              <div className="flex items-center gap-1.5 mt-2">
+                                {t.isActive ? (
+                                  <Badge className="bg-emerald-400/10 text-emerald-300 border border-emerald-400/20 text-[8px] px-1 py-0 uppercase tracking-wide">
+                                    Active Now
+                                  </Badge>
+                                ) : (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-muted-foreground border-white/5 text-[8px] px-1 py-0 uppercase tracking-wide"
+                                  >
+                                    Past Version
+                                  </Badge>
+                                )}
+                                <span className="text-[10px] text-muted-foreground ml-auto bg-white/5 px-1.5 py-0.5 rounded">
+                                  {t.responseCount} reviews
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Column 3: Detailed Feedback Feed (Capped to 5 items height scrollbox with More link) */}
+              <div className="lg:col-span-4 xl:col-span-6 space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    3. Detailed Survey Responses
+                  </span>
+                  {selectedDeviceObj && selectedTemplateObj && list.length > 5 && (
+                    <button
+                      onClick={() => setViewMode("fullscreen")}
+                      className="text-xs text-primary hover:text-primary-foreground font-semibold flex items-center gap-1 hover:underline select-none"
+                    >
+                      More <ArrowUpRight className="size-3" />
+                    </button>
+                  )}
+                </div>
+
+                {selectedDeviceId === null || selectedTemplateId === null ? (
+                  <GlassCard className="py-24 text-center text-xs text-muted-foreground italic flex flex-col items-center justify-center gap-3">
+                    <Database className="size-8 text-muted-foreground/20" />
+                    <div>
+                      Select a tablet on the left and a template version from history to view
+                      responses.
+                    </div>
+                  </GlassCard>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Selected context header, search & dynamic filter options */}
+                    <GlassCard className="p-4 space-y-3">
+                      <div className="flex items-start justify-between flex-wrap gap-2">
+                        <div>
+                          <h3 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                            {selectedTemplateObj?.name}
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Showing responses on{" "}
+                            <span className="text-foreground font-medium">
+                              {selectedDeviceObj?.name}
+                            </span>
+                          </p>
+                        </div>
+                        <Badge variant="secondary" className="bg-white/5 text-xs">
+                          {list.length} results
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <Input
+                            value={q}
+                            onChange={(e) => setQ(e.target.value)}
+                            placeholder="Search comments and raw answers..."
+                            className="pl-9 bg-white/5 border-white/10 text-xs focus-visible:ring-primary/40 h-8"
+                          />
+                          {q && (
+                            <button
+                              onClick={() => setQ("")}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="size-3.5" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Render dynamic selects */}
+                        {renderDynamicFilters()}
+
+                        {hasActiveFilters && (
+                          <Button
+                            variant="ghost"
+                            onClick={resetFilters}
+                            className="w-full text-[10px] text-rose-300 hover:text-rose-200 h-6 mt-1 border border-dashed border-rose-500/20"
+                          >
+                            <X className="size-3 mr-1" /> Clear All Filters
+                          </Button>
+                        )}
+                      </div>
+                    </GlassCard>
+
+                    {/* Responses scrollbox (Capped at 5 items height scrollbox) */}
+                    <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1 custom-scrollbar">
+                      {list.length === 0 ? (
+                        <GlassCard className="text-center text-muted-foreground py-16 text-sm">
+                          {q.trim() || hasActiveFilters
+                            ? "No responses match your search and filter parameters."
+                            : "No responses recorded yet for this survey on this tablet."}
+                        </GlassCard>
+                      ) : (
+                        list.map((r) => <ResponseDetailCard key={r.id} r={r} />)
+                      )}
+
+                      {list.length > 5 && (
+                        <div className="pt-2">
+                          <Button
+                            variant="outline"
+                            className="w-full bg-white/5 border-white/10 text-xs h-9 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                            onClick={() => setViewMode("fullscreen")}
+                          >
+                            View All {list.length} Responses in Full View
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </DashboardLayout>
   );
@@ -461,14 +835,39 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
     return list;
   }, [questions, answers]);
 
+  const customerInfo = React.useMemo(() => {
+    const name = answers.customer_name || answers.name || answers.customerName;
+    const email = answers.customer_email || answers.email || answers.customerEmail;
+    const phone = answers.customer_phone || answers.phone || answers.customerPhone;
+    if (name || email || phone) {
+      return { name, email, phone };
+    }
+    return null;
+  }, [answers]);
+
   // Identify any extra fields not defined in the template questions
   const extraAnswers = React.useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const extra: Array<{ key: string; value: any }> = [];
     const questionIds = new Set(questions.map((q) => q.id));
 
     Object.entries(answers).forEach(([k, v]) => {
       if (questionIds.has(k)) return;
       if (k === "comment" && textFeedbackList.some((item) => item.label === "Comment")) return;
+      if (
+        [
+          "customer_name",
+          "customer_email",
+          "customer_phone",
+          "name",
+          "email",
+          "phone",
+          "customerName",
+          "customerEmail",
+          "customerPhone",
+        ].includes(k)
+      )
+        return;
       if (v != null && String(v).trim()) {
         extra.push({ key: k, value: v });
       }
@@ -477,6 +876,7 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
   }, [answers, questions, textFeedbackList]);
 
   // Renders beautiful inline formatted answers
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderAnswerValue = (qType: string, val: any, options?: string[]) => {
     if (val == null) return null;
 
@@ -598,7 +998,9 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
                 key={idx}
                 className={cn(
                   "size-4",
-                  idx < (r.rating ?? 0) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30",
+                  idx < (r.rating ?? 0)
+                    ? "fill-amber-400 text-amber-400"
+                    : "text-muted-foreground/30",
                 )}
               />
             ))
@@ -614,7 +1016,8 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
               Review #{r.id}
             </span>
             <span className="flex items-center gap-1">
-              <Clock className="size-3 text-muted-foreground/75" /> Completed in {r.duration_seconds}s
+              <Clock className="size-3 text-muted-foreground/75" /> Completed in{" "}
+              {r.duration_seconds}s
             </span>
           </div>
         </div>
@@ -663,11 +1066,59 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="space-y-4">
-            {questions.length === 0 && textFeedbackList.length === 0 && extraAnswers.length === 0 && (
-              <div className="text-xs text-muted-foreground italic py-2">
-                No detailed answers recorded for this response.
+            {/* Customer Details Section */}
+            {customerInfo && (
+              <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-3.5 space-y-2">
+                <div className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <User className="size-3.5" /> Customer Contact Information
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  {customerInfo.name && (
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase">
+                        Name
+                      </span>
+                      <span className="font-medium text-foreground">{customerInfo.name}</span>
+                    </div>
+                  )}
+                  {customerInfo.email && (
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase">
+                        Email
+                      </span>
+                      <a
+                        href={`mailto:${customerInfo.email}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {customerInfo.email}
+                      </a>
+                    </div>
+                  )}
+                  {customerInfo.phone && (
+                    <div>
+                      <span className="text-muted-foreground block text-[10px] uppercase">
+                        Phone
+                      </span>
+                      <a
+                        href={`tel:${customerInfo.phone}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {customerInfo.phone}
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
+
+            {questions.length === 0 &&
+              textFeedbackList.length === 0 &&
+              extraAnswers.length === 0 &&
+              !customerInfo && (
+                <div className="text-xs text-muted-foreground italic py-2">
+                  No detailed answers recorded for this response.
+                </div>
+              )}
 
             {/* Render matched template questions */}
             {questions.map((q, idx) => {
@@ -734,7 +1185,9 @@ function StatusIndicator({ status }: { status: "online" | "offline" | "syncing" 
   const [dotCls, txtCls, label] = map[status] || ["bg-rose-400", "text-rose-300", "Offline"];
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground select-none">
-      <span className={cn("size-1.5 rounded-full", dotCls, status === "online" && "animate-pulse")} />
+      <span
+        className={cn("size-1.5 rounded-full", dotCls, status === "online" && "animate-pulse")}
+      />
       <span className={txtCls}>{label}</span>
     </span>
   );

@@ -55,3 +55,6 @@ CREATE INDEX IF NOT EXISTS idx_pair_expires ON device_pairing_codes(expires_at);
 
 ALTER TABLE device_pairing_codes MODIFY owner_id INT NULL;
 ALTER TABLE device_pairing_codes ADD COLUMN IF NOT EXISTS device_id INT NULL AFTER owner_id;
+
+-- Alter devices table to support 'paused' status
+ALTER TABLE devices MODIFY COLUMN status ENUM('online','offline','syncing','paused') NOT NULL DEFAULT 'offline';

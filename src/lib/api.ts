@@ -96,12 +96,21 @@ export type ApiTemplate = {
   description: string;
   category: string;
   status: "active" | "inactive" | "draft";
+  displayMode?: "multi_page" | "single_page";
   questions: Array<{
     id: string;
     type: string;
     label: string;
     required: boolean;
     options?: string[];
+    width?: "full" | "half";
+    starLabels?: string[];
+    emojis?: Array<{ emoji: string; label: string }>;
+    yesLabel?: string;
+    noLabel?: string;
+    collectName?: boolean;
+    collectEmail?: boolean;
+    collectPhone?: boolean;
   }>;
   created_at: string;
   updated_at: string;
@@ -111,7 +120,7 @@ export type ApiDevice = {
   id: number;
   name: string;
   location: string | null;
-  status: "online" | "offline" | "syncing";
+  status: "online" | "offline" | "syncing" | "paused";
   android_version: string | null;
   last_sync: string | null;
   template_id: number | null;
@@ -187,8 +196,7 @@ const seed = () => {
       answers: r.comment ? { comment: r.comment } : {},
       template_questions: tpl?.questions ?? [],
       submitted_at: new Date(Date.now() - i * 7 * 60 * 1000).toISOString(),
-      duration_seconds:
-        r.duration.split(":").reduce((a, b) => a * 60 + Number(b), 0) || 0,
+      duration_seconds: r.duration.split(":").reduce((a, b) => a * 60 + Number(b), 0) || 0,
     };
   });
 
@@ -292,25 +300,43 @@ export const Auth = {
 // =================================================================
 // Profile (org / timezone)
 // =================================================================
-export type ApiProfile = { organization: string | null; timezone: string | null; avatar_url: string | null };
+export type ApiProfile = {
+  organization: string | null;
+  timezone: string | null;
+  avatar_url: string | null;
+};
 
 const PROFILE_LS = "rms_profile_extra";
 export const Profile = {
   get: async (): Promise<{ profile: ApiProfile }> => {
     if (!isMockMode()) {
-      try { return await http<{ profile: ApiProfile }>("/profile"); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ profile: ApiProfile }>("/profile");
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay(50);
     try {
       const v = JSON.parse(localStorage.getItem(PROFILE_LS) || "{}");
-      return { profile: { organization: v.organization ?? null, timezone: v.timezone ?? "UTC", avatar_url: null } };
-    } catch { return { profile: { organization: null, timezone: "UTC", avatar_url: null } }; }
+      return {
+        profile: {
+          organization: v.organization ?? null,
+          timezone: v.timezone ?? "UTC",
+          avatar_url: null,
+        },
+      };
+    } catch {
+      return { profile: { organization: null, timezone: "UTC", avatar_url: null } };
+    }
   },
   update: async (body: Partial<ApiProfile>) => {
     if (!isMockMode()) {
-      try { return await http<{ ok: true }>("/profile", { method: "PUT", body: JSON.stringify(body) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ ok: true }>("/profile", { method: "PUT", body: JSON.stringify(body) });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay(50);
     localStorage.setItem(PROFILE_LS, JSON.stringify(body));
@@ -324,8 +350,11 @@ export const Profile = {
 export const Notifications = {
   get: async (): Promise<{ prefs: Record<string, boolean> }> => {
     if (!isMockMode()) {
-      try { return await http<{ prefs: Record<string, boolean> }>("/notifications/prefs"); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ prefs: Record<string, boolean> }>("/notifications/prefs");
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay(50);
     const prefs: Record<string, boolean> = {};
@@ -339,11 +368,18 @@ export const Notifications = {
   },
   update: async (prefs: Record<string, boolean>) => {
     if (!isMockMode()) {
-      try { return await http<{ ok: true }>("/notifications/prefs", { method: "PUT", body: JSON.stringify({ prefs }) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ ok: true }>("/notifications/prefs", {
+          method: "PUT",
+          body: JSON.stringify({ prefs }),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay(30);
-    for (const [k, v] of Object.entries(prefs)) localStorage.setItem(`rms_notif_${k}`, v ? "1" : "0");
+    for (const [k, v] of Object.entries(prefs))
+      localStorage.setItem(`rms_notif_${k}`, v ? "1" : "0");
     return { ok: true as const };
   },
 };
@@ -355,15 +391,38 @@ export const Notifications = {
 export const Templates = {
   list: async () => {
     if (!isMockMode()) {
-      try { return await http<{ templates: ApiTemplate[] }>("/templates"); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ templates: ApiTemplate[] }>("/templates");
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
-    await delay(); return { templates: db.templates };
+    await delay();
+    return { templates: db.templates };
+  },
+  get: async (id: number) => {
+    if (!isMockMode()) {
+      try {
+        return await http<ApiTemplate>(`/templates/${id}`);
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
+    }
+    await delay();
+    const t = db.templates.find((x) => x.id === id);
+    if (!t) throw new Error("Template not found");
+    return t;
   },
   create: async (body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) => {
     if (!isMockMode()) {
-      try { return await http<{ id: number }>("/templates", { method: "POST", body: JSON.stringify(body) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ id: number }>("/templates", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay();
     const id = (db.templates[db.templates.length - 1]?.id ?? 0) + 1;
@@ -373,18 +432,28 @@ export const Templates = {
   },
   update: async (id: number, body: Omit<ApiTemplate, "id" | "created_at" | "updated_at">) => {
     if (!isMockMode()) {
-      try { return await http<{ ok: true }>(`/templates/${id}`, { method: "PUT", body: JSON.stringify(body) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ ok: true }>(`/templates/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay();
     const i = db.templates.findIndex((t) => t.id === id);
-    if (i >= 0) db.templates[i] = { ...db.templates[i], ...body, updated_at: new Date().toISOString() };
+    if (i >= 0)
+      db.templates[i] = { ...db.templates[i], ...body, updated_at: new Date().toISOString() };
     return { ok: true as const };
   },
   remove: async (id: number) => {
     if (!isMockMode()) {
-      try { return await http<{ ok: true }>(`/templates/${id}`, { method: "DELETE" }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ ok: true }>(`/templates/${id}`, { method: "DELETE" });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay();
     const i = db.templates.findIndex((t) => t.id === id);
@@ -396,20 +465,33 @@ export const Templates = {
 export const Devices = {
   list: async () => {
     if (!isMockMode()) {
-      try { return await http<{ devices: ApiDevice[] }>("/devices"); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ devices: ApiDevice[] }>("/devices");
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
-    await delay(); return { devices: db.devices };
+    await delay();
+    return { devices: db.devices };
   },
   pair: async (code: string, name: string, location: string) => {
     if (!isMockMode()) {
-      try { return await http<{ id: number }>("/devices/pair", { method: "POST", body: JSON.stringify({ code, name, location }) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ id: number }>("/devices/pair", {
+          method: "POST",
+          body: JSON.stringify({ code, name, location }),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay();
     const id = (db.devices[db.devices.length - 1]?.id ?? 0) + 1;
     db.devices.push({
-      id, name, location, status: "online",
+      id,
+      name,
+      location,
+      status: "online",
       android_version: "Android 14",
       last_sync: new Date().toISOString(),
       template_id: db.templates[0]?.id ?? null,
@@ -419,26 +501,63 @@ export const Devices = {
   },
   generatePairingCode: async (): Promise<{ code: string; expires_in_seconds: number }> => {
     if (!isMockMode()) {
-      try { return await http<{ code: string; expires_in_seconds: number }>("/devices/pairing-code", { method: "POST" }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ code: string; expires_in_seconds: number }>("/devices/pairing-code", {
+          method: "POST",
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay(120);
     return { code: String(Math.floor(100000 + Math.random() * 900000)), expires_in_seconds: 600 };
   },
   assignTemplate: async (id: number, template_id: number | null) => {
     if (!isMockMode()) {
-      try { return await http<{ ok: true }>(`/devices/${id}/template`, { method: "PUT", body: JSON.stringify({ template_id }) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ ok: true }>(`/devices/${id}/template`, {
+          method: "PUT",
+          body: JSON.stringify({ template_id }),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay(120);
     const d = db.devices.find((x) => x.id === id);
     if (d) d.template_id = template_id;
     return { ok: true as const };
   },
+  update: async (
+    id: number,
+    body: { name: string; location: string | null; status?: ApiDevice["status"] },
+  ) => {
+    if (!isMockMode()) {
+      try {
+        return await http<{ ok: true }>(`/devices/${id}`, {
+          method: "PUT",
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
+    }
+    await delay(120);
+    const d = db.devices.find((x) => x.id === id);
+    if (d) {
+      d.name = body.name;
+      d.location = body.location;
+      if (body.status) d.status = body.status;
+    }
+    return { ok: true as const };
+  },
   remove: async (id: number) => {
     if (!isMockMode()) {
-      try { return await http<{ ok: true }>(`/devices/${id}`, { method: "DELETE" }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ ok: true }>(`/devices/${id}`, { method: "DELETE" });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay();
     const i = db.devices.findIndex((d) => d.id === id);
@@ -450,40 +569,69 @@ export const Devices = {
 export const Responses = {
   list: async () => {
     if (!isMockMode()) {
-      try { return await http<{ responses: ApiResponse[] }>("/responses"); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ responses: ApiResponse[] }>("/responses");
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
-    await delay(); return { responses: db.responses };
+    await delay();
+    return { responses: db.responses };
   },
 };
 
 export const Admins = {
   list: async () => {
     if (!isMockMode()) {
-      try { return await http<{ admins: ApiAdmin[] }>("/admins"); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ admins: ApiAdmin[] }>("/admins");
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
-    await delay(); return { admins: db.admins };
+    await delay();
+    return { admins: db.admins };
   },
-  create: async (body: { name: string; email: string; password: string; role?: "sub" | "super" }) => {
+  create: async (body: {
+    name: string;
+    email: string;
+    password: string;
+    role?: "sub" | "super";
+  }) => {
     if (!isMockMode()) {
-      try { return await http<{ id: number }>("/admins", { method: "POST", body: JSON.stringify(body) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ id: number }>("/admins", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay();
     const id = (db.admins[db.admins.length - 1]?.id ?? 0) + 1;
     db.admins.push({
-      id, name: body.name, email: body.email,
-      role: body.role ?? "sub", status: "active",
+      id,
+      name: body.name,
+      email: body.email,
+      role: body.role ?? "sub",
+      status: "active",
       created_at: new Date().toISOString(),
-      devices: 0, templates: 0,
+      devices: 0,
+      templates: 0,
     });
     return { id };
   },
   setStatus: async (id: number, status: "active" | "disabled") => {
     if (!isMockMode()) {
-      try { return await http<{ ok: true }>(`/admins/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) }); }
-      catch (e) { if (!(e instanceof ApiError) || e.status !== 0) throw e; }
+      try {
+        return await http<{ ok: true }>(`/admins/${id}/status`, {
+          method: "PUT",
+          body: JSON.stringify({ status }),
+        });
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+      }
     }
     await delay();
     const a = db.admins.find((x) => x.id === id);
