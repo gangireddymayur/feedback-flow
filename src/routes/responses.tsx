@@ -1004,8 +1004,8 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
       case "long_text":
       default:
         return (
-          <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-sm text-foreground/90 max-w-xl italic whitespace-pre-wrap leading-relaxed shadow-sm">
-            "{val}"
+          <div className="bg-white/5 border border-white/5 rounded-xl p-3 text-sm text-foreground/90 max-w-xl whitespace-pre-wrap leading-relaxed shadow-sm">
+            {String(val)}
           </div>
         );
     }
@@ -1085,7 +1085,7 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
       {/* Scannable one-line text feedback summary (when collapsed) */}
       {!expanded && textFeedbackList.length > 0 && (
         <div className="mt-3 text-xs text-muted-foreground/80 bg-white/[0.02] border border-white/5 rounded-lg px-3 py-2 italic truncate max-w-4xl">
-          "{textFeedbackList[0].text}"
+          &ldquo;{textFeedbackList[0].text}&rdquo;
         </div>
       )}
 
@@ -1154,6 +1154,8 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
             {questions.map((q, idx) => {
               const val = answers[q.id];
               if (val == null || String(val).trim() === "") return null;
+              // Skip customer_info questions — already shown in Contact Information section above
+              if (q.type === "customer_info") return null;
               return (
                 <div key={q.id} className="space-y-1.5">
                   <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 select-none">
