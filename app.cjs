@@ -314,7 +314,27 @@ app.get(
               (SELECT COUNT(*) FROM responses r WHERE r.device_id = d.id AND DATE(r.submitted_at) = CURDATE()) AS responses_today
        FROM devices d ORDER BY d.id DESC`,
     );
-    res.json({ devices: rows });
+    const now = Date.now();
+    const processedDevices = rows.map((d) => {
+      let calcStatus = d.status || "offline";
+      if (calcStatus !== "paused") {
+        if (d.last_sync) {
+          const lastSyncTime = d.last_sync instanceof Date ? d.last_sync.getTime() : new Date(d.last_sync).getTime();
+          if (now - lastSyncTime < 180000) {
+            calcStatus = "online";
+          } else {
+            calcStatus = "offline";
+          }
+        } else {
+          calcStatus = "offline";
+        }
+      }
+      return {
+        ...d,
+        status: calcStatus,
+      };
+    });
+    res.json({ devices: processedDevices });
   }),
 );
 
