@@ -335,6 +335,8 @@ export type BuilderQuestion = {
   collectName?: boolean;
   collectEmail?: boolean;
   collectPhone?: boolean;
+  page?: number;
+  maxStars?: number;
 };
 
 export const QUESTION_LIBRARY: { type: QuestionType; label: string; hint: string }[] = [

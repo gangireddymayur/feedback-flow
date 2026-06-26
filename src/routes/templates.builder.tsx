@@ -107,7 +107,7 @@ const ICONS: Record<QuestionType, React.ComponentType<{ className?: string }>> =
   customer_info: Contact,
 };
 
-function makeQuestion(type: QuestionType): BuilderQuestion {
+function makeQuestion(type: QuestionType, page = 1): BuilderQuestion {
   const def = QUESTION_LIBRARY.find((q) => q.type === type)!;
   const base: BuilderQuestion = {
     id: `q_${Math.random().toString(36).slice(2, 9)}`,
@@ -115,6 +115,7 @@ function makeQuestion(type: QuestionType): BuilderQuestion {
     label: def.label + "?",
     required: false,
     width: "full",
+    page,
   };
   if (type === "single_choice" || type === "multiple_choice") {
     base.options = ["Option 1", "Option 2", "Option 3"];
@@ -149,9 +150,13 @@ function BuilderPage() {
   const [name, setName] = React.useState("Untitled Template");
   const [description, setDescription] = React.useState("");
   const [displayMode, setDisplayMode] = React.useState<"multi_page" | "single_page">("multi_page");
+
+  const [activePage, setActivePage] = React.useState<number>(1);
+  const [totalPages, setTotalPages] = React.useState<number>(1);
+
   const [questions, setQuestions] = React.useState<BuilderQuestion[]>([
-    makeQuestion("rating"),
-    makeQuestion("short_text"),
+    makeQuestion("rating", 1),
+    makeQuestion("short_text", 1),
   ]);
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [activeDrag, setActiveDrag] = React.useState<
@@ -184,9 +189,13 @@ function BuilderPage() {
         collectName: q.collectName !== false,
         collectEmail: q.collectEmail !== false,
         collectPhone: q.collectPhone !== false,
+        page: q.page || 1,
       }));
       setQuestions(mappedQs);
       setSelectedId(mappedQs[0]?.id ?? null);
+      const maxPage = Math.max(1, ...mappedQs.map((q) => q.page || 1));
+      setTotalPages(maxPage);
+      setActivePage(1);
     }
   }, [existingTemplate]);
 
@@ -216,7 +225,7 @@ function BuilderPage() {
     const aData = active.data.current as { kind?: string; type?: QuestionType } | undefined;
 
     if (aData?.kind === "library" && aData.type) {
-      const newQ = makeQuestion(aData.type);
+      const newQ = makeQuestion(aData.type, activePage);
       setQuestions((qs) => {
         if (over.id === "canvas") return [...qs, newQ];
         const overIdx = qs.findIndex((q) => q.id === over.id);
@@ -241,6 +250,13 @@ function BuilderPage() {
 
   const selected = questions.find((q) => q.id === selectedId) ?? null;
 
+  // Track active page when selecting a question (e.g. sync selected question's page)
+  React.useEffect(() => {
+    if (selected && selected.page && selected.page !== activePage) {
+      setActivePage(selected.page);
+    }
+  }, [selectedId]);
+
   function updateSelected(patch: Partial<BuilderQuestion>) {
     if (!selected) return;
     setQuestions((qs) => qs.map((q) => (q.id === selected.id ? { ...q, ...patch } : q)));
@@ -256,6 +272,7 @@ function BuilderPage() {
       const copy: BuilderQuestion = {
         ...qs[i],
         id: `q_${Math.random().toString(36).slice(2, 9)}`,
+        page: qs[i].page || activePage,
       };
       const next = [...qs];
       next.splice(i + 1, 0, copy);
@@ -301,7 +318,7 @@ function BuilderPage() {
 
   const toggleCustomerInfo = (checked: boolean) => {
     if (checked) {
-      const newQ = makeQuestion("customer_info");
+      const newQ = makeQuestion("customer_info", activePage);
       setQuestions((qs) => [...qs, newQ]);
       setSelectedId(newQ.id);
     } else {
@@ -434,6 +451,11 @@ function BuilderPage() {
               onRemove={removeQuestion}
               onDuplicate={duplicateQuestion}
               setQuestions={setQuestions}
+              activePage={activePage}
+              setActivePage={setActivePage}
+              totalPages={totalPages}
+              setTotalPages={setTotalPages}
+              displayMode={displayMode}
             />
           </div>
 
@@ -505,6 +527,11 @@ function Canvas({
   onRemove,
   onDuplicate,
   setQuestions,
+  activePage,
+  setActivePage,
+  totalPages,
+  setTotalPages,
+  displayMode,
 }: {
   questions: BuilderQuestion[];
   selectedId: string | null;
@@ -512,8 +539,18 @@ function Canvas({
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
   setQuestions: React.Dispatch<React.SetStateAction<BuilderQuestion[]>>;
+  activePage: number;
+  setActivePage: React.Dispatch<React.SetStateAction<number>>;
+  totalPages: number;
+  setTotalPages: React.Dispatch<React.SetStateAction<number>>;
+  displayMode: "multi_page" | "single_page";
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
+
+  const pageQuestions = displayMode === "multi_page"
+    ? questions.filter((q) => (q.page || 1) === activePage)
+    : questions;
+
   return (
     <div
       ref={setNodeRef}
@@ -522,21 +559,29 @@ function Canvas({
         isOver && "ring-2 ring-primary/40 bg-primary/5",
       )}
     >
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground px-1 mb-2">
-        Canvas · {questions.length} question{questions.length === 1 ? "" : "s"}
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground px-1 mb-2 flex items-center justify-between">
+        <span>
+          Canvas · {pageQuestions.length} question{pageQuestions.length === 1 ? "" : "s"}
+          {displayMode === "multi_page" && ` on Page ${activePage}`}
+        </span>
+        <span className="text-[9px] text-muted-foreground capitalize">
+          Mode: {displayMode.replace("_", " ")}
+        </span>
       </div>
-      {questions.length === 0 ? (
+      {pageQuestions.length === 0 ? (
         <div className="border border-dashed border-white/10 rounded-xl h-64 grid place-items-center text-sm text-muted-foreground">
-          Drag a question from the left to start.
+          {displayMode === "multi_page"
+            ? `Page ${activePage} is empty. Drag a question from the left to start adding here.`
+            : "Drag a question from the left to start."}
         </div>
       ) : (
-        <SortableContext items={questions.map((q) => q.id)} strategy={rectSortingStrategy}>
+        <SortableContext items={pageQuestions.map((q) => q.id)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-2 gap-3">
-            {questions.map((q, i) => (
+            {pageQuestions.map((q) => (
               <SortableQuestion
                 key={q.id}
                 q={q}
-                index={i}
+                index={questions.indexOf(q)}
                 selected={selectedId === q.id}
                 onSelect={() => onSelect(q.id)}
                 onRemove={() => onRemove(q.id)}
@@ -548,6 +593,77 @@ function Canvas({
             ))}
           </div>
         </SortableContext>
+      )}
+
+      {displayMode === "multi_page" && (
+        <div className="mt-6 border-t border-white/5 pt-4 flex flex-wrap items-center justify-between gap-3 select-none">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mr-1">Pages:</span>
+            {Array.from({ length: totalPages }).map((_, idx) => {
+              const pNum = idx + 1;
+              return (
+                <div key={pNum} className="flex items-center gap-0.5">
+                  <Button
+                    size="sm"
+                    variant={activePage === pNum ? "secondary" : "outline"}
+                    className={cn(
+                      "h-8 px-3 text-xs cursor-pointer font-semibold",
+                      activePage === pNum ? "bg-primary text-primary-foreground border-primary/20" : "bg-white/5 border-white/10 hover:bg-white/10"
+                    )}
+                    onClick={() => setActivePage(pNum)}
+                  >
+                    Page {pNum}
+                  </Button>
+                  {totalPages > 1 && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 text-rose-300 hover:text-rose-400 hover:bg-white/5 cursor-pointer"
+                      title={`Delete Page ${pNum}`}
+                      onClick={() => {
+                        setQuestions((qs) => {
+                          return qs
+                            .filter((q) => (q.page || 1) !== pNum)
+                            .map((q) => {
+                              const qp = q.page || 1;
+                              if (qp > pNum) {
+                                return { ...q, page: qp - 1 };
+                              }
+                              return q;
+                            });
+                        });
+                        setTotalPages((prev) => Math.max(1, prev - 1));
+                        setActivePage((prev) => {
+                          const nextAct = prev === pNum ? Math.max(1, prev - 1) : prev;
+                          return nextAct > totalPages - 1 ? Math.max(1, totalPages - 1) : nextAct;
+                        });
+                        toast.success(`Deleted Page ${pNum}`);
+                      }}
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-2.5 border-dashed border-white/20 hover:border-white/30 text-emerald-400 font-semibold flex items-center gap-1 cursor-pointer bg-white/[0.02]"
+              onClick={() => {
+                const nextPages = totalPages + 1;
+                setTotalPages(nextPages);
+                setActivePage(nextPages);
+                toast.success(`Page ${nextPages} created`);
+              }}
+            >
+              <Plus className="size-3.5" /> Add Page
+            </Button>
+          </div>
+          <span className="text-[10px] text-muted-foreground italic">
+            Total questions: {questions.length}
+          </span>
+        </div>
       )}
     </div>
   );
