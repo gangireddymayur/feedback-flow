@@ -4,9 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Star,
   Download,
-  Filter,
   Search,
-  Check,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -17,20 +15,16 @@ import {
   MessageSquare,
   Sparkles,
   HelpCircle,
-  TrendingUp,
+  Activity,
+  CheckCircle,
+  Database,
+  History,
 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Responses, ApiResponse } from "@/lib/api";
+import { Responses, Devices, Templates, ApiResponse } from "@/lib/api";
 import { LoadingState, ErrorState } from "@/routes/templates";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -38,95 +32,139 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/responses")({ component: ResponsesPage });
 
 function ResponsesPage() {
-  const { data, isLoading, error } = useQuery({
+  const responsesQ = useQuery({
     queryKey: ["responses"],
     queryFn: () => Responses.list(),
     refetchInterval: 10000,
   });
 
+  const devicesQ = useQuery({
+    queryKey: ["devices"],
+    queryFn: () => Devices.list(),
+    refetchInterval: 15000,
+  });
+
+  const templatesQ = useQuery({
+    queryKey: ["templates"],
+    queryFn: () => Templates.list(),
+  });
+
+  const [selectedDeviceId, setSelectedDeviceId] = React.useState<number | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<number | null>(null);
   const [q, setQ] = React.useState("");
-  const [selectedTemplate, setSelectedTemplate] = React.useState<string>("all");
-  const [selectedDevice, setSelectedDevice] = React.useState<string>("all");
-  const [minRating, setMinRating] = React.useState<number>(0); // 0 = any
 
-  const all = data?.responses ?? [];
+  const allResponses = responsesQ.data?.responses ?? [];
+  const devices = devicesQ.data?.devices ?? [];
+  const templates = templatesQ.data?.templates ?? [];
 
-  // Derived filter lists
-  const templatesList = React.useMemo(() => {
-    const set = new Set<string>();
-    all.forEach((r) => {
-      if (r.template) set.add(r.template);
+  const isLoading = responsesQ.isLoading || devicesQ.isLoading || templatesQ.isLoading;
+  const isError = responsesQ.isError || devicesQ.isError || templatesQ.isError;
+  const errorObj = responsesQ.error || devicesQ.error || templatesQ.error;
+
+  // 1. Calculate review counters for each device
+  const deviceResponseCounts = React.useMemo(() => {
+    const counts: Record<number, number> = {};
+    allResponses.forEach((r) => {
+      if (r.device_id) {
+        counts[r.device_id] = (counts[r.device_id] || 0) + 1;
+      }
     });
-    return Array.from(set);
-  }, [all]);
+    return counts;
+  }, [allResponses]);
 
-  const devicesList = React.useMemo(() => {
-    const set = new Set<string>();
-    all.forEach((r) => {
-      if (r.device) set.add(r.device);
+  // 2. Calculate templates that have been linked/used by the selected device
+  const deviceTemplates = React.useMemo(() => {
+    if (selectedDeviceId === null) return [];
+    const device = devices.find((d) => d.id === selectedDeviceId);
+    const activeTemplateId = device?.template_id;
+
+    // Map to track unique templates for this device
+    const templatesMap = new Map<
+      number,
+      { id: number; name: string; isActive: boolean; responseCount: number }
+    >();
+
+    // Always include the current active template in the list if set on device
+    if (activeTemplateId) {
+      const activeTpl = templates.find((t) => t.id === activeTemplateId);
+      templatesMap.set(activeTemplateId, {
+        id: activeTemplateId,
+        name: activeTpl?.name || `Template #${activeTemplateId}`,
+        isActive: true,
+        responseCount: 0,
+      });
+    }
+
+    // Traverse responses to find any historical templates used by this device
+    allResponses.forEach((r) => {
+      if (r.device_id === selectedDeviceId && r.template_id) {
+        const existing = templatesMap.get(r.template_id);
+        if (existing) {
+          existing.responseCount++;
+        } else {
+          templatesMap.set(r.template_id, {
+            id: r.template_id,
+            name: r.template || `Template #${r.template_id}`,
+            isActive: r.template_id === activeTemplateId,
+            responseCount: 1,
+          });
+        }
+      }
     });
-    return Array.from(set);
-  }, [all]);
 
-  // Apply filters
+    return Array.from(templatesMap.values());
+  }, [selectedDeviceId, devices, allResponses, templates]);
+
+  // Auto-select the first device and its active template for convenience
+  React.useEffect(() => {
+    if (selectedDeviceId === null && devices.length > 0) {
+      // Find the first device
+      const firstDev = devices[0];
+      setSelectedDeviceId(firstDev.id);
+
+      // Auto-select active template if set
+      if (firstDev.template_id) {
+        setSelectedTemplateId(firstDev.template_id);
+      }
+    }
+  }, [devices, selectedDeviceId]);
+
+  // Reset selected template if we switch devices, and auto-select its active one if available
+  const handleDeviceSelect = (devId: number) => {
+    setSelectedDeviceId(devId);
+    const dev = devices.find((d) => d.id === devId);
+    if (dev?.template_id) {
+      setSelectedTemplateId(dev.template_id);
+    } else {
+      setSelectedTemplateId(null);
+    }
+    setQ("");
+  };
+
+  // 3. Filter responses based on selected device, template, and search query
   const list = React.useMemo(() => {
-    return all.filter((r) => {
-      if (minRating > 0 && (r.rating ?? 0) < minRating) return false;
-      if (selectedTemplate !== "all" && r.template !== selectedTemplate) return false;
-      if (selectedDevice !== "all" && r.device !== selectedDevice) return false;
+    if (selectedDeviceId === null || selectedTemplateId === null) return [];
+    return allResponses.filter((r) => {
+      if (r.device_id !== selectedDeviceId || r.template_id !== selectedTemplateId) return false;
 
       if (q.trim()) {
         const needle = q.toLowerCase();
-        const matchesBasic =
+        const matchesSearch =
           r.template.toLowerCase().includes(needle) ||
           r.device.toLowerCase().includes(needle) ||
           (r.answers && JSON.stringify(r.answers).toLowerCase().includes(needle));
-        if (!matchesBasic) return false;
+        if (!matchesSearch) return false;
       }
       return true;
     });
-  }, [all, q, selectedTemplate, selectedDevice, minRating]);
+  }, [allResponses, selectedDeviceId, selectedTemplateId, q]);
 
-  // Calculate live stats based on the filtered list
-  const stats = React.useMemo(() => {
-    const total = list.length;
-    const ratings = list.map((r) => r.rating ?? 0).filter((n) => n > 0);
-    const avgRating = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0;
-
-    const durations = list.map((r) => r.duration_seconds).filter((d) => d > 0);
-    const avgDuration = durations.length
-      ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
-      : 0;
-
-    // NPS score calculation
-    const promoters = ratings.filter((r) => r >= 5).length;
-    const detractors = ratings.filter((r) => r <= 3).length;
-    const nps = ratings.length ? Math.round(((promoters - detractors) / ratings.length) * 100) : 0;
-
-    return {
-      total,
-      avgRating,
-      avgDuration,
-      nps,
-      totalRatings: ratings.length,
-      promoters,
-      detractors,
-    };
-  }, [list]);
-
-  const hasActiveFilters =
-    q !== "" || selectedTemplate !== "all" || selectedDevice !== "all" || minRating !== 0;
-
-  const resetFilters = () => {
-    setQ("");
-    setSelectedTemplate("all");
-    setSelectedDevice("all");
-    setMinRating(0);
-    toast.info("Filters cleared");
-  };
-
+  // Export responses specific to selected tablet + template
   function exportCsv() {
     if (list.length === 0) return toast.error("Nothing to export");
+    const activeDevice = devices.find((d) => d.id === selectedDeviceId);
+    const activeTpl = deviceTemplates.find((t) => t.id === selectedTemplateId);
+
     const header = [
       "id",
       "template",
@@ -147,12 +185,13 @@ function ResponsesPage() {
         esc(JSON.stringify(r.answers || {})),
       ].join(","),
     );
+
     const csv = [header.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `responses-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `responses-${activeDevice?.name || "device"}-${activeTpl?.name || "template"}-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -160,174 +199,227 @@ function ResponsesPage() {
     toast.success(`Exported ${list.length} responses to CSV`);
   }
 
+  const selectedDeviceObj = devices.find((d) => d.id === selectedDeviceId);
+  const selectedTemplateObj = deviceTemplates.find((t) => t.id === selectedTemplateId);
+
   return (
     <DashboardLayout>
       <PageHeader
-        title="Responses"
-        description="Browse detailed customer answers, monitor feedback trends, and export responses."
+        title="Responses Explorer"
+        description="Browse structured review logs grouped by physical tablet terminal and template versions."
         actions={
-          <div className="flex flex-wrap gap-2">
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                onClick={resetFilters}
-                className="text-xs text-muted-foreground hover:text-foreground hover:bg-white/5"
-              >
-                <X className="size-3.5 mr-1" /> Clear Filters
-              </Button>
-            )}
+          selectedDeviceObj &&
+          selectedTemplateObj && (
             <Button onClick={exportCsv} disabled={list.length === 0}>
               <Download className="size-4" /> Export CSV
             </Button>
-          </div>
+          )
         }
       />
 
       {isLoading && <LoadingState />}
-      {error && <ErrorState message={(error as Error).message} />}
+      {isError && <ErrorState message={errorMessage(errorObj)} />}
 
-      {!isLoading && !error && (
-        <div className="space-y-6">
-          {/* KPI Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <GlassCard className="relative overflow-hidden">
-              <div className="absolute -top-8 -right-8 size-24 rounded-full bg-primary/10 blur-2xl" />
-              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                <MessageSquare className="size-3.5" /> Total Responses
-              </div>
-              <div className="text-2xl lg:text-3xl font-semibold tracking-tight mt-2 text-primary">
-                {stats.total.toLocaleString()}
-              </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">
-                {all.length !== stats.total ? `${all.length} total raw responses` : "across all paired terminals"}
-              </div>
-            </GlassCard>
-
-            <GlassCard className="relative overflow-hidden">
-              <div className="absolute -top-8 -right-8 size-24 rounded-full bg-emerald-400/10 blur-2xl" />
-              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                <Star className="size-3.5 text-emerald-300" /> Avg. Rating
-              </div>
-              <div className="text-2xl lg:text-3xl font-semibold tracking-tight mt-2 text-emerald-300">
-                {stats.avgRating ? `${stats.avgRating.toFixed(1)} ★` : "—"}
-              </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">
-                {stats.totalRatings > 0 ? `based on ${stats.totalRatings} ratings` : "no ratings logged"}
-              </div>
-            </GlassCard>
-
-            <GlassCard className="relative overflow-hidden">
-              <div className="absolute -top-8 -right-8 size-24 rounded-full bg-indigo-400/10 blur-2xl" />
-              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                <Sparkles className="size-3.5 text-indigo-300" /> Net Promoter Score (NPS)
-              </div>
-              <div className="text-2xl lg:text-3xl font-semibold tracking-tight mt-2 text-indigo-300">
-                {stats.totalRatings > 0 ? stats.nps : "—"}
-              </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">
-                {stats.totalRatings > 0
-                  ? `Promoters: ${stats.promoters} · Detractors: ${stats.detractors}`
-                  : "requires star responses"}
-              </div>
-            </GlassCard>
-
-            <GlassCard className="relative overflow-hidden">
-              <div className="absolute -top-8 -right-8 size-24 rounded-full bg-amber-400/10 blur-2xl" />
-              <div className="flex items-center gap-2 text-muted-foreground text-xs">
-                <Clock className="size-3.5 text-amber-300" /> Avg. Duration
-              </div>
-              <div className="text-2xl lg:text-3xl font-semibold tracking-tight mt-2 text-amber-300">
-                {stats.avgDuration ? `${stats.avgDuration}s` : "—"}
-              </div>
-              <div className="text-[10px] text-muted-foreground mt-0.5">
-                time elapsed from start to submit
-              </div>
-            </GlassCard>
+      {!isLoading && !isError && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+          {/* Column 1: Devices list */}
+          <div className="lg:col-span-4 xl:col-span-3 space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                1. Tablets
+              </span>
+              <Badge variant="secondary" className="bg-white/5 text-[10px] text-muted-foreground">
+                {devices.length} paired
+              </Badge>
+            </div>
+            <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+              {devices.length === 0 && (
+                <GlassCard className="py-8 text-center text-xs text-muted-foreground italic">
+                  No tablets paired. Go to Devices tab to pair one.
+                </GlassCard>
+              )}
+              {devices.map((d) => {
+                const isSelected = selectedDeviceId === d.id;
+                const reviewCount = deviceResponseCounts[d.id] || 0;
+                return (
+                  <div
+                    key={d.id}
+                    onClick={() => handleDeviceSelect(d.id)}
+                    className={cn(
+                      "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
+                      isSelected
+                        ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
+                        : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={cn(
+                          "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
+                          isSelected ? "bg-primary/20 text-primary" : "bg-white/5 text-muted-foreground group-hover:text-foreground",
+                        )}
+                      >
+                        <Smartphone className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm truncate">{d.name}</div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5 truncate">
+                          <MapPin className="size-3 shrink-0" /> {d.location || "No location set"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5 text-[10px]">
+                      <StatusIndicator status={d.status} />
+                      <span className="text-muted-foreground font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded">
+                        <MessageSquare className="size-2.5" /> {reviewCount} reviews
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Filters Bar */}
-          <GlassCard className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              {/* Search input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-                <Input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search comments, devices..."
-                  className="pl-9 bg-white/5 border-white/10 text-sm focus-visible:ring-primary/40"
-                />
-              </div>
-
-              {/* Template Select */}
-              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-sm h-10">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <FileText className="size-4 text-muted-foreground shrink-0" />
-                    <SelectValue placeholder="All Templates" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="glass-strong border-white/10">
-                  <SelectItem value="all">All Templates</SelectItem>
-                  {templatesList.map((tpl) => (
-                    <SelectItem key={tpl} value={tpl}>
-                      {tpl}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Device Select */}
-              <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-sm h-10">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Smartphone className="size-4 text-muted-foreground shrink-0" />
-                    <SelectValue placeholder="All Devices" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="glass-strong border-white/10">
-                  <SelectItem value="all">All Devices</SelectItem>
-                  {devicesList.map((dev) => (
-                    <SelectItem key={dev} value={dev}>
-                      {dev}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Rating Select */}
-              <Select value={String(minRating)} onValueChange={(val) => setMinRating(Number(val))}>
-                <SelectTrigger className="bg-white/5 border-white/10 text-sm h-10">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <Star className="size-4 text-muted-foreground shrink-0" />
-                    <SelectValue placeholder="Any Rating" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="glass-strong border-white/10">
-                  <SelectItem value="0">Any Rating</SelectItem>
-                  <SelectItem value="5">5★ Only</SelectItem>
-                  <SelectItem value="4">4★ or higher</SelectItem>
-                  <SelectItem value="3">3★ or higher</SelectItem>
-                  <SelectItem value="2">2★ or higher</SelectItem>
-                  <SelectItem value="1">1★ or higher</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Column 2: Template History list */}
+          <div className="lg:col-span-4 xl:col-span-3 space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                2. Template History
+              </span>
+              {selectedDeviceObj && (
+                <Badge variant="secondary" className="bg-white/5 text-[10px] text-muted-foreground">
+                  {deviceTemplates.length} templates
+                </Badge>
+              )}
             </div>
-          </GlassCard>
+            <div className="space-y-2 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+              {selectedDeviceId === null ? (
+                <GlassCard className="py-12 text-center text-xs text-muted-foreground italic flex flex-col items-center justify-center gap-2">
+                  <Smartphone className="size-5 text-muted-foreground/30" />
+                  Select a tablet to load its templates.
+                </GlassCard>
+              ) : deviceTemplates.length === 0 ? (
+                <GlassCard className="py-12 text-center text-xs text-muted-foreground italic">
+                  No templates recorded on this tablet yet.
+                </GlassCard>
+              ) : (
+                deviceTemplates.map((t) => {
+                  const isSelected = selectedTemplateId === t.id;
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => {
+                        setSelectedTemplateId(t.id);
+                        setQ("");
+                      }}
+                      className={cn(
+                        "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
+                        isSelected
+                          ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
+                          : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
+                      )}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div
+                          className={cn(
+                            "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
+                            isSelected ? "bg-primary/20 text-primary" : "bg-white/5 text-muted-foreground group-hover:text-foreground",
+                          )}
+                        >
+                          <FileText className="size-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-sm truncate">{t.name}</div>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            {t.isActive ? (
+                              <Badge className="bg-emerald-400/10 text-emerald-300 border border-emerald-400/20 text-[8px] px-1 py-0 uppercase tracking-wide">
+                                Active Now
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground border-white/5 text-[8px] px-1 py-0 uppercase tracking-wide">
+                                Past Version
+                              </Badge>
+                            )}
+                            <span className="text-[10px] text-muted-foreground ml-auto bg-white/5 px-1.5 py-0.5 rounded">
+                              {t.responseCount} reviews
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
 
-          {/* Responses List */}
-          <div className="space-y-3">
-            {list.length === 0 && (
-              <GlassCard className="text-center text-muted-foreground py-16 text-sm">
-                {all.length === 0
-                  ? "No responses recorded yet."
-                  : "No responses match your search or filters."}
+          {/* Column 3: Detailed Feedback Feed */}
+          <div className="lg:col-span-4 xl:col-span-6 space-y-4">
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+              3. Detailed Survey Responses
+            </div>
+
+            {selectedDeviceId === null || selectedTemplateId === null ? (
+              <GlassCard className="py-24 text-center text-xs text-muted-foreground italic flex flex-col items-center justify-center gap-3">
+                <Database className="size-8 text-muted-foreground/20" />
+                <div>
+                  Select a tablet on the left and a template version from history to view responses.
+                </div>
               </GlassCard>
-            )}
+            ) : (
+              <div className="space-y-4">
+                {/* Selected context header & search */}
+                <GlassCard className="p-4 space-y-3">
+                  <div className="flex items-start justify-between flex-wrap gap-2">
+                    <div>
+                      <h3 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                        {selectedTemplateObj?.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Showing responses recorded on{" "}
+                        <span className="text-foreground font-medium">
+                          {selectedDeviceObj?.name}
+                        </span>
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="bg-white/5 text-xs">
+                      {list.length} matches
+                    </Badge>
+                  </div>
 
-            {list.map((r) => (
-              <ResponseDetailCard key={r.id} r={r} />
-            ))}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                    <Input
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder="Search comments and raw answers..."
+                      className="pl-9 bg-white/5 border-white/10 text-xs focus-visible:ring-primary/40"
+                    />
+                    {q && (
+                      <button
+                        onClick={() => setQ("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </GlassCard>
+
+                {/* Responses scrollbox */}
+                <div className="space-y-3 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
+                  {list.length === 0 ? (
+                    <GlassCard className="text-center text-muted-foreground py-16 text-sm">
+                      {q.trim()
+                        ? "No responses match your search text."
+                        : "No responses recorded yet for this survey on this tablet."}
+                    </GlassCard>
+                  ) : (
+                    list.map((r) => <ResponseDetailCard key={r.id} r={r} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -515,19 +607,11 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
           )}
         </div>
 
-        {/* Template info */}
+        {/* Short info */}
         <div className="min-w-0 flex-1">
-          <h4 className="font-semibold text-sm truncate text-foreground flex items-center gap-2">
-            <span>{r.template}</span>
-            {textFeedbackList.length > 0 && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] px-1.5 py-0 uppercase font-bold tracking-wider rounded">
-                Comment
-              </Badge>
-            )}
-          </h4>
-          <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-            <span className="flex items-center gap-1">
-              <Smartphone className="size-3 text-muted-foreground/75" /> {r.device}
+          <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="flex items-center gap-1 font-medium text-foreground">
+              Review #{r.id}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="size-3 text-muted-foreground/75" /> Completed in {r.duration_seconds}s
@@ -617,27 +701,42 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
                 </div>
               ))}
 
-              {/* Render unmapped custom metadata fields */}
-              {extraAnswers.map(({ key, value }) => (
-                <div key={key} className="space-y-1.5">
-                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider select-none">
-                    {key.replace(/_/g, " ").toUpperCase()}
-                  </div>
-                  <div className="pl-0.5">
-                    {typeof value === "object" ? (
-                      <pre className="text-xs bg-white/5 p-2.5 rounded border border-white/5 overflow-auto text-foreground/80 font-mono">
-                        {JSON.stringify(value, null, 2)}
-                      </pre>
-                    ) : (
-                      renderAnswerValue("short_text", value)
-                    )}
-                  </div>
+            {/* Render unmapped custom metadata fields */}
+            {extraAnswers.map(({ key, value }) => (
+              <div key={key} className="space-y-1.5">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider select-none">
+                  {key.replace(/_/g, " ").toUpperCase()}
                 </div>
-              ))}
+                <div className="pl-0.5">
+                  {typeof value === "object" ? (
+                    <pre className="text-xs bg-white/5 p-2.5 rounded border border-white/5 overflow-auto text-foreground/80 font-mono">
+                      {JSON.stringify(value, null, 2)}
+                    </pre>
+                  ) : (
+                    renderAnswerValue("short_text", value)
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
     </GlassCard>
+  );
+}
+
+function StatusIndicator({ status }: { status: "online" | "offline" | "syncing" }) {
+  const map = {
+    online: ["bg-emerald-400", "text-emerald-300", "Online"],
+    offline: ["bg-rose-400", "text-rose-300", "Offline"],
+    syncing: ["bg-amber-400", "text-amber-300", "Syncing"],
+  } as const;
+  const [dotCls, txtCls, label] = map[status] || ["bg-rose-400", "text-rose-300", "Offline"];
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground select-none">
+      <span className={cn("size-1.5 rounded-full", dotCls, status === "online" && "animate-pulse")} />
+      <span className={txtCls}>{label}</span>
+    </span>
   );
 }
 
@@ -646,4 +745,10 @@ function esc(s: string) {
   const needs = /[",\n]/.test(s);
   const v = s.replace(/"/g, '""');
   return needs ? `"${v}"` : v;
+}
+
+function errorMessage(e: unknown): string {
+  if (e == null) return "An error occurred";
+  if (e instanceof Error) return e.message;
+  return String(e);
 }
