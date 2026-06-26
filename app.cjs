@@ -319,7 +319,7 @@ app.get(
   auth(),
   asyncH(async (_req, res) => {
     const [rows] = await pool.query(
-      `SELECT r.id, r.template_id, t.name AS template, r.device_id, d.name AS device,
+      `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
               r.rating, r.answers, r.submitted_at, r.duration_seconds
        FROM responses r
        LEFT JOIN templates t ON t.id = r.template_id
@@ -327,7 +327,11 @@ app.get(
        ORDER BY r.submitted_at DESC LIMIT 500`,
     );
     res.json({
-      responses: rows.map((r) => ({ ...r, answers: parseJson(r.answers, {}) })),
+      responses: rows.map((r) => ({
+        ...r,
+        answers: parseJson(r.answers, {}),
+        template_questions: parseJson(r.template_questions, []),
+      })),
     });
   }),
 );

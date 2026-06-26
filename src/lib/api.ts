@@ -128,6 +128,7 @@ export type ApiResponse = {
   answers: Record<string, unknown>;
   submitted_at: string;
   duration_seconds: number;
+  template_questions?: ApiTemplate["questions"];
 };
 
 export type ApiAdmin = {
@@ -184,6 +185,7 @@ const seed = () => {
       device: r.device,
       rating: r.rating,
       answers: r.comment ? { comment: r.comment } : {},
+      template_questions: tpl?.questions ?? [],
       submitted_at: new Date(Date.now() - i * 7 * 60 * 1000).toISOString(),
       duration_seconds:
         r.duration.split(":").reduce((a, b) => a * 60 + Number(b), 0) || 0,
