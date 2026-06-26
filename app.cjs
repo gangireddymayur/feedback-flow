@@ -38,6 +38,24 @@ const pool = mysql.createPool({
   dateStrings: false,
 });
 
+// Run startup database migrations to ensure templates table columns exist
+(async () => {
+  try {
+    const [cols] = await pool.query("SHOW COLUMNS FROM templates LIKE 'display_mode'");
+    if (cols.length === 0) {
+      await pool.query("ALTER TABLE templates ADD COLUMN display_mode VARCHAR(64) DEFAULT 'multi_page'");
+      console.log("[db] Added display_mode column to templates table.");
+    }
+    const [brandCols] = await pool.query("SHOW COLUMNS FROM templates LIKE 'branding'");
+    if (brandCols.length === 0) {
+      await pool.query("ALTER TABLE templates ADD COLUMN branding JSON NULL");
+      console.log("[db] Added branding column to templates table.");
+    }
+  } catch (err) {
+    console.error("[db] Startup migration failed:", err);
+  }
+})();
+
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
@@ -166,10 +184,15 @@ app.get(
   auth(),
   asyncH(async (_req, res) => {
     const [rows] = await pool.query(
-      "SELECT id, name, description, category, status, questions, created_at, updated_at FROM templates ORDER BY id DESC",
+      "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates ORDER BY id DESC",
     );
     res.json({
-      templates: rows.map((t) => ({ ...t, questions: parseJson(t.questions, []) })),
+      templates: rows.map((t) => ({
+        ...t,
+        displayMode: t.display_mode,
+        branding: parseJson(t.branding, null),
+        questions: parseJson(t.questions, []),
+      })),
     });
   }),
 );
@@ -184,11 +207,22 @@ app.post(
       category = "General",
       status = "draft",
       questions = [],
+      displayMode = "multi_page",
+      branding = null,
     } = req.body || {};
     if (!name) return res.status(400).json({ error: "name required" });
     const [r] = await pool.query(
-      "INSERT INTO templates (owner_id, name, description, category, status, questions) VALUES (?, ?, ?, ?, ?, ?)",
-      [req.user.id, name, description, category, status, JSON.stringify(questions)],
+      "INSERT INTO templates (owner_id, name, description, category, status, questions, display_mode, branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        req.user.id,
+        name,
+        description,
+        category,
+        status,
+        JSON.stringify(questions),
+        displayMode,
+        JSON.stringify(branding),
+      ],
     );
     res.json({ id: r.insertId });
   }),
@@ -200,12 +234,17 @@ app.get(
   asyncH(async (req, res) => {
     const id = Number(req.params.id);
     const [rows] = await pool.query(
-      "SELECT id, name, description, category, status, questions, created_at, updated_at FROM templates WHERE id = ? LIMIT 1",
+      "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates WHERE id = ? LIMIT 1",
       [id],
     );
     const template = rows[0];
     if (!template) return res.status(404).json({ error: "Template not found" });
-    res.json({ ...template, questions: parseJson(template.questions, []) });
+    res.json({
+      ...template,
+      displayMode: template.display_mode,
+      branding: parseJson(template.branding, null),
+      questions: parseJson(template.questions, []),
+    });
   }),
 );
 
@@ -213,10 +252,19 @@ app.put(
   "/api/templates/:id",
   auth(),
   asyncH(async (req, res) => {
-    const { name, description, category, status, questions } = req.body || {};
+    const { name, description, category, status, questions, displayMode, branding } = req.body || {};
     await pool.query(
-      "UPDATE templates SET name=?, description=?, category=?, status=?, questions=?, updated_at=NOW() WHERE id=?",
-      [name, description, category, status, JSON.stringify(questions ?? []), Number(req.params.id)],
+      "UPDATE templates SET name=?, description=?, category=?, status=?, questions=?, display_mode=?, branding=?, updated_at=NOW() WHERE id=?",
+      [
+        name,
+        description,
+        category,
+        status,
+        JSON.stringify(questions ?? []),
+        displayMode || "multi_page",
+        JSON.stringify(branding || null),
+        Number(req.params.id),
+      ],
     );
     res.json({ ok: true });
   }),

@@ -97,6 +97,15 @@ export type ApiTemplate = {
   category: string;
   status: "active" | "inactive" | "draft";
   displayMode?: "multi_page" | "single_page";
+  branding?: {
+    enabled: boolean;
+    companyName: string;
+    logoUrl: string;
+    position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+    size: number;
+    offsetX: number;
+    offsetY: number;
+  } | null;
   questions: Array<{
     id: string;
     type: string;

@@ -154,11 +154,31 @@ function BuilderPage() {
   const [activePage, setActivePage] = React.useState<number>(1);
   const [totalPages, setTotalPages] = React.useState<number>(1);
 
-  const [questions, setQuestions] = React.useState<BuilderQuestion[]>([
+  const [branding, setBranding] = React.useState<{
+    enabled: boolean;
+    companyName: string;
+    logoUrl: string;
+    position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+    size: number;
+    offsetX: number;
+    offsetY: number;
+  }>({
+    enabled: false,
+    companyName: "",
+    logoUrl: "",
+    position: "top_right",
+    size: 100,
+    offsetX: 16,
+    offsetY: 16,
+  });
+
+  const defaultQuestions = React.useMemo(() => [
     makeQuestion("rating", 1),
     makeQuestion("short_text", 1),
-  ]);
-  const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  ], []);
+
+  const [questions, setQuestions] = React.useState<BuilderQuestion[]>(defaultQuestions);
+  const [selectedId, setSelectedId] = React.useState<string | null>(defaultQuestions[0].id);
   const [activeDrag, setActiveDrag] = React.useState<
     { kind: "library"; type: QuestionType } | { kind: "sortable"; id: string } | null
   >(null);
@@ -174,6 +194,27 @@ function BuilderPage() {
       setName(existingTemplate.name);
       setDescription(existingTemplate.description || "");
       setDisplayMode((existingTemplate.displayMode as "multi_page" | "single_page") || "multi_page");
+      if (existingTemplate.branding) {
+        setBranding({
+          enabled: !!existingTemplate.branding.enabled,
+          companyName: existingTemplate.branding.companyName || "",
+          logoUrl: existingTemplate.branding.logoUrl || "",
+          position: existingTemplate.branding.position || "top_right",
+          size: existingTemplate.branding.size || 100,
+          offsetX: existingTemplate.branding.offsetX ?? 16,
+          offsetY: existingTemplate.branding.offsetY ?? 16,
+        });
+      } else {
+        setBranding({
+          enabled: false,
+          companyName: "",
+          logoUrl: "",
+          position: "top_right",
+          size: 100,
+          offsetX: 16,
+          offsetY: 16,
+        });
+      }
       const mappedQs = (existingTemplate.questions || []).map((q) => ({
         id: q.id,
         type: q.type as QuestionType,
@@ -198,12 +239,6 @@ function BuilderPage() {
       setActivePage(1);
     }
   }, [existingTemplate]);
-
-  React.useEffect(() => {
-    if (questions.length > 0 && !selectedId) {
-      setSelectedId(questions[0].id);
-    }
-  }, [questions, selectedId]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -292,6 +327,7 @@ function BuilderPage() {
           status: publish ? "active" : (existingTemplate?.status || "draft"),
           displayMode,
           questions,
+          branding,
         });
         toast.success(publish ? "Template published" : "Template updated");
       } else {
@@ -302,6 +338,7 @@ function BuilderPage() {
           status: publish ? "active" : "draft",
           displayMode,
           questions,
+          branding,
         });
         toast.success(publish ? "Template published" : "Template saved as draft");
       }
@@ -442,6 +479,21 @@ function BuilderPage() {
                   </Button>
                 </div>
               </div>
+
+              <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
+                <div>
+                  <Label className="text-xs font-semibold text-foreground">Template Settings & Branding</Label>
+                  <p className="text-[10px] text-muted-foreground">Configure the floating logo and details watermark</p>
+                </div>
+                <Button
+                  variant={selectedId === null ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedId(null)}
+                  className="h-7 text-[10px] px-3 py-0 font-semibold cursor-pointer"
+                >
+                  Edit Branding
+                </Button>
+              </div>
             </GlassCard>
 
             <Canvas
@@ -456,6 +508,7 @@ function BuilderPage() {
               totalPages={totalPages}
               setTotalPages={setTotalPages}
               displayMode={displayMode}
+              branding={branding}
             />
           </div>
 
@@ -467,9 +520,7 @@ function BuilderPage() {
             {selected ? (
               <Inspector q={selected} onChange={updateSelected} />
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Select a question to edit its label, options, layout, and customized fields.
-              </p>
+              <BrandingInspector branding={branding} onChange={setBranding} />
             )}
           </GlassCard>
         </div>
@@ -532,6 +583,7 @@ function Canvas({
   totalPages,
   setTotalPages,
   displayMode,
+  branding,
 }: {
   questions: BuilderQuestion[];
   selectedId: string | null;
@@ -544,6 +596,15 @@ function Canvas({
   totalPages: number;
   setTotalPages: React.Dispatch<React.SetStateAction<number>>;
   displayMode: "multi_page" | "single_page";
+  branding: {
+    enabled: boolean;
+    companyName: string;
+    logoUrl: string;
+    position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+    size: number;
+    offsetX: number;
+    offsetY: number;
+  };
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
 
@@ -555,7 +616,7 @@ function Canvas({
     <div
       ref={setNodeRef}
       className={cn(
-        "glass rounded-2xl p-4 min-h-[360px] transition-colors",
+        "glass rounded-2xl p-4 min-h-[360px] transition-colors relative",
         isOver && "ring-2 ring-primary/40 bg-primary/5",
       )}
     >
@@ -627,7 +688,7 @@ function Canvas({
                             .map((q) => {
                               const qp = q.page || 1;
                               if (qp > pNum) {
-                                return { ...q, page: qp - 1 };
+                                  return { ...q, page: qp - 1 };
                               }
                               return q;
                             });
@@ -663,6 +724,38 @@ function Canvas({
           <span className="text-[10px] text-muted-foreground italic">
             Total questions: {questions.length}
           </span>
+        </div>
+      )}
+
+      {branding.enabled && (
+        <div
+          className={cn(
+            "absolute pointer-events-none z-10 flex flex-col items-center bg-black/50 backdrop-blur-sm border border-white/10 p-2 rounded-lg text-center shadow-xl",
+            branding.position === "top_left" && "top-3 left-3",
+            branding.position === "top_right" && "top-3 right-3",
+            branding.position === "bottom_left" && "bottom-3 left-3",
+            branding.position === "bottom_right" && "bottom-3 right-3"
+          )}
+          style={{
+            marginTop: branding.position.startsWith("top") ? `${branding.offsetY}px` : undefined,
+            marginBottom: branding.position.startsWith("bottom") ? `${branding.offsetY}px` : undefined,
+            marginLeft: branding.position.endsWith("left") ? `${branding.offsetX}px` : undefined,
+            marginRight: branding.position.endsWith("right") ? `${branding.offsetX}px` : undefined,
+          }}
+        >
+          {branding.logoUrl && (
+            <img
+              src={branding.logoUrl}
+              alt="Watermark Logo"
+              style={{ width: `${branding.size}px`, height: "auto" }}
+              className="object-contain max-h-40"
+            />
+          )}
+          {branding.companyName && (
+            <span className="text-[10px] font-bold text-white/95 mt-1 block select-none">
+              {branding.companyName}
+            </span>
+          )}
         </div>
       )}
     </div>
@@ -1276,6 +1369,194 @@ function Inspector({
       <div className="text-[11px] text-muted-foreground border-t border-white/5 pt-3">
         Type: <span className="text-foreground capitalize">{q.type.replace("_", " ")}</span>
       </div>
+    </div>
+  );
+}
+
+function BrandingInspector({
+  branding,
+  onChange,
+}: {
+  branding: {
+    enabled: boolean;
+    companyName: string;
+    logoUrl: string;
+    position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+    size: number;
+    offsetX: number;
+    offsetY: number;
+  };
+  onChange: React.Dispatch<React.SetStateAction<{
+    enabled: boolean;
+    companyName: string;
+    logoUrl: string;
+    position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+    size: number;
+    offsetX: number;
+    offsetY: number;
+  }>>;
+}) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      onChange((prev) => ({ ...prev, logoUrl: reader.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="text-sm font-semibold text-foreground border-b border-white/5 pb-2 mb-1">
+        Template Settings & Branding
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+        <div>
+          <Label htmlFor="brand-enable" className="text-xs font-semibold cursor-pointer">
+            Enable Branding Overlay
+          </Label>
+          <p className="text-[9px] text-muted-foreground">Show watermark on tablet screen</p>
+        </div>
+        <Switch
+          id="brand-enable"
+          checked={branding.enabled}
+          onCheckedChange={(v) => onChange((prev) => ({ ...prev, enabled: v }))}
+          className="scale-90 cursor-pointer"
+        />
+      </div>
+
+      {branding.enabled && (
+        <>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Company Name
+            </Label>
+            <Input
+              value={branding.companyName}
+              onChange={(e) => onChange((prev) => ({ ...prev, companyName: e.target.value }))}
+              placeholder="Enter Company Name"
+              className="bg-white/5 border-white/10 text-xs h-8"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Company Logo
+            </Label>
+            <div className="space-y-2">
+              {branding.logoUrl ? (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-2 flex items-center justify-between gap-2">
+                  <img
+                    src={branding.logoUrl}
+                    alt="Logo preview"
+                    className="max-h-12 max-w-28 object-contain rounded bg-black/40 p-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    className="text-[10px] text-rose-300 hover:text-rose-200 hover:bg-rose-500/10 cursor-pointer"
+                    onClick={() => onChange((prev) => ({ ...prev, logoUrl: "" }))}
+                  >
+                    Clear Logo
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full bg-white/5 border-white/10 border-dashed text-xs py-4 cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Upload Image
+                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Logo Position Corner
+            </Label>
+            <div className="grid grid-cols-2 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
+              {(["top_left", "top_right", "bottom_left", "bottom_right"] as const).map((pos) => (
+                <Button
+                  key={pos}
+                  variant={branding.position === pos ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => onChange((prev) => ({ ...prev, position: pos }))}
+                  className="h-7 text-[9px] px-0 uppercase tracking-wide font-semibold cursor-pointer"
+                >
+                  {pos.replace("_", " ")}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Logo Size
+              </Label>
+              <span className="text-[10px] text-muted-foreground">{branding.size}px</span>
+            </div>
+            <input
+              type="range"
+              min="40"
+              max="300"
+              value={branding.size}
+              onChange={(e) => onChange((prev) => ({ ...prev, size: Number(e.target.value) }))}
+              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                X Edge Offset
+              </Label>
+              <span className="text-[10px] text-muted-foreground">{branding.offsetX}px</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="200"
+              value={branding.offsetX}
+              onChange={(e) => onChange((prev) => ({ ...prev, offsetX: Number(e.target.value) }))}
+              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between items-center">
+              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                Y Edge Offset
+              </Label>
+              <span className="text-[10px] text-muted-foreground">{branding.offsetY}px</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="200"
+              value={branding.offsetY}
+              onChange={(e) => onChange((prev) => ({ ...prev, offsetY: Number(e.target.value) }))}
+              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
