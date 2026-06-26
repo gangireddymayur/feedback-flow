@@ -104,6 +104,7 @@ export type ApiTemplate = {
     required: boolean;
     options?: string[];
     width?: "full" | "half";
+    maxStars?: number;
     starLabels?: string[];
     emojis?: Array<{ emoji: string; label: string }>;
     yesLabel?: string;

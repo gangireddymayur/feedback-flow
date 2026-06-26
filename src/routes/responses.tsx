@@ -877,23 +877,35 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
 
   // Renders beautiful inline formatted answers
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderAnswerValue = (qType: string, val: any, options?: string[]) => {
+  const renderAnswerValue = (q: any, val: any) => {
     if (val == null) return null;
+    const qType = typeof q === "string" ? q : q?.type;
 
     switch (qType) {
       case "rating": {
         const score = Number(val) || 0;
+        const totalStars = (typeof q === "object" && q?.maxStars) || 5;
+        const starLabels = (typeof q === "object" && q?.starLabels) || [];
+        const label = starLabels[score - 1];
         return (
-          <div className="flex gap-0.5">
-            {Array.from({ length: 5 }).map((_, idx) => (
-              <Star
-                key={idx}
-                className={cn(
-                  "size-4",
-                  idx < score ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30",
-                )}
-              />
-            ))}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <div className="flex gap-0.5">
+                {Array.from({ length: totalStars }).map((_, idx) => (
+                  <Star
+                    key={idx}
+                    className={cn(
+                      "size-4",
+                      idx < score ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30",
+                    )}
+                  />
+                ))}
+              </div>
+              <span className="text-[10px] text-muted-foreground font-semibold">({score} / {totalStars})</span>
+            </div>
+            {label && (
+              <span className="text-[10px] text-amber-200/90 italic -mt-0.5">Label: {label}</span>
+            )}
           </div>
         );
       }
@@ -914,7 +926,22 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
       }
 
       case "emoji": {
-        const valStr = String(val);
+        const valStr = String(val).trim();
+        const customEmojis = (typeof q === "object" && q?.emojis) || [];
+        const found = customEmojis.find(
+          (item: any) =>
+            item.emoji === valStr ||
+            item.label === valStr ||
+            String(customEmojis.indexOf(item) + 1) === valStr
+        );
+        if (found) {
+          return (
+            <div className="flex items-center gap-1.5">
+              <span className="text-base">{found.emoji}</span>
+              <span className="text-xs font-semibold text-amber-200">{found.label}</span>
+            </div>
+          );
+        }
         const emojiMap: Record<string, string> = {
           "1": "😡 Very Unsatisfied",
           "2": "😕 Unsatisfied",
@@ -933,6 +960,9 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
 
       case "yes_no": {
         const yes = String(val).toLowerCase() === "yes" || val === true || String(val) === "1";
+        const customYes = (typeof q === "object" && q?.yesLabel) || "Yes";
+        const customNo = (typeof q === "object" && q?.noLabel) || "No";
+        const displayLabel = yes ? customYes : customNo;
         return (
           <Badge
             variant="secondary"
@@ -943,7 +973,7 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
                 : "bg-rose-400/10 text-rose-300 border-rose-400/20",
             )}
           >
-            {yes ? "Yes" : "No"}
+            {displayLabel}
           </Badge>
         );
       }
@@ -1136,7 +1166,7 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
                       </Badge>
                     )}
                   </div>
-                  <div className="pl-0.5">{renderAnswerValue(q.type, val, q.options)}</div>
+                  <div className="pl-0.5">{renderAnswerValue(q, val)}</div>
                 </div>
               );
             })}

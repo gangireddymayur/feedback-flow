@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { QUESTION_LIBRARY, type BuilderQuestion, type QuestionType } from "@/lib/mock-data";
 import { Templates } from "@/lib/api";
 import { toast } from "sonner";
@@ -56,6 +57,38 @@ import { cn } from "@/lib/utils";
 const builderSearchSchema = z.object({
   templateId: z.coerce.number().optional(),
 });
+
+const ALL_EMOJIS = [
+  "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕",
+  "👍", "👎", "✊", "👊", "🤛", "🤜", "🤞", "✌️", "🤟", "🤘", "👌", "🤌", "👐", "🙌", "👏", "🙏", "🤝", "✍️", "💪", "🧠", "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "🔥", "✨", "🌟", "⭐", "🎉", "🎈", "🎁", "💡", "⚡", "💥", "🌈", "☀️"
+];
+
+function EmojiPicker({ onSelect, children }: { onSelect: (emoji: string) => void; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent className="w-64 p-2 bg-zinc-950 border-zinc-800 text-foreground z-[9999]">
+        <div className="text-[10px] font-medium text-muted-foreground mb-1.5 px-1 select-none">Select Emoji</div>
+        <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto pr-1">
+          {ALL_EMOJIS.map((emoji) => (
+            <button
+              key={emoji}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect(emoji);
+                setOpen(false);
+              }}
+              className="text-lg p-1 hover:bg-white/10 rounded cursor-pointer transition-colors text-center select-none"
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export const Route = createFileRoute("/templates/builder")({
   component: BuilderPage,
@@ -86,7 +119,8 @@ function makeQuestion(type: QuestionType): BuilderQuestion {
   if (type === "single_choice" || type === "multiple_choice") {
     base.options = ["Option 1", "Option 2", "Option 3"];
   } else if (type === "rating") {
-    base.starLabels = ["", "", "", "", ""];
+    base.maxStars = 5;
+    base.starLabels = Array(10).fill("");
   } else if (type === "emoji") {
     base.emojis = [
       { emoji: "😡", label: "Very Unsatisfied" },
@@ -134,9 +168,7 @@ function BuilderPage() {
     if (existingTemplate) {
       setName(existingTemplate.name);
       setDescription(existingTemplate.description || "");
-      setDisplayMode(
-        (existingTemplate.displayMode as "multi_page" | "single_page") || "multi_page",
-      );
+      setDisplayMode((existingTemplate.displayMode as "multi_page" | "single_page") || "multi_page");
       const mappedQs = (existingTemplate.questions || []).map((q) => ({
         id: q.id,
         type: q.type as QuestionType,
@@ -144,7 +176,8 @@ function BuilderPage() {
         required: q.required,
         options: q.options,
         width: q.width as "full" | "half",
-        starLabels: q.starLabels,
+        maxStars: q.maxStars || 5,
+        starLabels: q.starLabels || Array(10).fill(""),
         emojis: q.emojis,
         yesLabel: q.yesLabel,
         noLabel: q.noLabel,
@@ -239,7 +272,7 @@ function BuilderPage() {
           name,
           description,
           category: existingTemplate?.category || "General",
-          status: publish ? "active" : existingTemplate?.status || "draft",
+          status: publish ? "active" : (existingTemplate?.status || "draft"),
           displayMode,
           questions,
         });
@@ -281,11 +314,7 @@ function BuilderPage() {
     <DashboardLayout>
       <PageHeader
         title={templateId ? "Edit Template" : "Template Builder"}
-        description={
-          templateId
-            ? "Modify layout, questions, and customize tablet response screens."
-            : "Drag question types from the library, drop into the canvas, edit on the right."
-        }
+        description={templateId ? "Modify layout, questions, and customize tablet response screens." : "Drag question types from the library, drop into the canvas, edit on the right."}
         actions={
           <>
             <Button variant="outline" className="bg-white/5 border-white/10" asChild>
@@ -327,22 +356,17 @@ function BuilderPage() {
                 ))}
               </div>
             </div>
-
+            
             <div className="border-t border-white/5 pt-3 space-y-2.5">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Quick Configurations
               </div>
               <div className="flex items-center justify-between rounded bg-white/5 px-2 py-2">
                 <div>
-                  <Label
-                    htmlFor="t-custinfo"
-                    className="text-xs font-semibold text-foreground cursor-pointer"
-                  >
+                  <Label htmlFor="t-custinfo" className="text-xs font-semibold text-foreground cursor-pointer">
                     Collect Customer Info
                   </Label>
-                  <p className="text-[9px] text-muted-foreground mt-0.5">
-                    Collect name, email, phone
-                  </p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">Collect name, email, phone</p>
                 </div>
                 <Switch
                   id="t-custinfo"
@@ -376,13 +400,11 @@ function BuilderPage() {
                 placeholder="Short description shown to customers…"
                 className="bg-white/5 border-white/10 mt-2 min-h-16 resize-none"
               />
-
+              
               <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
                 <div>
                   <Label className="text-xs font-semibold text-foreground">Display Mode</Label>
-                  <p className="text-[10px] text-muted-foreground">
-                    How questions render on the tablet screen
-                  </p>
+                  <p className="text-[10px] text-muted-foreground">How questions render on the tablet screen</p>
                 </div>
                 <div className="flex gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
                   <Button
@@ -411,6 +433,7 @@ function BuilderPage() {
               onSelect={setSelectedId}
               onRemove={removeQuestion}
               onDuplicate={duplicateQuestion}
+              setQuestions={setQuestions}
             />
           </div>
 
@@ -481,12 +504,14 @@ function Canvas({
   onSelect,
   onRemove,
   onDuplicate,
+  setQuestions,
 }: {
   questions: BuilderQuestion[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   onRemove: (id: string) => void;
   onDuplicate: (id: string) => void;
+  setQuestions: React.Dispatch<React.SetStateAction<BuilderQuestion[]>>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
   return (
@@ -516,6 +541,9 @@ function Canvas({
                 onSelect={() => onSelect(q.id)}
                 onRemove={() => onRemove(q.id)}
                 onDuplicate={() => onDuplicate(q.id)}
+                onToggleWidth={() => {
+                  setQuestions((qs) => qs.map((x) => x.id === q.id ? { ...x, width: x.width === "half" ? "full" : "half" } : x));
+                }}
               />
             ))}
           </div>
@@ -532,6 +560,7 @@ function SortableQuestion({
   onSelect,
   onRemove,
   onDuplicate,
+  onToggleWidth,
 }: {
   q: BuilderQuestion;
   index: number;
@@ -539,6 +568,7 @@ function SortableQuestion({
   onSelect: () => void;
   onRemove: () => void;
   onDuplicate: () => void;
+  onToggleWidth: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: q.id,
@@ -557,7 +587,7 @@ function SortableQuestion({
           ? "border-primary/40 bg-primary/[0.06]"
           : "border-white/5 hover:border-white/10 hover:bg-white/[0.06]",
         isDragging && "opacity-50",
-        q.width === "half" ? "col-span-2 md:col-span-1" : "col-span-2",
+        q.width === "half" ? "col-span-2 md:col-span-1" : "col-span-2"
       )}
     >
       <button
@@ -595,7 +625,17 @@ function SortableQuestion({
         <div className="font-medium text-sm mt-0.5 truncate">{q.label}</div>
         <QuestionPreview q={q} />
       </div>
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleWidth();
+          }}
+          className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-white/10 hover:bg-white/10 text-muted-foreground select-none shrink-0 cursor-pointer"
+          title="Toggle width (50% / 100%)"
+        >
+          {q.width === "half" ? "50%" : "100%"}
+        </button>
         <Button
           size="icon"
           variant="ghost"
@@ -625,22 +665,24 @@ function SortableQuestion({
 
 function QuestionPreview({ q }: { q: BuilderQuestion }) {
   switch (q.type) {
-    case "rating":
+    case "rating": {
+      const totalStars = q.maxStars || 5;
       return (
         <div className="mt-2 space-y-1">
-          <div className="flex gap-1">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="flex gap-1 flex-wrap">
+            {Array.from({ length: totalStars }).map((_, i) => (
               <Star key={i} className="size-4 text-muted-foreground/40" />
             ))}
           </div>
           {q.starLabels?.some((l) => l) && (
             <div className="flex justify-between w-full text-[8px] text-muted-foreground px-0.5">
               <span>{q.starLabels[0] || "1"}</span>
-              <span>{q.starLabels[4] || "5"}</span>
+              <span>{q.starLabels[totalStars - 1] || totalStars.toString()}</span>
             </div>
           )}
         </div>
       );
+    }
     case "nps":
       return (
         <div className="flex gap-0.5 mt-2 flex-wrap">
@@ -665,11 +707,7 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
       return (
         <div className="flex flex-wrap gap-1 mt-2 text-xs text-muted-foreground select-none">
           {emojiList.map((item, idx) => (
-            <span
-              key={idx}
-              className="bg-white/5 px-1 py-0.5 rounded border border-white/5"
-              title={item.label}
-            >
+            <span key={idx} className="bg-white/5 px-1 py-0.5 rounded border border-white/5" title={item.label}>
               {item.emoji}
             </span>
           ))}
@@ -713,16 +751,11 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
       return (
         <div className="flex flex-wrap gap-1 mt-2">
           {fields.map((f) => (
-            <span
-              key={f}
-              className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded"
-            >
+            <span key={f} className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
               {f} input
             </span>
           ))}
-          {fields.length === 0 && (
-            <span className="text-[9px] italic text-rose-300">No fields selected</span>
-          )}
+          {fields.length === 0 && <span className="text-[9px] italic text-rose-300">No fields selected</span>}
         </div>
       );
     }
@@ -742,30 +775,39 @@ function Inspector({
         <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
           Question label
         </Label>
-        <Input
-          value={q.label}
-          onChange={(e) => onChange({ label: e.target.value })}
-          className="bg-white/5 border-white/10 mt-1.5"
-        />
+        <div className="flex gap-1.5 mt-1.5">
+          <Input
+            value={q.label}
+            onChange={(e) => onChange({ label: e.target.value })}
+            className="bg-white/5 border-white/10 flex-1"
+          />
+          <EmojiPicker
+            onSelect={(emoji) => {
+              onChange({ label: q.label + emoji });
+            }}
+          >
+            <Button
+              size="icon"
+              variant="outline"
+              className="size-9 shrink-0 bg-white/5 border-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+              title="Insert Emoji"
+            >
+              <Smile className="size-4" />
+            </Button>
+          </EmojiPicker>
+        </div>
       </div>
 
       <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
         <Label htmlFor="req" className="text-xs cursor-pointer">
           Required
         </Label>
-        <Switch
-          id="req"
-          checked={q.required}
-          onCheckedChange={(v) => onChange({ required: v })}
-          className="scale-90 cursor-pointer"
-        />
+        <Switch id="req" checked={q.required} onCheckedChange={(v) => onChange({ required: v })} className="scale-90 cursor-pointer" />
       </div>
 
       {/* Grid Width layout switch */}
       <div className="space-y-1.5 border-t border-white/5 pt-3">
-        <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          Layout Width
-        </Label>
+        <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Layout Width</Label>
         <div className="flex gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
           <Button
             variant={q.width === "half" ? "secondary" : "ghost"}
@@ -789,9 +831,7 @@ function Inspector({
       {/* Yes/No customizable text */}
       {q.type === "yes_no" && (
         <div className="space-y-2 border-t border-white/5 pt-3">
-          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Custom Button Labels
-          </Label>
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Custom Button Labels</Label>
           <div>
             <Label className="text-[10px] text-muted-foreground">Yes button text</Label>
             <Input
@@ -813,35 +853,82 @@ function Inspector({
         </div>
       )}
 
-      {/* Star Rating Label configurator */}
+      {/* Star Rating Max Stars and Label configurator */}
       {q.type === "rating" && (
-        <div className="space-y-2 border-t border-white/5 pt-3">
-          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Star Labels
-          </Label>
-          <p className="text-[9px] text-muted-foreground -mt-1">
-            Labels displayed underneath rating options
-          </p>
-          {Array.from({ length: 5 }).map((_, i) => {
-            const currentLabels = q.starLabels || ["", "", "", "", ""];
-            return (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-[10px] text-muted-foreground w-12 shrink-0">
-                  {i + 1} Star:
-                </span>
-                <Input
-                  value={currentLabels[i] || ""}
-                  onChange={(e) => {
-                    const next = [...currentLabels];
-                    next[i] = e.target.value;
-                    onChange({ starLabels: next });
+        <div className="space-y-3 border-t border-white/5 pt-3">
+          <div>
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Number of Stars</Label>
+            <div className="flex gap-1 mt-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
+              {[3, 5, 10].map((num) => (
+                <Button
+                  key={num}
+                  variant={q.maxStars === num ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => {
+                    const currentLabels = q.starLabels || [];
+                    const nextLabels = currentLabels.length >= num ? currentLabels : [...currentLabels, ...Array(num - currentLabels.length).fill("")];
+                    onChange({ maxStars: num, starLabels: nextLabels });
                   }}
-                  className="bg-white/5 border-white/10 h-7 text-xs"
-                  placeholder={`Label for star ${i + 1}`}
-                />
-              </div>
-            );
-          })}
+                  className="w-full h-7 text-[10px] px-0"
+                >
+                  {num} Stars
+                </Button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Star Labels</Label>
+            <Button
+              variant="outline"
+              size="xs"
+              className="text-[9px] bg-white/5 border-white/10 h-6 px-1.5 cursor-pointer"
+              onClick={() => {
+                const currentStars = q.maxStars || 5;
+                const nextStars = currentStars + 1;
+                const currentLabels = q.starLabels || [];
+                const nextLabels = [...currentLabels, ""];
+                onChange({ maxStars: nextStars, starLabels: nextLabels });
+              }}
+            >
+              <Plus className="size-3 mr-1 inline" /> Add Star
+            </Button>
+          </div>
+          <p className="text-[9px] text-muted-foreground -mt-1">Labels displayed underneath rating options</p>
+          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+            {Array.from({ length: q.maxStars || 5 }).map((_, i) => {
+              const currentLabels = q.starLabels || [];
+              return (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground w-12 shrink-0">{i + 1} Star:</span>
+                  <Input
+                    value={currentLabels[i] || ""}
+                    onChange={(e) => {
+                      const next = [...currentLabels];
+                      next[i] = e.target.value;
+                      onChange({ starLabels: next });
+                    }}
+                    className="bg-white/5 border-white/10 h-7 text-xs flex-1"
+                    placeholder={`Label for star ${i + 1}`}
+                  />
+                  {(q.maxStars || 5) > 1 && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 shrink-0 text-rose-300 hover:text-rose-400 cursor-pointer"
+                      onClick={() => {
+                        const currentStars = q.maxStars || 5;
+                        const nextLabels = [...currentLabels];
+                        nextLabels.splice(i, 1);
+                        onChange({ maxStars: Math.max(1, currentStars - 1), starLabels: nextLabels });
+                      }}
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -849,9 +936,7 @@ function Inspector({
       {q.type === "emoji" && (
         <div className="space-y-2 border-t border-white/5 pt-3">
           <div className="flex items-center justify-between">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Emoji options
-            </Label>
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Emoji options</Label>
             <Button
               variant="outline"
               size="xs"
@@ -872,54 +957,105 @@ function Inspector({
               + Add
             </Button>
           </div>
-          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-            {(
-              q.emojis || [
-                { emoji: "😡", label: "Very Unsatisfied" },
-                { emoji: "😕", label: "Unsatisfied" },
-                { emoji: "😐", label: "Neutral" },
-                { emoji: "🙂", label: "Satisfied" },
-                { emoji: "😍", label: "Extremely Satisfied" },
-              ]
-            ).map((item, idx) => (
-              <div key={idx} className="flex items-center gap-1">
-                <Input
-                  value={item.emoji}
-                  onChange={(e) => {
-                    const next = [...(q.emojis || [])];
-                    if (next[idx]) next[idx] = { ...next[idx], emoji: e.target.value };
-                    onChange({ emojis: next });
-                  }}
-                  className="bg-white/5 border-white/10 h-7 w-10 text-center text-xs shrink-0"
-                  placeholder="😀"
-                />
-                <Input
-                  value={item.label}
-                  onChange={(e) => {
-                    const next = [...(q.emojis || [])];
-                    if (next[idx]) next[idx] = { ...next[idx], label: e.target.value };
-                    onChange({ emojis: next });
-                  }}
-                  className="bg-white/5 border-white/10 h-7 text-xs"
-                  placeholder="Label"
-                />
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-7 shrink-0 text-rose-300"
-                  onClick={() => {
-                    const current = q.emojis || [
-                      { emoji: "😡", label: "Very Unsatisfied" },
-                      { emoji: "😕", label: "Unsatisfied" },
-                      { emoji: "😐", label: "Neutral" },
-                      { emoji: "🙂", label: "Satisfied" },
-                      { emoji: "😍", label: "Extremely Satisfied" },
-                    ];
-                    onChange({ emojis: current.filter((_, j) => j !== idx) });
-                  }}
-                >
-                  <Trash2 className="size-3" />
-                </Button>
+          <div className="space-y-2 mt-1 max-h-64 overflow-y-auto pr-1">
+            {(q.emojis || [
+              { emoji: "😡", label: "Very Unsatisfied" },
+              { emoji: "😕", label: "Unsatisfied" },
+              { emoji: "😐", label: "Neutral" },
+              { emoji: "🙂", label: "Satisfied" },
+              { emoji: "😍", label: "Extremely Satisfied" },
+            ]).map((item, idx) => (
+              <div key={idx} className="space-y-1 bg-white/5 p-1.5 rounded border border-white/5">
+                <div className="flex items-center gap-1">
+                  <Input
+                    value={item.emoji}
+                    onChange={(e) => {
+                      const next = [...(q.emojis || [])];
+                      if (next[idx]) next[idx] = { ...next[idx], emoji: e.target.value };
+                      onChange({ emojis: next });
+                    }}
+                    className="bg-white/5 border-white/10 h-7 w-10 text-center text-xs shrink-0"
+                    placeholder="😀"
+                  />
+                  <div className="flex-1 flex gap-1 items-center">
+                    <Input
+                      value={item.label}
+                      onChange={(e) => {
+                        const next = [...(q.emojis || [])];
+                        if (next[idx]) next[idx] = { ...next[idx], label: e.target.value };
+                        onChange({ emojis: next });
+                      }}
+                      className="bg-white/5 border-white/10 h-7 text-xs flex-1"
+                      placeholder="Label"
+                    />
+                    <EmojiPicker
+                      onSelect={(emoji) => {
+                        const next = [...(q.emojis || [])];
+                        if (next[idx]) next[idx] = { ...next[idx], label: (item.label || "") + emoji };
+                        onChange({ emojis: next });
+                      }}
+                    >
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="size-7 shrink-0 bg-white/5 border-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                        title="Insert Emoji"
+                      >
+                        <Smile className="size-3.5" />
+                      </Button>
+                    </EmojiPicker>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 shrink-0 text-rose-300"
+                    onClick={() => {
+                      const current = q.emojis || [
+                        { emoji: "😡", label: "Very Unsatisfied" },
+                        { emoji: "😕", label: "Unsatisfied" },
+                        { emoji: "😐", label: "Neutral" },
+                        { emoji: "🙂", label: "Satisfied" },
+                        { emoji: "😍", label: "Extremely Satisfied" },
+                      ];
+                      onChange({ emojis: current.filter((_, j) => j !== idx) });
+                    }}
+                  >
+                    <Trash2 className="size-3" />
+                  </Button>
+                </div>
+                {/* Emoji quick-selector */}
+                <div className="flex gap-1 flex-wrap pt-0.5 justify-start items-center">
+                  {["😡", "😕", "😐", "🙂", "😍", "👍", "👎", "👏", "❤️", "🌟", "😀", "💡", "🔥"].map((char) => (
+                    <button
+                      key={char}
+                      onClick={() => {
+                        const next = [...(q.emojis || [])];
+                        if (next[idx]) next[idx] = { ...next[idx], emoji: char };
+                        onChange({ emojis: next });
+                      }}
+                      className={cn(
+                        "text-xs p-0.5 rounded hover:bg-white/10 select-none cursor-pointer",
+                        item.emoji === char && "bg-primary/20 border border-primary/30"
+                      )}
+                    >
+                      {char}
+                    </button>
+                  ))}
+                  <EmojiPicker
+                    onSelect={(emoji) => {
+                      const next = [...(q.emojis || [])];
+                      if (next[idx]) next[idx] = { ...next[idx], emoji };
+                      onChange({ emojis: next });
+                    }}
+                  >
+                    <button
+                      className="text-[10px] text-emerald-400 font-bold hover:bg-white/10 px-1 py-0.5 rounded border border-emerald-500/20 cursor-pointer shrink-0"
+                      title="More emojis..."
+                    >
+                      + More
+                    </button>
+                  </EmojiPicker>
+                </div>
               </div>
             ))}
           </div>
@@ -929,14 +1065,10 @@ function Inspector({
       {/* Customer Info Form field checkboxes */}
       {q.type === "customer_info" && (
         <div className="space-y-3 border-t border-white/5 pt-3">
-          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Fields to Display
-          </Label>
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Fields to Display</Label>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between rounded bg-white/5 px-2 py-1.5">
-              <Label htmlFor="ci-name" className="text-xs cursor-pointer">
-                Collect Full Name
-              </Label>
+              <Label htmlFor="ci-name" className="text-xs cursor-pointer">Collect Full Name</Label>
               <Switch
                 id="ci-name"
                 checked={q.collectName !== false}
@@ -945,9 +1077,7 @@ function Inspector({
               />
             </div>
             <div className="flex items-center justify-between rounded bg-white/5 px-2 py-1.5">
-              <Label htmlFor="ci-email" className="text-xs cursor-pointer">
-                Collect Email Address
-              </Label>
+              <Label htmlFor="ci-email" className="text-xs cursor-pointer">Collect Email Address</Label>
               <Switch
                 id="ci-email"
                 checked={q.collectEmail !== false}
@@ -956,9 +1086,7 @@ function Inspector({
               />
             </div>
             <div className="flex items-center justify-between rounded bg-white/5 px-2 py-1.5">
-              <Label htmlFor="ci-phone" className="text-xs cursor-pointer">
-                Collect Phone Number
-              </Label>
+              <Label htmlFor="ci-phone" className="text-xs cursor-pointer">Collect Phone Number</Label>
               <Switch
                 id="ci-phone"
                 checked={q.collectPhone !== false}
@@ -977,7 +1105,7 @@ function Inspector({
           </Label>
           <div className="space-y-1.5 mt-1.5">
             {(q.options ?? []).map((opt, i) => (
-              <div key={i} className="flex gap-1">
+              <div key={i} className="flex gap-1.5 items-center">
                 <Input
                   value={opt}
                   onChange={(e) => {
@@ -985,12 +1113,28 @@ function Inspector({
                     next[i] = e.target.value;
                     onChange({ options: next });
                   }}
-                  className="bg-white/5 border-white/10"
+                  className="bg-white/5 border-white/10 flex-1"
                 />
+                <EmojiPicker
+                  onSelect={(emoji) => {
+                    const next = [...(q.options ?? [])];
+                    next[i] = opt + emoji;
+                    onChange({ options: next });
+                  }}
+                >
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="size-9 shrink-0 bg-white/5 border-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                    title="Insert Emoji"
+                  >
+                    <Smile className="size-4" />
+                  </Button>
+                </EmojiPicker>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="size-9 shrink-0 text-rose-300"
+                  className="size-9 shrink-0 text-rose-300 hover:text-rose-400 cursor-pointer"
                   onClick={() => onChange({ options: (q.options ?? []).filter((_, j) => j !== i) })}
                 >
                   <Trash2 className="size-3.5" />
