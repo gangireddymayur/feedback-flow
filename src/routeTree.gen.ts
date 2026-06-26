@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResponsesRouteImport } from './routes/responses'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DevicesRouteImport } from './routes/devices'
+import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AdminsRouteImport } from './routes/admins'
 import { Route as IndexRouteImport } from './routes/index'
@@ -22,6 +23,11 @@ import { Route as TemplatesBuilderRouteImport } from './routes/templates.builder
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admins': typeof AdminsRoute
   '/analytics': typeof AnalyticsRoute
+  '/customers': typeof CustomersRoute
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admins': typeof AdminsRoute
   '/analytics': typeof AnalyticsRoute
+  '/customers': typeof CustomersRoute
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admins': typeof AdminsRoute
   '/analytics': typeof AnalyticsRoute
+  '/customers': typeof CustomersRoute
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
@@ -105,6 +114,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admins'
     | '/analytics'
+    | '/customers'
     | '/devices'
     | '/login'
     | '/responses'
@@ -116,6 +126,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admins'
     | '/analytics'
+    | '/customers'
     | '/devices'
     | '/login'
     | '/responses'
@@ -127,6 +138,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admins'
     | '/analytics'
+    | '/customers'
     | '/devices'
     | '/login'
     | '/responses'
@@ -139,6 +151,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminsRoute: typeof AdminsRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  CustomersRoute: typeof CustomersRoute
   DevicesRoute: typeof DevicesRoute
   LoginRoute: typeof LoginRoute
   ResponsesRoute: typeof ResponsesRoute
@@ -174,6 +187,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devices': {
@@ -230,6 +250,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminsRoute: AdminsRoute,
   AnalyticsRoute: AnalyticsRoute,
+  CustomersRoute: CustomersRoute,
   DevicesRoute: DevicesRoute,
   LoginRoute: LoginRoute,
   ResponsesRoute: ResponsesRoute,
