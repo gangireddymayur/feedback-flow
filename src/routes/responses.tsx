@@ -836,9 +836,10 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
   }, [questions, answers]);
 
   const customerInfo = React.useMemo(() => {
-    const name = answers.customer_name || answers.name || answers.customerName;
-    const email = answers.customer_email || answers.email || answers.customerEmail;
-    const phone = answers.customer_phone || answers.phone || answers.customerPhone;
+    const toStr = (v: unknown) => (v == null ? "" : String(v));
+    const name = toStr(answers.customer_name || answers.name || answers.customerName);
+    const email = toStr(answers.customer_email || answers.email || answers.customerEmail);
+    const phone = toStr(answers.customer_phone || answers.phone || answers.customerPhone);
     if (name || email || phone) {
       return { name, email, phone };
     }
@@ -1208,11 +1209,12 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
   );
 }
 
-function StatusIndicator({ status }: { status: "online" | "offline" | "syncing" }) {
+function StatusIndicator({ status }: { status: "online" | "offline" | "syncing" | "paused" }) {
   const map = {
     online: ["bg-emerald-400", "text-emerald-300", "Online"],
     offline: ["bg-rose-400", "text-rose-300", "Offline"],
     syncing: ["bg-amber-400", "text-amber-300", "Syncing"],
+    paused: ["bg-slate-400", "text-slate-300", "Paused"],
   } as const;
   const [dotCls, txtCls, label] = map[status] || ["bg-rose-400", "text-rose-300", "Offline"];
   return (

@@ -230,7 +230,7 @@ function BuilderPage() {
         collectName: q.collectName !== false,
         collectEmail: q.collectEmail !== false,
         collectPhone: q.collectPhone !== false,
-        page: q.page || 1,
+        page: (q as { page?: number }).page || 1,
       }));
       setQuestions(mappedQs);
       setSelectedId(mappedQs[0]?.id ?? null);
