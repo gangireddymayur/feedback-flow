@@ -12,6 +12,7 @@ import {
   Search,
   Bell,
   Sparkles,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuth, useAuth, logout } from "@/lib/auth-store";
