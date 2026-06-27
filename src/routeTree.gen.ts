@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TemplatesRouteImport } from './routes/templates'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as ResponsesRouteImport } from './routes/responses'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DevicesRouteImport } from './routes/devices'
@@ -25,14 +26,14 @@ const TemplatesRoute = TemplatesRouteImport.update({
   path: '/templates',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CustomersRoute = CustomersRouteImport.update({
-  id: '/customers',
-  path: '/customers',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResponsesRoute = ResponsesRouteImport.update({
@@ -48,6 +49,11 @@ const LoginRoute = LoginRouteImport.update({
 const DevicesRoute = DevicesRouteImport.update({
   id: '/devices',
   path: '/devices',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CustomersRoute = CustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
@@ -79,6 +85,7 @@ export interface FileRoutesByFullPath {
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
+  '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -91,6 +98,7 @@ export interface FileRoutesByTo {
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
+  '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -104,6 +112,7 @@ export interface FileRoutesById {
   '/devices': typeof DevicesRoute
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
+  '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -118,6 +127,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/login'
     | '/responses'
+    | '/schedule'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -130,6 +140,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/login'
     | '/responses'
+    | '/schedule'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -142,6 +153,7 @@ export interface FileRouteTypes {
     | '/devices'
     | '/login'
     | '/responses'
+    | '/schedule'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -155,6 +167,7 @@ export interface RootRouteChildren {
   DevicesRoute: typeof DevicesRoute
   LoginRoute: typeof LoginRoute
   ResponsesRoute: typeof ResponsesRoute
+  ScheduleRoute: typeof ScheduleRoute
   SettingsRoute: typeof SettingsRoute
   TemplatesRoute: typeof TemplatesRouteWithChildren
 }
@@ -175,6 +188,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/responses': {
       id: '/responses'
       path: '/responses'
@@ -189,18 +209,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/customers': {
-      id: '/customers'
-      path: '/customers'
-      fullPath: '/customers'
-      preLoaderRoute: typeof CustomersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/devices': {
       id: '/devices'
       path: '/devices'
       fullPath: '/devices'
       preLoaderRoute: typeof DevicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/customers': {
+      id: '/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof CustomersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/analytics': {
@@ -254,6 +274,7 @@ const rootRouteChildren: RootRouteChildren = {
   DevicesRoute: DevicesRoute,
   LoginRoute: LoginRoute,
   ResponsesRoute: ResponsesRoute,
+  ScheduleRoute: ScheduleRoute,
   SettingsRoute: SettingsRoute,
   TemplatesRoute: TemplatesRouteWithChildren,
 }

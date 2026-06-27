@@ -260,6 +260,56 @@ export const Devices = {
 };
 
 // =================================================================
+// Schedules
+// =================================================================
+
+export type RepeatMode = "once" | "every_day" | "weekdays" | "n_days";
+
+export type ApiSchedule = {
+  id: number;
+  device_id: number;
+  template_id: number;
+  template_name: string | null;
+  start_time: string; // HH:MM
+  end_time: string;   // HH:MM
+  repeat_mode: RepeatMode;
+  start_date: string; // YYYY-MM-DD
+  weekdays: number[] | null;
+  days_count: number | null;
+};
+
+export const Schedules = {
+  list: async (device_id?: number) => {
+    const qs = device_id ? `?device_id=${device_id}` : "";
+    return await http<{ schedules: ApiSchedule[] }>(`/schedules${qs}`);
+  },
+  create: async (body: {
+    device_ids: number[];
+    template_id: number;
+    start_time: string;
+    end_time: string;
+    repeat_mode: RepeatMode;
+    start_date: string;
+    weekdays?: number[] | null;
+    days_count?: number | null;
+  }) => {
+    return await http<{ ok: true; created: number }>("/schedules", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  remove: async (id: number) => {
+    return await http<{ ok: true }>(`/schedules/${id}`, { method: "DELETE" });
+  },
+  copyDay: async (body: { device_id: number; source_date: string; target_dates: string[] }) => {
+    return await http<{ ok: true; created: number }>("/schedules/copy-day", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+};
+
+// =================================================================
 // Responses
 // =================================================================
 
