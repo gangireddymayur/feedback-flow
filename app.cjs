@@ -597,6 +597,173 @@ app.post(
   }),
 );
 
+// ---------------- schedules ----------------
+// Each schedule row = one window for one device.
+// repeat_mode: 'once' | 'every_day' | 'weekdays' | 'n_days'
+
+function scheduleActiveOn(s, dateISO) {
+  const d = new Date(dateISO + "T00:00:00");
+  const start = new Date(s.start_date);
+  start.setHours(0, 0, 0, 0);
+  if (d < start) return false;
+  if (s.repeat_mode === "once") return s.start_date === dateISO;
+  if (s.repeat_mode === "every_day") return true;
+  if (s.repeat_mode === "weekdays") {
+    const wd = parseJson(s.weekdays, []);
+    return Array.isArray(wd) && wd.includes(d.getDay());
+  }
+  if (s.repeat_mode === "n_days") {
+    const diff = Math.floor((d - start) / 86400000);
+    return diff >= 0 && diff < (s.days_count || 1);
+  }
+  return false;
+}
+
+app.get(
+  "/api/schedules",
+  auth(),
+  asyncH(async (req, res) => {
+    const deviceId = req.query.device_id ? Number(req.query.device_id) : null;
+    const where = deviceId ? "WHERE device_id = ?" : "";
+    const params = deviceId ? [deviceId] : [];
+    const [rows] = await pool.query(
+      `SELECT s.id, s.device_id, s.template_id, t.name AS template_name,
+              TIME_FORMAT(s.start_time,'%H:%i') AS start_time,
+              TIME_FORMAT(s.end_time,'%H:%i')   AS end_time,
+              s.repeat_mode, DATE_FORMAT(s.start_date,'%Y-%m-%d') AS start_date,
+              s.weekdays, s.days_count
+       FROM device_schedules s
+       LEFT JOIN templates t ON t.id = s.template_id
+       ${where}
+       ORDER BY s.start_date, s.start_time`,
+      params,
+    );
+    res.json({
+      schedules: rows.map((r) => ({ ...r, weekdays: parseJson(r.weekdays, null) })),
+    });
+  }),
+);
+
+app.post(
+  "/api/schedules",
+  auth(),
+  asyncH(async (req, res) => {
+    const {
+      device_ids = [],
+      template_id,
+      start_time,
+      end_time,
+      repeat_mode = "once",
+      start_date,
+      weekdays = null,
+      days_count = null,
+    } = req.body || {};
+    if (!template_id || !start_time || !end_time || !start_date)
+      return res.status(400).json({ error: "template_id, start_time, end_time, start_date required" });
+    if (!Array.isArray(device_ids) || device_ids.length === 0)
+      return res.status(400).json({ error: "device_ids required" });
+    const values = device_ids.map((did) => [
+      req.user.id,
+      Number(did),
+      Number(template_id),
+      start_time,
+      end_time,
+      repeat_mode,
+      start_date,
+      weekdays ? JSON.stringify(weekdays) : null,
+      days_count ? Number(days_count) : null,
+    ]);
+    await pool.query(
+      `INSERT INTO device_schedules
+       (owner_id, device_id, template_id, start_time, end_time, repeat_mode, start_date, weekdays, days_count)
+       VALUES ?`,
+      [values],
+    );
+    res.json({ ok: true, created: values.length });
+  }),
+);
+
+app.delete(
+  "/api/schedules/:id",
+  auth(),
+  asyncH(async (req, res) => {
+    await pool.query("DELETE FROM device_schedules WHERE id = ?", [Number(req.params.id)]);
+    res.json({ ok: true });
+  }),
+);
+
+app.post(
+  "/api/schedules/copy-day",
+  auth(),
+  asyncH(async (req, res) => {
+    const { device_id, source_date, target_dates = [] } = req.body || {};
+    if (!device_id || !source_date || !Array.isArray(target_dates) || target_dates.length === 0)
+      return res.status(400).json({ error: "device_id, source_date, target_dates[] required" });
+    const [src] = await pool.query(
+      `SELECT template_id, start_time, end_time
+       FROM device_schedules
+       WHERE device_id = ? AND repeat_mode = 'once' AND start_date = ?`,
+      [Number(device_id), source_date],
+    );
+    if (src.length === 0) return res.json({ ok: true, created: 0 });
+    const values = [];
+    for (const date of target_dates) {
+      for (const row of src) {
+        values.push([
+          req.user.id,
+          Number(device_id),
+          row.template_id,
+          row.start_time,
+          row.end_time,
+          "once",
+          date,
+          null,
+          null,
+        ]);
+      }
+    }
+    await pool.query(
+      `INSERT INTO device_schedules
+       (owner_id, device_id, template_id, start_time, end_time, repeat_mode, start_date, weekdays, days_count)
+       VALUES ?`,
+      [values],
+    );
+    res.json({ ok: true, created: values.length });
+  }),
+);
+
+// Tablet polling: returns the template the device should display right now
+app.get(
+  "/api/devices/me/active-template",
+  auth(),
+  deviceAuth,
+  asyncH(async (req, res) => {
+    const [drows] = await pool.query(
+      "SELECT id, template_id FROM devices WHERE id = ? LIMIT 1",
+      [req.device.id],
+    );
+    if (!drows[0]) return res.status(404).json({ error: "Device not found" });
+    const fallback = drows[0].template_id;
+    const [schedules] = await pool.query(
+      `SELECT id, template_id,
+              TIME_FORMAT(start_time,'%H:%i') AS start_time,
+              TIME_FORMAT(end_time,'%H:%i')   AS end_time,
+              repeat_mode, DATE_FORMAT(start_date,'%Y-%m-%d') AS start_date,
+              weekdays, days_count
+       FROM device_schedules WHERE device_id = ?`,
+      [req.device.id],
+    );
+    const now = new Date();
+    const today = now.toISOString().slice(0, 10);
+    const hhmm = now.toTimeString().slice(0, 5);
+    const active = schedules.find(
+      (s) => scheduleActiveOn(s, today) && hhmm >= s.start_time && hhmm < s.end_time,
+    );
+    res.json({ template_id: active ? active.template_id : fallback, source: active ? "schedule" : "default" });
+  }),
+);
+
+
 app.use("/api", (err, _req, res, _next) => {
   console.error("[api error]", err);
   res.status(500).json({ error: err.message || "Server error" });
