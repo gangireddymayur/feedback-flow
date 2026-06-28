@@ -44,6 +44,9 @@ function DevicesPage() {
   const [editName, setEditName] = React.useState("");
   const [editLocation, setEditLocation] = React.useState("");
 
+  // Unpair confirm state
+  const [deleteConfirmId, setDeleteConfirmId] = React.useState<number | null>(null);
+
   const updateMut = useMutation({
     mutationFn: ({
       id,
@@ -68,8 +71,10 @@ function DevicesPage() {
     mutationFn: (id: number) => Devices.remove(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["devices"] });
-      toast.success("Removed");
+      toast.success("Device unpaired successfully");
+      setDeleteConfirmId(null);
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   const handleEditClick = (d: ApiDevice) => {
@@ -246,24 +251,12 @@ function DevicesPage() {
                           <StatusPill status={d.status} />
                         </td>
                         <td className="px-3 py-4">
-                          <div className="flex flex-col gap-1">
-                            {current ? (
-                              <div className="flex items-center gap-1.5 text-xs text-foreground font-medium">
-                                <span className="size-1.5 rounded-full bg-emerald-400" />
-                                {current.name}
-                              </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground font-medium">
-                                No fallback template
-                              </div>
-                            )}
-                            <Link
-                              to="/schedule"
-                              className="text-[10px] text-muted-foreground hover:text-primary transition flex items-center gap-1"
-                            >
-                              <Calendar className="size-3" /> Managed via Scheduler
-                            </Link>
-                          </div>
+                          <Link
+                            to="/schedule"
+                            className="text-xs text-muted-foreground hover:text-primary transition flex items-center gap-1.5 font-medium"
+                          >
+                            <Calendar className="size-3.5 text-primary" /> Managed via Schedule
+                          </Link>
                         </td>
                         <td className="px-3 py-4 text-muted-foreground">
                           {d.last_sync ? new Date(d.last_sync).toLocaleString() : "never"}
@@ -311,7 +304,7 @@ function DevicesPage() {
                               size="icon"
                               variant="ghost"
                               className="size-7 text-rose-300 hover:text-rose-200"
-                              onClick={() => del.mutate(d.id)}
+                              onClick={() => setDeleteConfirmId(d.id)}
                               title="Unpair & delete device record"
                             >
                               <Trash2 className="size-3.5" />
@@ -364,6 +357,13 @@ function DevicesPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <ConfirmUnpairDialog
+            open={deleteConfirmId !== null}
+            onOpenChange={(open) => !open && setDeleteConfirmId(null)}
+            onConfirm={() => deleteConfirmId && del.mutate(deleteConfirmId)}
+            disabled={del.isPending}
+          />
         </>
       )}
     </DashboardLayout>
@@ -408,5 +408,50 @@ function StatusPill({ status }: { status: ApiDevice["status"] }) {
       />{" "}
       {label}
     </span>
+  );
+}
+
+{/* ======================================================== */}
+{/* DIALOG: Confirm Device Unpair/Delete                      */}
+{/* ======================================================== */}
+export function ConfirmUnpairDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  disabled
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm glass-strong border-white/10">
+        <DialogHeader>
+          <DialogTitle>Unpair Device?</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to unpair and delete this device? This will immediately log out the tablet application and permanently delete all associated schedules.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-2 pt-2">
+          <Button
+            variant="destructive"
+            onClick={onConfirm}
+            disabled={disabled}
+            className="w-full text-xs font-semibold"
+          >
+            Unpair & Delete Device
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full text-xs border-white/10"
+          >
+            Cancel
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
