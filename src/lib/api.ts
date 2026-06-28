@@ -327,8 +327,9 @@ export const Schedules = {
       body: JSON.stringify(body),
     });
   },
-  remove: async (id: number) => {
-    return await http<{ ok: true }>(`/schedules/${id}`, { method: "DELETE" });
+  remove: async (id: number, date?: string) => {
+    const url = date ? `/schedules/${id}?date=${date}` : `/schedules/${id}`;
+    return await http<{ ok: true }>(url, { method: "DELETE" });
   },
   repeat: async (body: {
     schedule_id: number;

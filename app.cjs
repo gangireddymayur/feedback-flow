@@ -1055,7 +1055,15 @@ app.delete(
   auth(),
   asyncH(async (req, res) => {
     const id = Number(req.params.id);
-    await pool.query("DELETE FROM schedules WHERE id = ?", [id]);
+    const { date } = req.query || {};
+
+    if (date) {
+      // Delete only the single date occurrence instance
+      await pool.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [id, date]);
+    } else {
+      // Cascade delete the entire parent schedule
+      await pool.query("DELETE FROM schedules WHERE id = ?", [id]);
+    }
     res.json({ ok: true });
   })
 );

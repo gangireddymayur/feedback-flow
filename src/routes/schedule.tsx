@@ -263,7 +263,7 @@ function SchedulePage() {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: number) => Schedules.remove(id),
+    mutationFn: ({ id, date }: { id: number; date?: string }) => Schedules.remove(id, date),
     onSuccess: () => {
       toast.success("Schedule deleted");
       setSelectedSchedule(null);
@@ -629,13 +629,14 @@ function SchedulePage() {
                 const cellIso = toISO(cell.date);
                 const isSelected = selectedDate === cellIso;
                 const isToday = toISO(new Date()) === cellIso;
+                const hasSchedules = instances.some((i) => i.date === cellIso);
 
                 return (
                   <button
                     key={idx}
                     onClick={() => setSelectedDate(cellIso)}
                     className={cn(
-                      "aspect-square text-[10px] rounded-md transition-colors relative flex items-center justify-center font-medium",
+                      "aspect-square text-[10px] rounded-md transition-colors relative flex flex-col items-center justify-center font-medium",
                       isSelected
                         ? "bg-primary text-primary-foreground font-semibold"
                         : isToday
@@ -643,7 +644,10 @@ function SchedulePage() {
                           : "text-muted-foreground hover:text-foreground hover:bg-white/5"
                     )}
                   >
-                    {cell.date.getDate()}
+                    <span>{cell.date.getDate()}</span>
+                    {hasSchedules && (
+                      <span className="absolute bottom-1 size-1 rounded-full bg-rose-500" />
+                    )}
                   </button>
                 );
               })}
@@ -808,15 +812,7 @@ function SchedulePage() {
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleGridDrop(e, dateIso)}
                     >
-                      {/* Current Time Indicator line */}
-                      {isCurrent && (
-                        <div
-                          className="absolute left-0 right-0 h-[2px] bg-rose-500 z-10 pointer-events-none"
-                          style={{ top: indicatorTop }}
-                        >
-                          <div className="absolute size-2 rounded-full bg-rose-500 -left-1 -top-0.5 shadow-sm shadow-rose-500/50" />
-                        </div>
-                      )}
+                      {/* Day Column Area */}
 
                       {/* Render dropped/saved instances */}
                       {dayInstances.map((inst) => {
@@ -1091,15 +1087,36 @@ function SchedulePage() {
             </div>
           )}
 
-          <DialogFooter className="mt-4 gap-2 sm:gap-0">
-            <Button
-              variant="destructive"
-              className="mr-auto text-xs bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
-              onClick={() => deleteMut.mutate(selectedSchedule!.id)}
-              disabled={deleteMut.isPending}
-            >
-              <Trash2 className="size-3.5 mr-1.5" /> Delete
-            </Button>
+          <DialogFooter className="mt-4 gap-2 sm:gap-0 flex-wrap">
+            {selectedSchedule && selectedSchedule.repeat_mode !== "none" ? (
+              <div className="flex gap-2 mr-auto">
+                <Button
+                  variant="destructive"
+                  className="text-xs bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+                  onClick={() => deleteMut.mutate({ id: selectedSchedule.id, date: selectedDate })}
+                  disabled={deleteMut.isPending}
+                >
+                  <Trash2 className="size-3.5 mr-1.5" /> Delete Day
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="text-xs bg-rose-500/20 border border-rose-500/30 text-rose-200 hover:bg-rose-500/30 font-semibold"
+                  onClick={() => deleteMut.mutate({ id: selectedSchedule.id })}
+                  disabled={deleteMut.isPending}
+                >
+                  <Trash2 className="size-3.5 mr-1.5" /> Delete Series
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="destructive"
+                className="mr-auto text-xs bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+                onClick={() => deleteMut.mutate({ id: selectedSchedule!.id })}
+                disabled={deleteMut.isPending}
+              >
+                <Trash2 className="size-3.5 mr-1.5" /> Delete
+              </Button>
+            )}
             <Button
               variant="outline"
               className="border-white/10"
