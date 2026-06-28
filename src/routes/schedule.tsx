@@ -138,6 +138,26 @@ function SchedulePage() {
   const [editRepeatMode, setEditRepeatMode] = React.useState<RepeatMode>("none");
   const [editRepeatInterval, setEditRepeatInterval] = React.useState(1);
   const [editDaysCount, setEditDaysCount] = React.useState(6);
+  const [editStartTime, setEditStartTime] = React.useState("09:00");
+  const [editEndTime, setEditEndTime] = React.useState("17:00");
+
+  const getRecurrenceRangeText = () => {
+    if (!selectedSchedule) return "";
+    const start = new Date(selectedSchedule.start_date + "T00:00:00");
+    const totalDays = editRepeatMode === "none" ? 1 : editDaysCount;
+    const interval = editRepeatMode === "custom" ? editRepeatInterval : 1;
+
+    const end = new Date(start.getTime());
+    end.setDate(start.getDate() + (totalDays - 1) * interval);
+
+    const startStr = start.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const endStr = end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+    if (editRepeatMode === "none") {
+      return `Occurs only on ${startStr}`;
+    }
+    return `Repeats from ${startStr} to ${endStr} (${totalDays} occurrences)`;
+  };
 
   // Drag and drop / resize state
   const [dragState, setDragState] = React.useState<DragState>(initialDragState);
@@ -299,6 +319,12 @@ function SchedulePage() {
         currentStartMins !== dragState.originalStartMins ||
         currentEndMins !== dragState.originalEndMins)
       ) {
+        const todayStr = toISO(new Date());
+        if (currentDate < todayStr) {
+          toast.error("You cannot schedule on past dates");
+          return;
+        }
+
         updateMut.mutate({
           id: blockId,
           body: {
@@ -339,6 +365,8 @@ function SchedulePage() {
       setEditRepeatMode(parent.repeat_mode);
       setEditRepeatInterval(parent.repeat_interval || 1);
       setEditDaysCount(parent.days_count || 6);
+      setEditStartTime(parent.start_time.slice(0, 5));
+      setEditEndTime(parent.end_time.slice(0, 5));
       setEditPopupOpen(true);
     }
   };
@@ -366,6 +394,13 @@ function SchedulePage() {
 
   const handleGridDrop = (e: React.DragEvent, dateStr: string) => {
     e.preventDefault();
+
+    const todayStr = toISO(new Date());
+    if (dateStr < todayStr) {
+      toast.error("You cannot schedule on past dates");
+      return;
+    }
+
     const templateIdStr = e.dataTransfer.getData("text/plain");
     if (!templateIdStr) return;
     const templateId = Number(templateIdStr);
@@ -746,6 +781,7 @@ function SchedulePage() {
                         return (
                           <div
                             key={inst.id}
+                            draggable="false"
                             onClick={() => handleBlockClick(inst.schedule_id)}
                             className={cn(
                               "absolute left-1 right-1 rounded-xl p-2 text-[10px] overflow-hidden group shadow-md transition-shadow hover:shadow-lg border-l-4 cursor-pointer",
@@ -887,6 +923,28 @@ function SchedulePage() {
                 </div>
               </div>
 
+              {/* Time Inputs */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground font-semibold">Start Time</Label>
+                  <Input
+                    type="time"
+                    value={editStartTime}
+                    onChange={(e) => setEditStartTime(e.target.value)}
+                    className="bg-white/5 border-white/10 text-xs h-9"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground font-semibold">End Time</Label>
+                  <Input
+                    type="time"
+                    value={editEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className="bg-white/5 border-white/10 text-xs h-9"
+                  />
+                </div>
+              </div>
+
               {/* Recurrence Mode Selector */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground font-semibold">Repeat Pattern</Label>
@@ -966,6 +1024,12 @@ function SchedulePage() {
                   </div>
                 </div>
               )}
+
+              {/* Dynamic Range Summary */}
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 text-xs text-muted-foreground flex items-center gap-2 mt-2">
+                <Info className="size-4 text-primary shrink-0" />
+                <span>{getRecurrenceRangeText()}</span>
+              </div>
             </div>
           )}
 
@@ -992,6 +1056,8 @@ function SchedulePage() {
                   repeat_mode: editRepeatMode,
                   repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
                   days_count: editRepeatMode === "none" ? 1 : editDaysCount,
+                  start_time: editStartTime,
+                  end_time: editEndTime,
                 });
               }}
               disabled={repeatMut.isPending}

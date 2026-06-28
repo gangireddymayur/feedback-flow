@@ -833,6 +833,11 @@ app.post(
     const formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
     const formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
 
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (start_date < todayStr) {
+      return res.status(400).json({ error: "You cannot schedule on past dates" });
+    }
+
     if (formattedStartTime >= formattedEndTime) {
       return res.status(400).json({ error: "End time must be after start time" });
     }
@@ -948,6 +953,25 @@ app.put(
         return res.status(400).json({ error: "End time must be after start time" });
       }
 
+      // Validate date is not in the past
+      let dateStrInput = "";
+      if (sd instanceof Date) {
+        const y = sd.getFullYear();
+        const m = String(sd.getMonth() + 1).padStart(2, "0");
+        const day = String(sd.getDate()).padStart(2, "0");
+        dateStrInput = `${y}-${m}-${day}`;
+      } else if (typeof sd === "string") {
+        dateStrInput = sd.slice(0, 10);
+      } else {
+        dateStrInput = String(sd || "").slice(0, 10);
+      }
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (dateStrInput < todayStr) {
+        await conn.rollback();
+        return res.status(400).json({ error: "You cannot schedule on past dates" });
+      }
+
       const [currRec] = await conn.query("SELECT * FROM schedule_recurrences WHERE schedule_id = ? LIMIT 1", [scheduleId]);
       const rec = currRec[0] || {};
       const rm = repeat_mode !== undefined ? repeat_mode : (rec.repeat_mode || "none");
@@ -1038,7 +1062,7 @@ app.post(
   "/api/schedules/repeat",
   auth(),
   asyncH(async (req, res) => {
-    const { schedule_id, repeat_mode, repeat_interval = 1, days_count = 1 } = req.body || {};
+    const { schedule_id, repeat_mode, repeat_interval = 1, days_count = 1, start_time, end_time } = req.body || {};
     if (!schedule_id || !repeat_mode) {
       return res.status(400).json({ error: "schedule_id and repeat_mode required" });
     }
@@ -1054,14 +1078,47 @@ app.post(
       }
       const s = curr[0];
 
+      let st = s.start_time;
+      let et = s.end_time;
+
+      if (start_time && end_time) {
+        st = start_time.length === 5 ? `${start_time}:00` : start_time;
+        et = end_time.length === 5 ? `${end_time}:00` : end_time;
+        if (st >= et) {
+          await conn.rollback();
+          return res.status(400).json({ error: "End time must be after start time" });
+        }
+        await conn.query("UPDATE schedules SET start_time = ?, end_time = ? WHERE id = ?", [st, et, schedule_id]);
+      }
+
+      // Validate date is not in the past
+      let dateStrInput = "";
+      const sd = s.start_date;
+      if (sd instanceof Date) {
+        const y = sd.getFullYear();
+        const m = String(sd.getMonth() + 1).padStart(2, "0");
+        const day = String(sd.getDate()).padStart(2, "0");
+        dateStrInput = `${y}-${m}-${day}`;
+      } else if (typeof sd === "string") {
+        dateStrInput = sd.slice(0, 10);
+      } else {
+        dateStrInput = String(sd || "").slice(0, 10);
+      }
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (dateStrInput < todayStr) {
+        await conn.rollback();
+        return res.status(400).json({ error: "You cannot schedule on past dates" });
+      }
+
       // Proposed instances
       const proposedInstances = generateInstances(
         s.id,
         s.device_id,
         s.template_id,
-        s.start_time,
-        s.end_time,
-        s.start_date,
+        st,
+        et,
+        dateStrInput,
         repeat_mode,
         Number(repeat_interval),
         Number(days_count)

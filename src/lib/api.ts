@@ -335,6 +335,8 @@ export const Schedules = {
     repeat_mode: RepeatMode;
     repeat_interval?: number;
     days_count?: number;
+    start_time?: string;
+    end_time?: string;
   }) => {
     return await http<{ ok: true; created_instances: number }>("/schedules/repeat", {
       method: "POST",
