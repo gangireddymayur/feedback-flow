@@ -382,6 +382,16 @@ export const Responses = {
   list: async () => {
     return await http<{ responses: ApiResponse[] }>("/responses");
   },
+  reportList: async (params?: { device_id?: string | number; from_date?: string; to_date?: string }) => {
+    let url = "/reports/responses";
+    const query = new URLSearchParams();
+    if (params?.device_id) query.append("device_id", String(params.device_id));
+    if (params?.from_date) query.append("from_date", params.from_date);
+    if (params?.to_date) query.append("to_date", params.to_date);
+    const qs = query.toString();
+    if (qs) url += "?" + qs;
+    return await http<{ responses: ApiResponse[] }>(url);
+  },
 };
 
 // =================================================================

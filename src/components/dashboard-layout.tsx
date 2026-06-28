@@ -37,6 +37,7 @@ const NAV: NavItem[] = [
   { to: "/schedule", label: "Schedule", icon: CalendarClock, roles: ["sub"] },
   { to: "/responses", label: "Responses", icon: MessageSquare, roles: ["sub"] },
   { to: "/customers", label: "Customers", icon: Users, roles: ["sub"] },
+  { to: "/reports", label: "Reports", icon: FileText, roles: ["super", "sub"] },
   { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["super"] },
   { to: "/admins", label: "Sub Admins", icon: Users, roles: ["super"] },
   { to: "/settings", label: "Settings", icon: Settings, roles: ["super", "sub"] },

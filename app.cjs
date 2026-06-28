@@ -541,6 +541,44 @@ app.get(
 );
 
 app.get(
+  "/api/reports/responses",
+  auth(),
+  asyncH(async (req, res) => {
+    const { device_id, from_date, to_date } = req.query;
+    let query = `
+      SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
+             r.rating, r.answers, r.submitted_at, r.duration_seconds
+      FROM responses r
+      LEFT JOIN templates t ON t.id = r.template_id
+      LEFT JOIN devices d ON d.id = r.device_id
+      WHERE 1=1
+    `;
+    const params = [];
+    if (device_id && device_id !== "all") {
+      query += " AND r.device_id = ?";
+      params.push(Number(device_id));
+    }
+    if (from_date) {
+      query += " AND DATE(r.submitted_at) >= ?";
+      params.push(from_date);
+    }
+    if (to_date) {
+      query += " AND DATE(r.submitted_at) <= ?";
+      params.push(to_date);
+    }
+    query += " ORDER BY r.submitted_at DESC";
+    const [rows] = await pool.query(query, params);
+    res.json({
+      responses: rows.map((r) => ({
+        ...r,
+        answers: parseJson(r.answers, {}),
+        template_questions: parseJson(r.template_questions, []),
+      })),
+    });
+  }),
+);
+
+app.get(
   "/api/admins",
   auth(),
   requireSuper,

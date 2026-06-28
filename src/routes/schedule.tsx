@@ -882,6 +882,11 @@ function SchedulePage() {
                         setSelectedDate(dateIso);
                         setCurrentWeekDate(dateIso);
                         
+                        if (isPast) {
+                          toast.error("Past days cannot be repeated or duplicated.");
+                          return;
+                        }
+                        
                         const dayInstances = instances.filter((i) => i.date === dateIso);
                         if (dayInstances.length > 0) {
                           setBulkRepeatDate(dateIso);

@@ -20,6 +20,7 @@ import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AdminsRouteImport } from './routes/admins'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TemplatesBuilderRouteImport } from './routes/templates.builder'
+import { Route as ReportsRouteImport } from './routes/reports'
 
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
@@ -29,6 +30,11 @@ const TemplatesRoute = TemplatesRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScheduleRoute = ScheduleRouteImport.update({
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
   '/schedule': typeof ScheduleRoute
+  '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
   '/schedule': typeof ScheduleRoute
+  '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/responses': typeof ResponsesRoute
   '/schedule': typeof ScheduleRoute
+  '/reports': typeof ReportsRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/responses'
     | '/schedule'
+    | '/reports'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/responses'
     | '/schedule'
+    | '/reports'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/responses'
     | '/schedule'
+    | '/reports'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -168,6 +180,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ResponsesRoute: typeof ResponsesRoute
   ScheduleRoute: typeof ScheduleRoute
+  ReportsRoute: typeof ReportsRoute
   SettingsRoute: typeof SettingsRoute
   TemplatesRoute: typeof TemplatesRouteWithChildren
 }
@@ -179,6 +192,13 @@ declare module '@tanstack/react-router' {
       path: '/templates'
       fullPath: '/templates'
       preLoaderRoute: typeof TemplatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -275,6 +295,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ResponsesRoute: ResponsesRoute,
   ScheduleRoute: ScheduleRoute,
+  ReportsRoute: ReportsRoute,
   SettingsRoute: SettingsRoute,
   TemplatesRoute: TemplatesRouteWithChildren,
 }
