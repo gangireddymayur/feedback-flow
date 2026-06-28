@@ -2,25 +2,24 @@ import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronUp,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Plus,
   Trash2,
-  Copy as CopyIcon,
-  Save,
-  CalendarDays,
+  Calendar,
+  Search,
+  Sparkles,
+  RefreshCw,
+  Clock,
+  Layout,
+  Repeat,
+  Move,
+  Info,
 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -29,137 +28,387 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Devices, Templates, Schedules, type ApiSchedule, type RepeatMode } from "@/lib/api";
+import { Devices, Templates, Schedules, type ApiSchedule, type ApiScheduleInstance, type RepeatMode } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/schedule")({ component: SchedulePage });
 
-// ---------- helpers ----------
-const STEP_MIN = 15; // 15-minute granularity
 const HOURS = 24;
-const PX_PER_HOUR = 56; // 24 * 56 = 1344px tall timeline
-const PX_PER_MIN = PX_PER_HOUR / 60;
+const PX_PER_HOUR = 60; // 1 hour = 60px
+const PX_PER_MIN = PX_PER_HOUR / 60; // 1 min = 1px
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
 const PALETTE = [
-  "oklch(0.78 0.18 200)",
-  "oklch(0.78 0.18 300)",
-  "oklch(0.82 0.16 140)",
-  "oklch(0.82 0.16 60)",
-  "oklch(0.78 0.18 20)",
-  "oklch(0.78 0.18 340)",
+  "oklch(0.76 0.17 210)", // Soft Teal
+  "oklch(0.72 0.21 330)", // Soft Violet
+  "oklch(0.80 0.15 150)", // Soft Emerald
+  "oklch(0.82 0.16 70)",  // Soft Orange
+  "oklch(0.74 0.19 15)",  // Soft Rose
+  "oklch(0.78 0.16 270)", // Soft Lavender
 ];
 
+// Helper: Format Date to YYYY-MM-DD
 function toISO(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+// Helper: Convert time string "HH:MM:SS" or "HH:MM" to minutes of day
 function parseHHMM(s: string) {
+  if (!s) return 0;
   const [h, m] = s.split(":").map(Number);
   return h * 60 + m;
 }
+
+// Helper: Convert minutes of day to time string "HH:MM"
 function toHHMM(mins: number) {
   const m = Math.max(0, Math.min(24 * 60, mins));
   const h = Math.floor(m / 60);
   const r = m % 60;
   return `${String(h).padStart(2, "0")}:${String(r).padStart(2, "0")}`;
 }
-function snap(mins: number) {
-  return Math.round(mins / STEP_MIN) * STEP_MIN;
+
+// Helper: Get Monday of the week for a given date
+function getMonday(d: Date) {
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
+  return new Date(d.setDate(diff));
 }
 
-function scheduleActiveOn(s: ApiSchedule, dateISO: string) {
-  const d = new Date(dateISO + "T00:00:00");
-  const start = new Date(s.start_date + "T00:00:00");
-  if (d < start) return false;
-  if (s.repeat_mode === "once") return s.start_date === dateISO;
-  if (s.repeat_mode === "every_day") return true;
-  if (s.repeat_mode === "weekdays") {
-    return Array.isArray(s.weekdays) && s.weekdays.includes(d.getDay());
-  }
-  if (s.repeat_mode === "n_days") {
-    const diff = Math.floor((d.getTime() - start.getTime()) / 86400000);
-    return diff >= 0 && diff < (s.days_count || 1);
-  }
-  return false;
+// Helper: Format minutes to AM/PM string
+function formatMinsAMPM(mins: number) {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const displayH = h % 12 === 0 ? 12 : h % 12;
+  const displayM = String(m).padStart(2, "0");
+  return `${displayH}:${displayM} ${ampm}`;
 }
 
-// ---------- page ----------
+type DragState = {
+  action: "idle" | "move" | "resize-top" | "resize-bottom";
+  blockId: number | null;
+  originalDate: string;
+  originalStartMins: number;
+  originalEndMins: number;
+  startY: number;
+  startX: number;
+  currentDate: string;
+  currentStartMins: number;
+  currentEndMins: number;
+};
+
+const initialDragState: DragState = {
+  action: "idle",
+  blockId: null,
+  originalDate: "",
+  originalStartMins: 0,
+  originalEndMins: 0,
+  startY: 0,
+  startX: 0,
+  currentDate: "",
+  currentStartMins: 0,
+  currentEndMins: 0,
+};
+
 function SchedulePage() {
   const qc = useQueryClient();
   const devicesQ = useQuery({ queryKey: ["devices"], queryFn: () => Devices.list() });
   const templatesQ = useQuery({ queryKey: ["templates"], queryFn: () => Templates.list() });
 
   const devices = devicesQ.data?.devices ?? [];
-  const templates = (templatesQ.data?.templates ?? []).filter((t) => t.status !== "inactive");
+  const templates = (templatesQ.data?.templates ?? []).filter((t) => t.status === "active");
 
-  const [deviceId, setDeviceId] = React.useState<number | null>(null);
-  const [year, setYear] = React.useState<number>(new Date().getFullYear());
+  const [selectedDeviceId, setSelectedDeviceId] = React.useState<number | null>(null);
+  const [deviceSearch, setDeviceSearch] = React.useState("");
+  const [templateSearch, setTemplateSearch] = React.useState("");
   const [selectedDate, setSelectedDate] = React.useState<string>(toISO(new Date()));
 
+  // Active schedule editing state
+  const [selectedSchedule, setSelectedSchedule] = React.useState<ApiSchedule | null>(null);
+  const [editPopupOpen, setEditPopupOpen] = React.useState(false);
+  const [editRepeatMode, setEditRepeatMode] = React.useState<RepeatMode>("none");
+  const [editRepeatInterval, setEditRepeatInterval] = React.useState(1);
+  const [editDaysCount, setEditDaysCount] = React.useState(6);
+
+  // Drag and drop / resize state
+  const [dragState, setDragState] = React.useState<DragState>(initialDragState);
+  const weekGridRef = React.useRef<HTMLDivElement | null>(null);
+  const [colWidth, setColWidth] = React.useState(120);
+
+  // Set default selected device on load
   React.useEffect(() => {
-    if (deviceId === null && devices.length > 0) setDeviceId(devices[0].id);
-  }, [devices, deviceId]);
+    if (selectedDeviceId === null && devices.length > 0) {
+      setSelectedDeviceId(devices[0].id);
+    }
+  }, [devices, selectedDeviceId]);
 
+  // Load schedules and instances for the selected device
   const schedulesQ = useQuery({
-    queryKey: ["schedules", deviceId],
-    queryFn: () => Schedules.list(deviceId!),
-    enabled: deviceId !== null,
+    queryKey: ["schedules", selectedDeviceId],
+    queryFn: () => Schedules.list(selectedDeviceId!),
+    enabled: selectedDeviceId !== null,
   });
-  const schedules = schedulesQ.data?.schedules ?? [];
 
-  // Build a color map by template id (stable across the page)
+  const schedules = schedulesQ.data?.schedules ?? [];
+  const instances = schedulesQ.data?.instances ?? [];
+
+  // Track template colors
   const templateColor = React.useMemo(() => {
     const m = new Map<number, string>();
     templates.forEach((t, i) => m.set(t.id, PALETTE[i % PALETTE.length]));
     return m;
   }, [templates]);
 
-  // Windows active on the selected day (already includes repeats expanded)
-  const dayWindows = React.useMemo(
-    () => schedules.filter((s) => scheduleActiveOn(s, selectedDate)),
-    [schedules, selectedDate],
+  // Calculations for dates of the current week view
+  const weekDates = React.useMemo(() => {
+    const base = getMonday(new Date(selectedDate + "T00:00:00"));
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(base.getTime());
+      d.setDate(base.getDate() + i);
+      return d;
+    });
+  }, [selectedDate]);
+
+  // Live clock for time indicator
+  const [nowTime, setNowTime] = React.useState(new Date());
+  React.useEffect(() => {
+    const timer = setInterval(() => setNowTime(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Update column width on resize
+  React.useEffect(() => {
+    if (!weekGridRef.current) return;
+    const updateWidth = () => {
+      const colEl = weekGridRef.current?.querySelector(".day-column");
+      if (colEl) setColWidth(colEl.getBoundingClientRect().width);
+    };
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, [selectedDate, selectedDeviceId]);
+
+  // Mutations
+  const createMut = useMutation({
+    mutationFn: (body: Parameters<typeof Schedules.create>[0]) => Schedules.create(body),
+    onSuccess: () => {
+      toast.success("Schedule created successfully");
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: number; body: Parameters<typeof Schedules.update>[1] }) =>
+      Schedules.update(id, body),
+    onSuccess: () => {
+      toast.success("Schedule updated");
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => Schedules.remove(id),
+    onSuccess: () => {
+      toast.success("Schedule deleted");
+      setSelectedSchedule(null);
+      setEditPopupOpen(false);
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const repeatMut = useMutation({
+    mutationFn: (body: Parameters<typeof Schedules.repeat>[0]) => Schedules.repeat(body),
+    onSuccess: () => {
+      toast.success("Recurrence updated");
+      setEditPopupOpen(false);
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Handle global mouse move & mouse up for Drag-Move / Drag-Resize gestures
+  React.useEffect(() => {
+    if (dragState.action === "idle") return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = e.clientY - dragState.startY;
+      const deltaMins = Math.round((deltaY / PX_PER_MIN) / 15) * 15;
+
+      if (dragState.action === "move") {
+        const deltaX = e.clientX - dragState.startX;
+        const dayDelta = Math.round(deltaX / colWidth);
+
+        let newStart = dragState.originalStartMins + deltaMins;
+        let newEnd = dragState.originalEndMins + deltaMins;
+
+        // Constraint boundaries
+        if (newStart < 0) {
+          newEnd -= newStart;
+          newStart = 0;
+        }
+        if (newEnd > 24 * 60) {
+          newStart -= (newEnd - 24 * 60);
+          newEnd = 24 * 60;
+        }
+
+        const d = new Date(dragState.originalDate + "T00:00:00");
+        d.setDate(d.getDate() + dayDelta);
+
+        setDragState((prev) => ({
+          ...prev,
+          currentDate: toISO(d),
+          currentStartMins: newStart,
+          currentEndMins: newEnd,
+        }));
+      } else if (dragState.action === "resize-top") {
+        let newStart = dragState.originalStartMins + deltaMins;
+        newStart = Math.min(dragState.originalEndMins - 15, Math.max(0, newStart));
+        setDragState((prev) => ({
+          ...prev,
+          currentStartMins: newStart,
+        }));
+      } else if (dragState.action === "resize-bottom") {
+        let newEnd = dragState.originalEndMins + deltaMins;
+        newEnd = Math.max(dragState.originalStartMins + 15, Math.min(24 * 60, newEnd));
+        setDragState((prev) => ({
+          ...prev,
+          currentEndMins: newEnd,
+        }));
+      }
+    };
+
+    const handleMouseUp = () => {
+      const { blockId, currentDate, currentStartMins, currentEndMins } = dragState;
+      setDragState(initialDragState);
+
+      if (
+        blockId !== null &&
+        (currentDate !== dragState.originalDate ||
+        currentStartMins !== dragState.originalStartMins ||
+        currentEndMins !== dragState.originalEndMins)
+      ) {
+        updateMut.mutate({
+          id: blockId,
+          body: {
+            start_date: currentDate,
+            start_time: toHHMM(currentStartMins),
+            end_time: toHHMM(currentEndMins),
+          },
+        });
+      }
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragState, colWidth]);
+
+  // Sidebar Filtered Lists
+  const filteredDevices = devices.filter(
+    (d) =>
+      d.name.toLowerCase().includes(deviceSearch.toLowerCase()) ||
+      (d.location && d.location.toLowerCase().includes(deviceSearch.toLowerCase()))
   );
 
-  // Days with any schedule (for highlighting on year calendar)
-  const daysWithSchedule = React.useMemo(() => {
-    const set = new Map<string, string[]>(); // ISO -> array of template colors
-    const start = new Date(year, 0, 1);
-    const end = new Date(year, 11, 31);
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const iso = toISO(d);
-      const matches = schedules.filter((s) => scheduleActiveOn(s, iso));
-      if (matches.length) set.set(iso, matches.map((m) => templateColor.get(m.template_id) || "#888"));
+  const filteredTemplates = templates.filter((t) =>
+    t.name.toLowerCase().includes(templateSearch.toLowerCase())
+  );
+
+  // Month Switcher for Mini Calendar
+  const [calendarMonth, setCalendarMonth] = React.useState(new Date());
+
+  const handleBlockClick = (scheduleId: number) => {
+    const parent = schedules.find((s) => s.id === scheduleId);
+    if (parent) {
+      setSelectedSchedule(parent);
+      setEditRepeatMode(parent.repeat_mode);
+      setEditRepeatInterval(parent.repeat_interval || 1);
+      setEditDaysCount(parent.days_count || 6);
+      setEditPopupOpen(true);
     }
-    return set;
-  }, [schedules, year, templateColor]);
+  };
+
+  const handleBlockMouseDown = (
+    e: React.MouseEvent,
+    inst: ApiScheduleInstance,
+    actionType: DragState["action"]
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setDragState({
+      action: actionType,
+      blockId: inst.schedule_id,
+      originalDate: inst.date,
+      originalStartMins: parseHHMM(inst.start_time),
+      originalEndMins: parseHHMM(inst.end_time),
+      startY: e.clientY,
+      startX: e.clientX,
+      currentDate: inst.date,
+      currentStartMins: parseHHMM(inst.start_time),
+      currentEndMins: parseHHMM(inst.end_time),
+    });
+  };
+
+  const handleGridDrop = (e: React.DragEvent, dateStr: string) => {
+    e.preventDefault();
+    const templateIdStr = e.dataTransfer.getData("text/plain");
+    if (!templateIdStr) return;
+    const templateId = Number(templateIdStr);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const droppedMins = Math.max(0, Math.min(24 * 60 - 60, Math.floor(y / PX_PER_MIN)));
+    const startMins = Math.round(droppedMins / 15) * 15;
+    const endMins = Math.min(24 * 60, startMins + 8 * 60); // 8 Hours default
+
+    createMut.mutate({
+      device_id: selectedDeviceId!,
+      template_id: templateId,
+      start_time: toHHMM(startMins),
+      end_time: toHHMM(endMins),
+      start_date: dateStr,
+      repeat_mode: "none",
+    });
+  };
+
+  const handlePrevWeek = () => {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setDate(d.getDate() - 7);
+    setSelectedDate(toISO(d));
+  };
+
+  const handleNextWeek = () => {
+    const d = new Date(selectedDate + "T00:00:00");
+    d.setDate(d.getDate() + 7);
+    setSelectedDate(toISO(d));
+  };
+
+  const handleToday = () => {
+    setSelectedDate(toISO(new Date()));
+  };
 
   if (devicesQ.isLoading || templatesQ.isLoading) {
     return (
       <DashboardLayout>
-        <PageHeader title="Schedule" />
-        <GlassCard>Loading…</GlassCard>
-      </DashboardLayout>
-    );
-  }
-
-  if (devices.length === 0) {
-    return (
-      <DashboardLayout>
-        <PageHeader title="Schedule" />
-        <GlassCard>
-          <div className="text-sm text-muted-foreground">
-            Pair a device first to start scheduling.
-          </div>
-        </GlassCard>
+        <PageHeader title="Schedule Planner" />
+        <div className="flex h-96 items-center justify-center">
+          <RefreshCw className="size-8 text-primary animate-spin" />
+        </div>
       </DashboardLayout>
     );
   }
@@ -167,748 +416,572 @@ function SchedulePage() {
   return (
     <DashboardLayout>
       <PageHeader
-        title="Schedule"
-        description="Pick a device, click a day on the year calendar, then drag on the timeline to schedule which template plays when."
-        actions={
-          <div className="flex items-center gap-2">
-            <Label className="text-xs text-muted-foreground hidden sm:block">Device</Label>
-            <Select
-              value={deviceId !== null ? String(deviceId) : ""}
-              onValueChange={(v) => setDeviceId(Number(v))}
-            >
-              <SelectTrigger className="w-[240px] bg-white/5 border-white/10">
-                <SelectValue placeholder="Select a device" />
-              </SelectTrigger>
-              <SelectContent>
-                {devices.map((d) => (
-                  <SelectItem key={d.id} value={String(d.id)}>
-                    {d.name} {d.location ? `· ${d.location}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        }
+        title="Schedule Planner"
+        description="Schedule survey templates to show up at specific days and hours on your tablet terminals. Support drag-and-drop, resize, and custom repeat rules."
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-6">
-        <YearCalendar
-          year={year}
-          onYearChange={setYear}
-          selected={selectedDate}
-          onSelect={setSelectedDate}
-          marks={daysWithSchedule}
-        />
-        <DayEditor
-          dateISO={selectedDate}
-          deviceId={deviceId}
-          devices={devices}
-          templates={templates}
-          schedules={schedules}
-          windows={dayWindows}
-          templateColor={templateColor}
-          onChanged={() => qc.invalidateQueries({ queryKey: ["schedules", deviceId] })}
-        />
-      </div>
-    </DashboardLayout>
-  );
-}
-
-// ============================================================
-//  Year calendar (left side)
-// ============================================================
-function YearCalendar({
-  year,
-  onYearChange,
-  selected,
-  onSelect,
-  marks,
-}: {
-  year: number;
-  onYearChange: (y: number) => void;
-  selected: string;
-  onSelect: (iso: string) => void;
-  marks: Map<string, string[]>;
-}) {
-  const todayISO = toISO(new Date());
-  return (
-    <GlassCard className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <CalendarDays className="size-4 text-primary" />
-          <div className="font-medium">{year}</div>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button size="icon" variant="ghost" className="size-7" onClick={() => onYearChange(year - 1)}>
-            ‹
-          </Button>
-          <Button size="sm" variant="ghost" className="h-7" onClick={() => onYearChange(new Date().getFullYear())}>
-            Today
-          </Button>
-          <Button size="icon" variant="ghost" className="size-7" onClick={() => onYearChange(year + 1)}>
-            ›
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {MONTHS.map((name, mi) => (
-          <MonthMini
-            key={mi}
-            year={year}
-            month={mi}
-            name={name}
-            selected={selected}
-            today={todayISO}
-            onSelect={onSelect}
-            marks={marks}
-          />
-        ))}
-      </div>
-    </GlassCard>
-  );
-}
-
-function MonthMini({
-  year,
-  month,
-  name,
-  selected,
-  today,
-  onSelect,
-  marks,
-}: {
-  year: number;
-  month: number;
-  name: string;
-  selected: string;
-  today: string;
-  onSelect: (iso: string) => void;
-  marks: Map<string, string[]>;
-}) {
-  const first = new Date(year, month, 1);
-  const firstWeekday = first.getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: Array<{ iso: string; day: number } | null> = [];
-  for (let i = 0; i < firstWeekday; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) {
-    const iso = toISO(new Date(year, month, d));
-    cells.push({ iso, day: d });
-  }
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  return (
-    <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2">
-      <div className="text-[11px] font-medium text-muted-foreground mb-1 px-1">{name}</div>
-      <div className="grid grid-cols-7 gap-[2px] text-[10px] text-muted-foreground/70 px-[2px] mb-1">
-        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-          <div key={i} className="text-center">
-            {d}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-[2px]">
-        {cells.map((c, i) =>
-          c === null ? (
-            <div key={i} className="aspect-square" />
-          ) : (
-            <button
-              key={i}
-              onClick={() => onSelect(c.iso)}
-              className={cn(
-                "aspect-square rounded-md text-[11px] flex items-center justify-center relative transition-colors",
-                c.iso === selected
-                  ? "bg-primary text-primary-foreground font-semibold"
-                  : c.iso === today
-                    ? "bg-white/10 text-foreground"
-                    : "text-foreground/80 hover:bg-white/5",
-              )}
-            >
-              {c.day}
-              {marks.has(c.iso) && c.iso !== selected && (
-                <span
-                  className="absolute bottom-0.5 left-1/2 -translate-x-1/2 size-1 rounded-full"
-                  style={{ background: marks.get(c.iso)![0] }}
-                />
-              )}
-            </button>
-          ),
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-//  Day editor (right side)
-// ============================================================
-type DraftWindow = {
-  template_id: number;
-  start_min: number;
-  end_min: number;
-  repeat_mode: RepeatMode;
-  weekdays: number[];
-  days_count: number;
-};
-
-function DayEditor({
-  dateISO,
-  deviceId,
-  devices,
-  templates,
-  schedules,
-  windows,
-  templateColor,
-  onChanged,
-}: {
-  dateISO: string;
-  deviceId: number | null;
-  devices: { id: number; name: string }[];
-  templates: { id: number; name: string }[];
-  schedules: ApiSchedule[];
-  windows: ApiSchedule[];
-  templateColor: Map<number, string>;
-  onChanged: () => void;
-}) {
-  const [draft, setDraft] = React.useState<DraftWindow | null>(null);
-  const [applyDevices, setApplyDevices] = React.useState<number[]>([]);
-  const [copyOpen, setCopyOpen] = React.useState(false);
-  const [copyTargets, setCopyTargets] = React.useState<string[]>([]);
-
-  React.useEffect(() => {
-    if (deviceId !== null) setApplyDevices([deviceId]);
-  }, [deviceId]);
-
-  const createMut = useMutation({
-    mutationFn: (body: Parameters<typeof Schedules.create>[0]) => Schedules.create(body),
-    onSuccess: () => {
-      toast.success("Schedule saved");
-      setDraft(null);
-      onChanged();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
-  const deleteMut = useMutation({
-    mutationFn: (id: number) => Schedules.remove(id),
-    onSuccess: () => {
-      toast.success("Window removed");
-      onChanged();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
-  const copyMut = useMutation({
-    mutationFn: () =>
-      Schedules.copyDay({
-        device_id: deviceId!,
-        source_date: dateISO,
-        target_dates: copyTargets,
-      }),
-    onSuccess: (r) => {
-      toast.success(`Copied to ${r.created} day(s)`);
-      setCopyOpen(false);
-      setCopyTargets([]);
-      onChanged();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
-  // ---- drag-to-create on timeline ----
-  const trackRef = React.useRef<HTMLDivElement | null>(null);
-  const dragRef = React.useRef<{ startY: number; baseMin: number } | null>(null);
-
-  function pxToMin(y: number) {
-    return snap(y / PX_PER_MIN);
-  }
-  function handleTrackMouseDown(e: React.MouseEvent) {
-    if (templates.length === 0) {
-      toast.error("Create a template first");
-      return;
-    }
-    if (!trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const base = pxToMin(y);
-    dragRef.current = { startY: y, baseMin: base };
-    setDraft({
-      template_id: templates[0].id,
-      start_min: base,
-      end_min: Math.min(24 * 60, base + 60),
-      repeat_mode: "once",
-      weekdays: [],
-      days_count: 7,
-    });
-  }
-  function handleTrackMouseMove(e: React.MouseEvent) {
-    if (!dragRef.current || !trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const y = e.clientY - rect.top;
-    const cur = pxToMin(y);
-    setDraft((d) =>
-      d
-        ? {
-            ...d,
-            start_min: Math.min(dragRef.current!.baseMin, cur),
-            end_min: Math.max(dragRef.current!.baseMin + STEP_MIN, cur),
-          }
-        : d,
-    );
-  }
-  function handleTrackMouseUp() {
-    dragRef.current = null;
-  }
-
-  const friendly = new Date(dateISO + "T00:00:00").toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-
-  return (
-    <GlassCard className="p-4">
-      <div className="flex items-start justify-between mb-3 gap-2">
-        <div>
-          <div className="text-xs text-muted-foreground">Selected day</div>
-          <div className="font-medium">{friendly}</div>
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 border-white/10 bg-white/5"
-            onClick={() => setCopyOpen(true)}
-            disabled={windows.length === 0}
-          >
-            <CopyIcon className="size-3.5 mr-1.5" /> Copy day
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[64px_1fr] gap-2">
-        {/* hour labels */}
-        <div className="flex flex-col text-[10px] text-muted-foreground/70 select-none">
-          {Array.from({ length: HOURS + 1 }).map((_, h) => (
-            <div
-              key={h}
-              style={{ height: h === HOURS ? 0 : PX_PER_HOUR }}
-              className="border-r border-white/5 pr-1 text-right -mt-1.5"
-            >
-              {String(h).padStart(2, "0")}:00
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_260px] gap-6 items-start">
+        {/* ======================================================== */}
+        {/* LEFT SIDEBAR: Device list & Mini calendar                 */}
+        {/* ======================================================== */}
+        <div className="space-y-6">
+          {/* Device Selector */}
+          <GlassCard className="p-4 flex flex-col gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
+              Devices
+            </h2>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search devices..."
+                value={deviceSearch}
+                onChange={(e) => setDeviceSearch(e.target.value)}
+                className="pl-8 bg-white/5 border-white/10 text-xs h-8"
+              />
             </div>
-          ))}
-        </div>
-
-        {/* timeline track */}
-        <div
-          ref={trackRef}
-          onMouseDown={handleTrackMouseDown}
-          onMouseMove={handleTrackMouseMove}
-          onMouseUp={handleTrackMouseUp}
-          onMouseLeave={handleTrackMouseUp}
-          className="relative rounded-xl bg-white/[0.02] border border-white/5 select-none cursor-crosshair"
-          style={{ height: HOURS * PX_PER_HOUR }}
-        >
-          {/* hour grid lines */}
-          {Array.from({ length: HOURS }).map((_, h) => (
-            <div
-              key={h}
-              className="absolute left-0 right-0 border-t border-white/[0.04]"
-              style={{ top: h * PX_PER_HOUR }}
-            />
-          ))}
-          {/* saved windows */}
-          {windows.map((w) => {
-            const top = parseHHMM(w.start_time) * PX_PER_MIN;
-            const height = (parseHHMM(w.end_time) - parseHHMM(w.start_time)) * PX_PER_MIN;
-            const color = templateColor.get(w.template_id) || "oklch(0.78 0.18 200)";
-            return (
-              <div
-                key={w.id}
-                className="absolute left-1 right-1 rounded-lg p-2 text-xs overflow-hidden group"
-                style={{
-                  top,
-                  height,
-                  background: `color-mix(in oklch, ${color} 35%, transparent)`,
-                  borderLeft: `3px solid ${color}`,
-                }}
-              >
-                <div className="flex items-start justify-between gap-1">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{w.template_name}</div>
-                    <div className="text-[10px] opacity-80">
-                      {w.start_time} → {w.end_time}
-                      {w.repeat_mode !== "once" && (
-                        <span className="ml-1 px-1 rounded bg-white/10">
-                          {w.repeat_mode === "every_day"
-                            ? "daily"
-                            : w.repeat_mode === "weekdays"
-                              ? (w.weekdays || []).map((d) => WEEKDAYS[d][0]).join("")
-                              : `${w.days_count}d`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteMut.mutate(w.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 transition rounded p-0.5 hover:bg-white/10"
-                    title="Remove"
-                  >
-                    <Trash2 className="size-3" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-          {/* draft window */}
-          {draft && (
-            <div
-              className="absolute left-1 right-1 rounded-lg border-2 border-dashed border-primary/80 bg-primary/10 pointer-events-none"
-              style={{
-                top: draft.start_min * PX_PER_MIN,
-                height: (draft.end_min - draft.start_min) * PX_PER_MIN,
-              }}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Draft editor */}
-      {draft && (
-        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="font-medium text-sm">New window</div>
-            <Button size="sm" variant="ghost" onClick={() => setDraft(null)}>
-              Cancel
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
-            <div>
-              <Label className="text-xs text-muted-foreground">Template</Label>
-              <Select
-                value={String(draft.template_id)}
-                onValueChange={(v) => setDraft({ ...draft, template_id: Number(v) })}
-              >
-                <SelectTrigger className="bg-white/5 border-white/10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <TimeStepper
-              label="Start"
-              valueMin={draft.start_min}
-              onChange={(m) =>
-                setDraft({ ...draft, start_min: Math.min(m, draft.end_min - STEP_MIN) })
-              }
-            />
-            <TimeStepper
-              label="End"
-              valueMin={draft.end_min}
-              onChange={(m) =>
-                setDraft({ ...draft, end_min: Math.max(m, draft.start_min + STEP_MIN) })
-              }
-            />
-          </div>
-
-          <div>
-            <Label className="text-xs text-muted-foreground">Repeat</Label>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {(
-                [
-                  ["once", "Just this day"],
-                  ["every_day", "Every day"],
-                  ["weekdays", "Weekdays"],
-                  ["n_days", "For N days"],
-                ] as Array<[RepeatMode, string]>
-              ).map(([k, l]) => (
-                <button
-                  key={k}
-                  onClick={() => setDraft({ ...draft, repeat_mode: k })}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg text-xs border transition",
-                    draft.repeat_mode === k
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-white/5 border-white/10 hover:bg-white/10",
-                  )}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-
-            {draft.repeat_mode === "weekdays" && (
-              <div className="flex gap-1 mt-2">
-                {WEEKDAYS.map((d, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      const has = draft.weekdays.includes(i);
-                      setDraft({
-                        ...draft,
-                        weekdays: has
-                          ? draft.weekdays.filter((x) => x !== i)
-                          : [...draft.weekdays, i].sort(),
-                      });
-                    }}
-                    className={cn(
-                      "size-8 rounded-md text-xs border",
-                      draft.weekdays.includes(i)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-white/5 border-white/10 hover:bg-white/10",
-                    )}
-                  >
-                    {d[0]}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {draft.repeat_mode === "n_days" && (
-              <div className="flex items-center gap-2 mt-2">
-                <Label className="text-xs text-muted-foreground">For</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  max={365}
-                  value={draft.days_count}
-                  onChange={(e) =>
-                    setDraft({ ...draft, days_count: Math.max(1, Number(e.target.value) || 1) })
-                  }
-                  className="w-20 bg-white/5 border-white/10 h-8"
-                />
-                <span className="text-xs text-muted-foreground">days starting {dateISO}</span>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <Label className="text-xs text-muted-foreground">Apply to devices</Label>
-            <div className="flex flex-wrap gap-1.5 mt-1">
-              {devices.map((d) => {
-                const on = applyDevices.includes(d.id);
+            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+              {filteredDevices.map((d) => {
+                const isSelected = d.id === selectedDeviceId;
                 return (
                   <button
                     key={d.id}
-                    onClick={() =>
-                      setApplyDevices(on ? applyDevices.filter((x) => x !== d.id) : [...applyDevices, d.id])
-                    }
+                    onClick={() => setSelectedDeviceId(d.id)}
                     className={cn(
-                      "px-2.5 py-1 rounded-md text-xs border",
-                      on
-                        ? "bg-primary/20 border-primary/60 text-foreground"
-                        : "bg-white/5 border-white/10 text-muted-foreground hover:text-foreground",
+                      "w-full text-left p-2 rounded-xl text-xs flex items-center justify-between border transition-all duration-200",
+                      isSelected
+                        ? "bg-primary/10 border-primary/30 text-foreground font-medium"
+                        : "bg-transparent border-transparent hover:bg-white/5 text-muted-foreground hover:text-foreground"
                     )}
                   >
-                    {d.name}
+                    <div className="truncate">
+                      <div>{d.name}</div>
+                      {d.location && <div className="text-[10px] opacity-75">{d.location}</div>}
+                    </div>
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full shrink-0 ml-1.5",
+                        d.status === "online"
+                          ? "bg-emerald-400 animate-pulse"
+                          : d.status === "paused"
+                            ? "bg-amber-400"
+                            : "bg-muted-foreground/30"
+                      )}
+                    />
+                  </button>
+                );
+              })}
+              {filteredDevices.length === 0 && (
+                <div className="text-xs text-muted-foreground italic text-center py-2">
+                  No matching devices
+                </div>
+              )}
+            </div>
+          </GlassCard>
+
+          {/* Mini Calendar */}
+          <GlassCard className="p-4 flex flex-col gap-3 select-none">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {MONTHS[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}
+              </span>
+              <div className="flex gap-0.5">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6 rounded-md hover:bg-white/5"
+                  onClick={() => {
+                    const m = new Date(calendarMonth);
+                    m.setMonth(m.getMonth() - 1);
+                    setCalendarMonth(m);
+                  }}
+                >
+                  <ChevronLeft className="size-3.5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-6 rounded-md hover:bg-white/5"
+                  onClick={() => {
+                    const m = new Date(calendarMonth);
+                    m.setMonth(m.getMonth() + 1);
+                    setCalendarMonth(m);
+                  }}
+                >
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5 text-center text-[10px] font-bold text-muted-foreground/70">
+              {["M", "T", "W", "T", "F", "S", "S"].map((day, idx) => (
+                <div key={idx}>{day}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5">
+              {React.useMemo(() => {
+                const year = calendarMonth.getFullYear();
+                const month = calendarMonth.getMonth();
+                const first = new Date(year, month, 1);
+                // Adjust first weekday: Mon=0, Sun=6
+                let firstDayIndex = first.getDay() - 1;
+                if (firstDayIndex === -1) firstDayIndex = 6;
+
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const cells: Array<{ date: Date; isCurrent: boolean } | null> = [];
+
+                for (let i = 0; i < firstDayIndex; i++) cells.push(null);
+                for (let d = 1; d <= daysInMonth; d++) {
+                  cells.push({ date: new Date(year, month, d), isCurrent: true });
+                }
+
+                while (cells.length % 7 !== 0) cells.push(null);
+                return cells;
+              }, [calendarMonth]).map((cell, idx) => {
+                if (cell === null) return <div key={idx} className="aspect-square" />;
+
+                const cellIso = toISO(cell.date);
+                const isSelected = selectedDate === cellIso;
+                const isToday = toISO(new Date()) === cellIso;
+
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedDate(cellIso)}
+                    className={cn(
+                      "aspect-square text-[10px] rounded-md transition-colors relative flex items-center justify-center font-medium",
+                      isSelected
+                        ? "bg-primary text-primary-foreground font-semibold"
+                        : isToday
+                          ? "bg-white/10 text-foreground"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                    )}
+                  >
+                    {cell.date.getDate()}
                   </button>
                 );
               })}
             </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              onClick={() => {
-                if (applyDevices.length === 0) {
-                  toast.error("Pick at least one device");
-                  return;
-                }
-                if (draft.repeat_mode === "weekdays" && draft.weekdays.length === 0) {
-                  toast.error("Pick at least one weekday");
-                  return;
-                }
-                createMut.mutate({
-                  device_ids: applyDevices,
-                  template_id: draft.template_id,
-                  start_time: toHHMM(draft.start_min),
-                  end_time: toHHMM(draft.end_min),
-                  repeat_mode: draft.repeat_mode,
-                  start_date: dateISO,
-                  weekdays: draft.repeat_mode === "weekdays" ? draft.weekdays : null,
-                  days_count: draft.repeat_mode === "n_days" ? draft.days_count : null,
-                });
-              }}
-              disabled={createMut.isPending}
-            >
-              <Save className="size-4 mr-1.5" />
-              Save window
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {!draft && (
-        <div className="mt-4 text-xs text-muted-foreground flex items-center gap-2">
-          <Plus className="size-3.5" />
-          Tip: click and drag on the timeline above to create a window.
-        </div>
-      )}
-
-      <CopyDayDialog
-        open={copyOpen}
-        onOpenChange={setCopyOpen}
-        sourceDate={dateISO}
-        targets={copyTargets}
-        setTargets={setCopyTargets}
-        onConfirm={() => copyMut.mutate()}
-        pending={copyMut.isPending}
-      />
-    </GlassCard>
-  );
-}
-
-// ---------- subcomponents ----------
-function TimeStepper({
-  label,
-  valueMin,
-  onChange,
-}: {
-  label: string;
-  valueMin: number;
-  onChange: (m: number) => void;
-}) {
-  const h = Math.floor(valueMin / 60);
-  const m = valueMin % 60;
-  return (
-    <div>
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <div className="flex items-stretch gap-1 mt-1">
-        <Stepper value={h} onChange={(nv) => onChange(snap(nv * 60 + m))} max={23} pad />
-        <span className="self-center text-muted-foreground">:</span>
-        <Stepper
-          value={m}
-          step={STEP_MIN}
-          onChange={(nv) => onChange(snap(h * 60 + nv))}
-          max={60 - STEP_MIN}
-          pad
-        />
-      </div>
-    </div>
-  );
-}
-
-function Stepper({
-  value,
-  onChange,
-  max,
-  step = 1,
-  pad,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  max: number;
-  step?: number;
-  pad?: boolean;
-}) {
-  return (
-    <div className="flex flex-col items-center rounded-md border border-white/10 bg-white/5 px-2 py-1">
-      <button
-        onClick={() => onChange(Math.min(max, value + step))}
-        className="text-muted-foreground hover:text-foreground"
-      >
-        <ChevronUp className="size-3.5" />
-      </button>
-      <div className="text-sm font-mono w-7 text-center">
-        {pad ? String(value).padStart(2, "0") : value}
-      </div>
-      <button
-        onClick={() => onChange(Math.max(0, value - step))}
-        className="text-muted-foreground hover:text-foreground"
-      >
-        <ChevronDown className="size-3.5" />
-      </button>
-    </div>
-  );
-}
-
-function CopyDayDialog({
-  open,
-  onOpenChange,
-  sourceDate,
-  targets,
-  setTargets,
-  onConfirm,
-  pending,
-}: {
-  open: boolean;
-  onOpenChange: (b: boolean) => void;
-  sourceDate: string;
-  targets: string[];
-  setTargets: (t: string[]) => void;
-  onConfirm: () => void;
-  pending: boolean;
-}) {
-  const [picker, setPicker] = React.useState("");
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Copy {sourceDate}</DialogTitle>
-          <DialogDescription>
-            Copies all one-off windows from this day to the dates you list below.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={picker}
-              onChange={(e) => setPicker(e.target.value)}
-              className="bg-white/5 border-white/10"
-            />
             <Button
               variant="outline"
-              className="border-white/10 bg-white/5"
-              onClick={() => {
-                if (!picker) return;
-                if (!targets.includes(picker)) setTargets([...targets, picker]);
-                setPicker("");
-              }}
+              size="sm"
+              className="w-full text-xs h-7 border-white/10 bg-white/5 hover:bg-white/10"
+              onClick={handleToday}
             >
-              <Plus className="size-4" />
+              Today
             </Button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {targets.map((t) => (
-              <span
-                key={t}
-                className="text-xs bg-white/5 border border-white/10 rounded-md px-2 py-1 flex items-center gap-1.5"
-              >
-                {t}
-                <button
-                  onClick={() => setTargets(targets.filter((x) => x !== t))}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {targets.length === 0 && (
-              <div className="text-xs text-muted-foreground">No target dates yet.</div>
-            )}
-          </div>
+          </GlassCard>
         </div>
-        <DialogFooter>
-          <Button variant="outline" className="border-white/10" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={onConfirm} disabled={pending || targets.length === 0}>
-            <CopyIcon className="size-4 mr-1.5" /> Copy
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+        {/* ======================================================== */}
+        {/* MAIN AREA: Google Calendar Week View Scheduler            */}
+        {/* ======================================================== */}
+        <div className="flex flex-col gap-4" ref={weekGridRef}>
+          {/* Week Selector bar */}
+          <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-2xl px-4 py-2.5 shadow-sm">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-full border border-white/5 hover:bg-white/5"
+                onClick={handlePrevWeek}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8 rounded-full border border-white/5 hover:bg-white/5"
+                onClick={handleNextWeek}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+              <span className="text-sm font-semibold tracking-tight ml-2">
+                Week of{" "}
+                {weekDates[0].toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </span>
+            </div>
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <Info className="size-3.5" /> Drag templates here
+            </span>
+          </div>
+
+          {/* Week Calendar Board */}
+          <GlassCard className="p-0 overflow-hidden flex flex-col select-none">
+            {/* Headers row */}
+            <div className="grid grid-cols-[60px_1fr] border-b border-white/5 bg-white/[0.02]">
+              <div className="h-10 border-r border-white/5" />
+              <div className="grid grid-cols-7 h-10 divide-x divide-white/5">
+                {weekDates.map((date, idx) => {
+                  const isCurrent = toISO(date) === toISO(new Date());
+                  const formattedDay = date.toLocaleDateString(undefined, { day: "numeric" });
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "flex flex-col items-center justify-center text-center py-1 transition-colors",
+                        isCurrent && "bg-primary/5"
+                      )}
+                    >
+                      <span className="text-[10px] text-muted-foreground font-semibold">
+                        {WEEKDAYS[idx]}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-xs font-bold leading-none mt-0.5 flex items-center justify-center size-5 rounded-full",
+                          isCurrent
+                            ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
+                            : "text-foreground"
+                        )}
+                      >
+                        {formattedDay}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Scrollable Timeline */}
+            <div
+              className="grid grid-cols-[60px_1fr] relative overflow-y-auto max-h-[620px]"
+            >
+              {/* Hour scale vertical labels */}
+              <div className="flex flex-col text-[10px] text-muted-foreground/60 bg-white/[0.01]">
+                {Array.from({ length: HOURS }).map((_, h) => (
+                  <div
+                    key={h}
+                    style={{ height: PX_PER_HOUR }}
+                    className="border-r border-b border-white/5 pr-2 pt-1 text-right select-none"
+                  >
+                    {String(h).padStart(2, "0")}:00
+                  </div>
+                ))}
+              </div>
+
+              {/* Day Columns containing blocks */}
+              <div className="grid grid-cols-7 relative divide-x divide-white/5 min-h-[1440px] bg-white/[0.005]">
+                {/* Horizontal row line guide overlays */}
+                {Array.from({ length: HOURS }).map((_, h) => (
+                  <div
+                    key={h}
+                    className="absolute left-0 right-0 border-b border-white/[0.04] pointer-events-none"
+                    style={{ top: (h + 1) * PX_PER_HOUR - 1, height: 1 }}
+                  />
+                ))}
+
+                {/* Day Columns */}
+                {weekDates.map((date, idx) => {
+                  const dateIso = toISO(date);
+                  const isCurrent = dateIso === toISO(new Date());
+
+                  // Get active schedule instances running on this date
+                  const dayInstances = instances.filter((i) => i.date === dateIso);
+
+                  // Calculate Time Indicator Line
+                  const timeMins = nowTime.getHours() * 60 + nowTime.getMinutes();
+                  const indicatorTop = timeMins * PX_PER_MIN;
+
+                  return (
+                    <div
+                      key={idx}
+                      className={cn(
+                        "day-column relative h-full select-none cursor-copy transition-colors duration-200 hover:bg-white/[0.01]",
+                        isCurrent && "bg-primary/[0.01]"
+                      )}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => handleGridDrop(e, dateIso)}
+                    >
+                      {/* Current Time Indicator line */}
+                      {isCurrent && (
+                        <div
+                          className="absolute left-0 right-0 h-[2px] bg-rose-500 z-10 pointer-events-none"
+                          style={{ top: indicatorTop }}
+                        >
+                          <div className="absolute size-2 rounded-full bg-rose-500 -left-1 -top-0.5 shadow-sm shadow-rose-500/50" />
+                        </div>
+                      )}
+
+                      {/* Render dropped/saved instances */}
+                      {dayInstances.map((inst) => {
+                        const isDraggingThis = dragState.blockId === inst.schedule_id;
+
+                        // Calculate visual parameters
+                        const startMins = isDraggingThis ? dragState.currentStartMins : parseHHMM(inst.start_time);
+                        const endMins = isDraggingThis ? dragState.currentEndMins : parseHHMM(inst.end_time);
+
+                        // Position mapping (1px = 1 min)
+                        const top = startMins * PX_PER_MIN;
+                        const height = (endMins - startMins) * PX_PER_MIN;
+                        const color = templateColor.get(inst.template_id) || "oklch(0.76 0.17 210)";
+
+                        const isTargetDate = isDraggingThis && dragState.currentDate === dateIso;
+                        const shouldDisplay = !isDraggingThis || isTargetDate;
+
+                        if (!shouldDisplay) return null;
+
+                        return (
+                          <div
+                            key={inst.id}
+                            onClick={() => handleBlockClick(inst.schedule_id)}
+                            className={cn(
+                              "absolute left-1 right-1 rounded-xl p-2 text-[10px] overflow-hidden group shadow-md transition-shadow hover:shadow-lg border-l-4 cursor-pointer",
+                              isDraggingThis && "opacity-90 shadow-2xl scale-[0.98] ring-1 ring-primary/40"
+                            )}
+                            style={{
+                              top,
+                              height,
+                              background: `color-mix(in oklch, ${color} 15%, #0d0f12)`,
+                              borderColor: color,
+                            }}
+                          >
+                            {/* Resize Handle Top */}
+                            <div
+                              className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-10"
+                              onMouseDown={(e) => handleBlockMouseDown(e, inst, "resize-top")}
+                            />
+
+                            {/* Block Content */}
+                            <div className="flex flex-col h-full pointer-events-none select-none">
+                              <div className="font-semibold text-foreground truncate flex items-center gap-1">
+                                <span className="size-1.5 rounded-full shrink-0" style={{ background: color }} />
+                                {inst.template_name}
+                              </div>
+                              <div className="text-muted-foreground text-[9px] mt-0.5 font-medium">
+                                {formatMinsAMPM(startMins)} - {formatMinsAMPM(endMins)}
+                              </div>
+                              {/* Drag handle decorator icon */}
+                              <div className="mt-auto ml-auto opacity-0 group-hover:opacity-60 transition-opacity">
+                                <Move className="size-3 text-muted-foreground" />
+                              </div>
+                            </div>
+
+                            {/* Resize Handle Bottom */}
+                            <div
+                              className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-10"
+                              onMouseDown={(e) => handleBlockMouseDown(e, inst, "resize-bottom")}
+                            />
+
+                            {/* Drag handle center zone */}
+                            <div
+                              className="absolute inset-x-2 inset-y-2 cursor-grab active:cursor-grabbing"
+                              onMouseDown={(e) => handleBlockMouseDown(e, inst, "move")}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+
+        {/* ======================================================== */}
+        {/* RIGHT SIDEBAR: Draggable templates list                  */}
+        {/* ======================================================== */}
+        <div className="space-y-4">
+          <GlassCard className="p-4 flex flex-col gap-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
+              Templates
+            </h2>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search templates..."
+                value={templateSearch}
+                onChange={(e) => setTemplateSearch(e.target.value)}
+                className="pl-8 bg-white/5 border-white/10 text-xs h-8"
+              />
+            </div>
+
+            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+              {filteredTemplates.map((t) => {
+                const color = templateColor.get(t.id) || "oklch(0.76 0.17 210)";
+                return (
+                  <div
+                    key={t.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", String(t.id));
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    className="p-3 rounded-xl border border-white/5 bg-white/[0.01] hover:bg-white/[0.04] active:scale-[0.98] transition-all cursor-grab active:cursor-grabbing flex flex-col gap-1.5 shadow-sm group select-none"
+                    style={{ borderLeftWidth: 3, borderLeftColor: color }}
+                  >
+                    <div className="font-semibold text-xs text-foreground group-hover:text-primary transition-colors truncate">
+                      {t.name}
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-muted-foreground font-medium uppercase tracking-wider">
+                      <span className="flex items-center gap-1">
+                        <Layout className="size-3" /> Questions: {t.questions?.length || 0}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredTemplates.length === 0 && (
+                <div className="text-xs text-muted-foreground italic text-center py-2">
+                  No active templates
+                </div>
+              )}
+            </div>
+          </GlassCard>
+        </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Edit repeat configuration / delete schedule       */}
+      {/* ======================================================== */}
+      <Dialog open={editPopupOpen} onOpenChange={setEditPopupOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure Recurrence</DialogTitle>
+            <DialogDescription>
+              Modify the start time, end time, template, or repeat rules for this schedule window.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedSchedule && (
+            <div className="space-y-4 pt-2">
+              {/* Selected Window Summary */}
+              <div className="bg-white/5 border border-white/5 rounded-xl p-3 flex flex-col gap-1">
+                <div className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+                  <span
+                    className="size-2 rounded-full"
+                    style={{ background: templateColor.get(selectedSchedule.template_id) }}
+                  />
+                  {selectedSchedule.template_name}
+                </div>
+                <div className="text-xs text-muted-foreground flex items-center gap-3">
+                  <span className="flex items-center gap-1">
+                    <Clock className="size-3.5" />
+                    {selectedSchedule.start_time} - {selectedSchedule.end_time}
+                  </span>
+                  <span>·</span>
+                  <span>Starts {selectedSchedule.start_date}</span>
+                </div>
+              </div>
+
+              {/* Recurrence Mode Selector */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground font-semibold">Repeat Pattern</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      ["none", "No Repeat"],
+                      ["daily", "Daily"],
+                      ["custom", "Every X Days"],
+                    ] as Array<[RepeatMode, string]>
+                  ).map(([k, l]) => (
+                    <button
+                      key={k}
+                      onClick={() => setEditRepeatMode(k)}
+                      className={cn(
+                        "py-2 rounded-xl text-xs border font-medium transition-all",
+                        editRepeatMode === k
+                          ? "bg-primary/20 border-primary/40 text-foreground"
+                          : "bg-white/5 border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Interval settings */}
+              {editRepeatMode === "custom" && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <Label className="text-xs text-muted-foreground font-semibold">Repeat Interval</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Every</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={editRepeatInterval}
+                      onChange={(e) => setEditRepeatInterval(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-20 bg-white/5 border-white/10 h-8 text-center text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">days</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Occurrences / Days count limit */}
+              {editRepeatMode !== "none" && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <Label className="text-xs text-muted-foreground font-semibold">Repeat For</Label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[1, 6, 12, 30].map((num) => (
+                      <button
+                        key={num}
+                        onClick={() => setEditDaysCount(num)}
+                        className={cn(
+                          "px-3 py-1 rounded-md text-xs border transition-colors",
+                          editDaysCount === num
+                            ? "bg-white/15 border-white/20 text-foreground"
+                            : "bg-white/5 border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                        )}
+                      >
+                        {num} day{num > 1 ? "s" : ""}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <span className="text-xs text-muted-foreground">Custom:</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={editDaysCount}
+                        onChange={(e) => setEditDaysCount(Math.max(1, Number(e.target.value) || 1))}
+                        className="w-16 bg-white/5 border-white/10 h-8 text-center text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 gap-2 sm:gap-0">
+            <Button
+              variant="destructive"
+              className="mr-auto text-xs bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+              onClick={() => deleteMut.mutate(selectedSchedule!.id)}
+              disabled={deleteMut.isPending}
+            >
+              <Trash2 className="size-3.5 mr-1.5" /> Delete
+            </Button>
+            <Button
+              variant="outline"
+              className="border-white/10"
+              onClick={() => setEditPopupOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                repeatMut.mutate({
+                  schedule_id: selectedSchedule!.id,
+                  repeat_mode: editRepeatMode,
+                  repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
+                  days_count: editRepeatMode === "none" ? 1 : editDaysCount,
+                });
+              }}
+              disabled={repeatMut.isPending}
+            >
+              <Repeat className="size-3.5 mr-1.5" /> Save Recurrence
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </DashboardLayout>
   );
 }

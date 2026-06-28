@@ -51,6 +51,69 @@ const pool = mysql.createPool({
       await pool.query("ALTER TABLE templates ADD COLUMN branding JSON NULL");
       console.log("[db] Added branding column to templates table.");
     }
+
+    // Scheduling Module tables initialization
+    const [tableExist] = await pool.query("SHOW TABLES LIKE 'schedules'");
+    if (tableExist.length === 0) {
+      console.log("[db] Initializing new schedules database tables...");
+      
+      // Drop legacy table if it exists
+      await pool.query("DROP TABLE IF EXISTS device_schedules");
+      
+      // Create schedules parent table
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS schedules (
+          id          INT AUTO_INCREMENT PRIMARY KEY,
+          device_id   INT NOT NULL,
+          template_id INT NOT NULL,
+          owner_id    INT NOT NULL,
+          start_time  TIME NOT NULL,
+          end_time    TIME NOT NULL,
+          start_date  DATE NOT NULL,
+          created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          CONSTRAINT fk_schedules_device   FOREIGN KEY (device_id)   REFERENCES devices(id)   ON DELETE CASCADE,
+          CONSTRAINT fk_schedules_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+          CONSTRAINT fk_schedules_owner    FOREIGN KEY (owner_id)    REFERENCES users(id)     ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // Create schedule_recurrences table
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS schedule_recurrences (
+          id              INT AUTO_INCREMENT PRIMARY KEY,
+          schedule_id     INT NOT NULL UNIQUE,
+          repeat_mode     ENUM('none', 'daily', 'custom') NOT NULL DEFAULT 'none',
+          repeat_interval INT DEFAULT 1,
+          days_count      INT DEFAULT 1,
+          CONSTRAINT fk_recurrences_schedule FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // Create schedule_instances table
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS schedule_instances (
+          id              INT AUTO_INCREMENT PRIMARY KEY,
+          schedule_id     INT NOT NULL,
+          device_id       INT NOT NULL,
+          template_id     INT NOT NULL,
+          date            DATE NOT NULL,
+          start_time      TIME NOT NULL,
+          end_time        TIME NOT NULL,
+          start_datetime  DATETIME NOT NULL,
+          end_datetime    DATETIME NOT NULL,
+          CONSTRAINT fk_instances_schedule FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+          CONSTRAINT fk_instances_device   FOREIGN KEY (device_id)   REFERENCES devices(id)   ON DELETE CASCADE,
+          CONSTRAINT fk_instances_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+
+      // Create index for fast device query
+      await pool.query(`
+        CREATE INDEX idx_instances_device_time ON schedule_instances (device_id, start_datetime, end_datetime);
+      `);
+      console.log("[db] Scheduling database tables initialized successfully.");
+    }
   } catch (err) {
     console.error("[db] Startup migration failed:", err);
   }
@@ -598,100 +661,447 @@ app.post(
 );
 
 // ---------------- schedules ----------------
-// Each schedule row = one window for one device.
-// repeat_mode: 'once' | 'every_day' | 'weekdays' | 'n_days'
 
-function scheduleActiveOn(s, dateISO) {
-  const d = new Date(dateISO + "T00:00:00");
-  const start = new Date(s.start_date);
-  start.setHours(0, 0, 0, 0);
-  if (d < start) return false;
-  if (s.repeat_mode === "once") return s.start_date === dateISO;
-  if (s.repeat_mode === "every_day") return true;
-  if (s.repeat_mode === "weekdays") {
-    const wd = parseJson(s.weekdays, []);
-    return Array.isArray(wd) && wd.includes(d.getDay());
+// Helper to generate instances for a schedule
+function generateInstances(scheduleId, deviceId, templateId, startTime, endTime, startDate, repeatMode, repeatInterval = 1, daysCount = 1) {
+  const instances = [];
+  const baseDate = new Date(startDate + "T00:00:00");
+  
+  let count = 1;
+  if (repeatMode === "daily" || repeatMode === "custom") {
+    count = daysCount || 1;
   }
-  if (s.repeat_mode === "n_days") {
-    const diff = Math.floor((d - start) / 86400000);
-    return diff >= 0 && diff < (s.days_count || 1);
+
+  const interval = repeatMode === "custom" ? (repeatInterval || 1) : 1;
+
+  for (let i = 0; i < count; i++) {
+    const curDate = new Date(baseDate.getTime());
+    curDate.setDate(baseDate.getDate() + i * interval);
+    
+    const dateStr = curDate.toISOString().slice(0, 10);
+    const startDatetimeStr = `${dateStr} ${startTime}`;
+    const endDatetimeStr = `${dateStr} ${endTime}`;
+
+    instances.push({
+      schedule_id: scheduleId,
+      device_id: deviceId,
+      template_id: templateId,
+      date: dateStr,
+      start_time: startTime,
+      end_time: endTime,
+      start_datetime: startDatetimeStr,
+      end_datetime: endDatetimeStr
+    });
   }
-  return false;
+  return instances;
 }
 
+// Helper to check overlaps in schedule_instances
+async function checkOverlap(connection, deviceId, instances, ignoreScheduleId = null) {
+  for (const inst of instances) {
+    const query = ignoreScheduleId
+      ? `SELECT i.id, t.name AS template_name, DATE_FORMAT(i.date,'%Y-%m-%d') AS date,
+                TIME_FORMAT(i.start_time,'%H:%i') AS start_time, TIME_FORMAT(i.end_time,'%H:%i') AS end_time
+         FROM schedule_instances i
+         LEFT JOIN templates t ON t.id = i.template_id
+         WHERE i.device_id = ? AND i.date = ? 
+           AND i.start_time < ? AND i.end_time > ?
+           AND i.schedule_id != ?
+         LIMIT 1`
+      : `SELECT i.id, t.name AS template_name, DATE_FORMAT(i.date,'%Y-%m-%d') AS date,
+                TIME_FORMAT(i.start_time,'%H:%i') AS start_time, TIME_FORMAT(i.end_time,'%H:%i') AS end_time
+         FROM schedule_instances i
+         LEFT JOIN templates t ON t.id = i.template_id
+         WHERE i.device_id = ? AND i.date = ? 
+           AND i.start_time < ? AND i.end_time > ?
+         LIMIT 1`;
+    const params = ignoreScheduleId
+      ? [deviceId, inst.date, inst.end_time, inst.start_time, ignoreScheduleId]
+      : [deviceId, inst.date, inst.end_time, inst.start_time];
+    const [rows] = await connection.query(query, params);
+    if (rows.length > 0) {
+      return {
+        overlapping: true,
+        date: inst.date,
+        start_time: rows[0].start_time,
+        end_time: rows[0].end_time,
+        template_name: rows[0].template_name
+      };
+    }
+  }
+  return { overlapping: false };
+}
+
+// GET /api/schedules (Backward compatibility fallback)
 app.get(
   "/api/schedules",
   auth(),
   asyncH(async (req, res) => {
     const deviceId = req.query.device_id ? Number(req.query.device_id) : null;
-    const where = deviceId ? "WHERE device_id = ?" : "";
+    const where = deviceId ? "WHERE s.device_id = ?" : "";
     const params = deviceId ? [deviceId] : [];
     const [rows] = await pool.query(
       `SELECT s.id, s.device_id, s.template_id, t.name AS template_name,
               TIME_FORMAT(s.start_time,'%H:%i') AS start_time,
               TIME_FORMAT(s.end_time,'%H:%i')   AS end_time,
-              s.repeat_mode, DATE_FORMAT(s.start_date,'%Y-%m-%d') AS start_date,
-              s.weekdays, s.days_count
-       FROM device_schedules s
+              DATE_FORMAT(s.start_date,'%Y-%m-%d') AS start_date,
+              r.repeat_mode, r.repeat_interval, r.days_count
+       FROM schedules s
        LEFT JOIN templates t ON t.id = s.template_id
+       LEFT JOIN schedule_recurrences r ON r.schedule_id = s.id
        ${where}
        ORDER BY s.start_date, s.start_time`,
-      params,
+      params
     );
-    res.json({
-      schedules: rows.map((r) => ({ ...r, weekdays: parseJson(r.weekdays, null) })),
-    });
-  }),
+    res.json({ schedules: rows });
+  })
 );
 
+// GET /api/schedules/device/:deviceId (Main Scheduler endpoint)
+app.get(
+  "/api/schedules/device/:deviceId",
+  auth(),
+  asyncH(async (req, res) => {
+    const deviceId = Number(req.params.deviceId);
+    
+    // Get schedules
+    const [schedules] = await pool.query(
+      `SELECT s.id, s.device_id, s.template_id, t.name AS template_name,
+              TIME_FORMAT(s.start_time,'%H:%i') AS start_time,
+              TIME_FORMAT(s.end_time,'%H:%i')   AS end_time,
+              DATE_FORMAT(s.start_date,'%Y-%m-%d') AS start_date,
+              r.repeat_mode, r.repeat_interval, r.days_count
+       FROM schedules s
+       LEFT JOIN templates t ON t.id = s.template_id
+       LEFT JOIN schedule_recurrences r ON r.schedule_id = s.id
+       WHERE s.device_id = ?`,
+      [deviceId]
+    );
+
+    // Get instances
+    const [instances] = await pool.query(
+      `SELECT i.id, i.schedule_id, i.device_id, i.template_id, t.name AS template_name,
+              DATE_FORMAT(i.date,'%Y-%m-%d') AS date,
+              TIME_FORMAT(i.start_time,'%H:%i') AS start_time,
+              TIME_FORMAT(i.end_time,'%H:%i')   AS end_time,
+              DATE_FORMAT(i.start_datetime,'%Y-%m-%d %H:%i:%s') AS start_datetime,
+              DATE_FORMAT(i.end_datetime,'%Y-%m-%d %H:%i:%s')   AS end_datetime
+       FROM schedule_instances i
+       LEFT JOIN templates t ON t.id = i.template_id
+       WHERE i.device_id = ?`,
+      [deviceId]
+    );
+
+    res.json({ schedules, instances });
+  })
+);
+
+// POST /api/schedules
 app.post(
   "/api/schedules",
   auth(),
   asyncH(async (req, res) => {
     const {
-      device_ids = [],
+      device_id,
       template_id,
       start_time,
       end_time,
-      repeat_mode = "once",
       start_date,
-      weekdays = null,
-      days_count = null,
+      repeat_mode = "none",
+      repeat_interval = 1,
+      days_count = 1
     } = req.body || {};
-    if (!template_id || !start_time || !end_time || !start_date)
-      return res.status(400).json({ error: "template_id, start_time, end_time, start_date required" });
-    if (!Array.isArray(device_ids) || device_ids.length === 0)
-      return res.status(400).json({ error: "device_ids required" });
-    const values = device_ids.map((did) => [
-      req.user.id,
-      Number(did),
-      Number(template_id),
-      start_time,
-      end_time,
-      repeat_mode,
-      start_date,
-      weekdays ? JSON.stringify(weekdays) : null,
-      days_count ? Number(days_count) : null,
-    ]);
-    await pool.query(
-      `INSERT INTO device_schedules
-       (owner_id, device_id, template_id, start_time, end_time, repeat_mode, start_date, weekdays, days_count)
-       VALUES ?`,
-      [values],
-    );
-    res.json({ ok: true, created: values.length });
-  }),
+
+    if (!device_id || !template_id || !start_time || !end_time || !start_date) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
+    const formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
+
+    if (formattedStartTime >= formattedEndTime) {
+      return res.status(400).json({ error: "End time must be after start time" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Proposed instances
+      const proposedInstances = generateInstances(
+        0,
+        Number(device_id),
+        Number(template_id),
+        formattedStartTime,
+        formattedEndTime,
+        start_date,
+        repeat_mode,
+        Number(repeat_interval),
+        Number(days_count)
+      );
+
+      // Check overlap
+      const overlapResult = await checkOverlap(conn, Number(device_id), proposedInstances);
+      if (overlapResult.overlapping) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+        });
+      }
+
+      // Insert parent schedule
+      const [scheduleRes] = await conn.query(
+        `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [Number(device_id), Number(template_id), req.user.id, formattedStartTime, formattedEndTime, start_date]
+      );
+      const scheduleId = scheduleRes.insertId;
+
+      // Insert recurrence configuration
+      await conn.query(
+        `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
+         VALUES (?, ?, ?, ?)`,
+         [scheduleId, repeat_mode, Number(repeat_interval), Number(days_count)]
+      );
+
+      // Save instances
+      const instanceValues = proposedInstances.map((inst) => [
+        scheduleId,
+        inst.device_id,
+        inst.template_id,
+        inst.date,
+        inst.start_time,
+        inst.end_time,
+        inst.start_datetime,
+        inst.end_datetime
+      ]);
+
+      await conn.query(
+        `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+         VALUES ?`,
+        [instanceValues]
+      );
+
+      await conn.commit();
+      res.json({ ok: true, id: scheduleId, created_instances: instanceValues.length });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  })
 );
 
+// PUT /api/schedules/:id
+app.put(
+  "/api/schedules/:id",
+  auth(),
+  asyncH(async (req, res) => {
+    const scheduleId = Number(req.params.id);
+    const {
+      template_id,
+      start_time,
+      end_time,
+      start_date,
+      repeat_mode,
+      repeat_interval,
+      days_count
+    } = req.body || {};
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? LIMIT 1", [scheduleId]);
+      if (curr.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+      const s = curr[0];
+
+      const deviceId = s.device_id;
+      const tid = template_id !== undefined ? Number(template_id) : s.template_id;
+      const st = start_time !== undefined ? start_time : s.start_time;
+      const et = end_time !== undefined ? end_time : s.end_time;
+      const sd = start_date !== undefined ? start_date : s.start_date;
+
+      const formattedStartTime = st.length === 5 ? `${st}:00` : st;
+      const formattedEndTime = et.length === 5 ? `${et}:00` : et;
+
+      if (formattedStartTime >= formattedEndTime) {
+        await conn.rollback();
+        return res.status(400).json({ error: "End time must be after start time" });
+      }
+
+      const [currRec] = await conn.query("SELECT * FROM schedule_recurrences WHERE schedule_id = ? LIMIT 1", [scheduleId]);
+      const rec = currRec[0] || {};
+      const rm = repeat_mode !== undefined ? repeat_mode : (rec.repeat_mode || "none");
+      const ri = repeat_interval !== undefined ? Number(repeat_interval) : (rec.repeat_interval || 1);
+      const dc = days_count !== undefined ? Number(days_count) : (rec.days_count || 1);
+
+      // Generate proposed instances
+      const proposedInstances = generateInstances(
+        scheduleId,
+        deviceId,
+        tid,
+        formattedStartTime,
+        formattedEndTime,
+        sd,
+        rm,
+        ri,
+        dc
+      );
+
+      // Check overlap
+      const overlapResult = await checkOverlap(conn, deviceId, proposedInstances, scheduleId);
+      if (overlapResult.overlapping) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+        });
+      }
+
+      // Update schedule metadata
+      await conn.query(
+        `UPDATE schedules SET template_id = ?, start_time = ?, end_time = ?, start_date = ?
+         WHERE id = ?`,
+        [tid, formattedStartTime, formattedEndTime, sd, scheduleId]
+      );
+
+      // Update recurrence config
+      await conn.query(
+        `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE repeat_mode = VALUES(repeat_mode), repeat_interval = VALUES(repeat_interval), days_count = VALUES(days_count)`,
+        [scheduleId, rm, ri, dc]
+      );
+
+      // Clear and regenerate instances
+      await conn.query("DELETE FROM schedule_instances WHERE schedule_id = ?", [scheduleId]);
+
+      const instanceValues = proposedInstances.map((inst) => [
+        scheduleId,
+        inst.device_id,
+        inst.template_id,
+        inst.date,
+        inst.start_time,
+        inst.end_time,
+        inst.start_datetime,
+        inst.end_datetime
+      ]);
+
+      await conn.query(
+        `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+         VALUES ?`,
+        [instanceValues]
+      );
+
+      await conn.commit();
+      res.json({ ok: true, created_instances: instanceValues.length });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  })
+);
+
+// DELETE /api/schedules/:id
 app.delete(
   "/api/schedules/:id",
   auth(),
   asyncH(async (req, res) => {
-    await pool.query("DELETE FROM device_schedules WHERE id = ?", [Number(req.params.id)]);
+    const id = Number(req.params.id);
+    await pool.query("DELETE FROM schedules WHERE id = ?", [id]);
     res.json({ ok: true });
-  }),
+  })
 );
 
+// POST /api/schedules/repeat
+app.post(
+  "/api/schedules/repeat",
+  auth(),
+  asyncH(async (req, res) => {
+    const { schedule_id, repeat_mode, repeat_interval = 1, days_count = 1 } = req.body || {};
+    if (!schedule_id || !repeat_mode) {
+      return res.status(400).json({ error: "schedule_id and repeat_mode required" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? LIMIT 1", [schedule_id]);
+      if (curr.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+      const s = curr[0];
+
+      // Proposed instances
+      const proposedInstances = generateInstances(
+        s.id,
+        s.device_id,
+        s.template_id,
+        s.start_time,
+        s.end_time,
+        s.start_date,
+        repeat_mode,
+        Number(repeat_interval),
+        Number(days_count)
+      );
+
+      // Check overlap
+      const overlapResult = await checkOverlap(conn, s.device_id, proposedInstances, s.id);
+      if (overlapResult.overlapping) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+        });
+      }
+
+      // Update recurrence config
+      await conn.query(
+        `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE repeat_mode = VALUES(repeat_mode), repeat_interval = VALUES(repeat_interval), days_count = VALUES(days_count)`,
+        [s.id, repeat_mode, Number(repeat_interval), Number(days_count)]
+      );
+
+      // Clear and regenerate instances
+      await conn.query("DELETE FROM schedule_instances WHERE schedule_id = ?", [s.id]);
+
+      const instanceValues = proposedInstances.map((inst) => [
+        s.id,
+        inst.device_id,
+        inst.template_id,
+        inst.date,
+        inst.start_time,
+        inst.end_time,
+        inst.start_datetime,
+        inst.end_datetime
+      ]);
+
+      await conn.query(
+        `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+         VALUES ?`,
+        [instanceValues]
+      );
+
+      await conn.commit();
+      res.json({ ok: true, created_instances: instanceValues.length });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  })
+);
+
+// POST /api/schedules/copy-day (Helper for copy operations)
 app.post(
   "/api/schedules/copy-day",
   auth(),
@@ -699,37 +1109,60 @@ app.post(
     const { device_id, source_date, target_dates = [] } = req.body || {};
     if (!device_id || !source_date || !Array.isArray(target_dates) || target_dates.length === 0)
       return res.status(400).json({ error: "device_id, source_date, target_dates[] required" });
+    
+    // Find all instances running on the source date
     const [src] = await pool.query(
-      `SELECT template_id, start_time, end_time
-       FROM device_schedules
-       WHERE device_id = ? AND repeat_mode = 'once' AND start_date = ?`,
-      [Number(device_id), source_date],
+      `SELECT template_id, start_time, end_time FROM schedule_instances
+       WHERE device_id = ? AND date = ?`,
+      [Number(device_id), source_date]
     );
+
     if (src.length === 0) return res.json({ ok: true, created: 0 });
-    const values = [];
-    for (const date of target_dates) {
-      for (const row of src) {
-        values.push([
-          req.user.id,
-          Number(device_id),
-          row.template_id,
-          row.start_time,
-          row.end_time,
-          "once",
-          date,
-          null,
-          null,
-        ]);
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      let createdCount = 0;
+      for (const targetDate of target_dates) {
+        for (const row of src) {
+          // Create a new parent schedule for this target day
+          const [scheduleRes] = await conn.query(
+            `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [Number(device_id), row.template_id, req.user.id, row.start_time, row.end_time, targetDate]
+          );
+          const scheduleId = scheduleRes.insertId;
+
+          // Insert recurrence configuration
+          await conn.query(
+            `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
+             VALUES (?, 'none', 1, 1)`,
+             [scheduleId]
+          );
+
+          // Save instance
+          const startDatetime = `${targetDate} ${row.start_time}`;
+          const endDatetime = `${targetDate} ${row.end_time}`;
+          await conn.query(
+            `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [scheduleId, Number(device_id), row.template_id, targetDate, row.start_time, row.end_time, startDatetime, endDatetime]
+          );
+
+          createdCount++;
+        }
       }
+
+      await conn.commit();
+      res.json({ ok: true, created: createdCount });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
     }
-    await pool.query(
-      `INSERT INTO device_schedules
-       (owner_id, device_id, template_id, start_time, end_time, repeat_mode, start_date, weekdays, days_count)
-       VALUES ?`,
-      [values],
-    );
-    res.json({ ok: true, created: values.length });
-  }),
+  })
 );
 
 // Tablet polling: returns the template the device should display right now
@@ -744,22 +1177,23 @@ app.get(
     );
     if (!drows[0]) return res.status(404).json({ error: "Device not found" });
     const fallback = drows[0].template_id;
-    const [schedules] = await pool.query(
-      `SELECT id, template_id,
-              TIME_FORMAT(start_time,'%H:%i') AS start_time,
-              TIME_FORMAT(end_time,'%H:%i')   AS end_time,
-              repeat_mode, DATE_FORMAT(start_date,'%Y-%m-%d') AS start_date,
-              weekdays, days_count
-       FROM device_schedules WHERE device_id = ?`,
-      [req.device.id],
-    );
+
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
-    const hhmm = now.toTimeString().slice(0, 5);
-    const active = schedules.find(
-      (s) => scheduleActiveOn(s, today) && hhmm >= s.start_time && hhmm < s.end_time,
+    const hhmm = now.toTimeString().slice(0, 8); // format: HH:MM:SS
+
+    const [activeRows] = await pool.query(
+      `SELECT template_id FROM schedule_instances
+       WHERE device_id = ? AND date = ? AND start_time <= ? AND end_time > ?
+       LIMIT 1`,
+      [req.device.id, today, hhmm, hhmm]
     );
-    res.json({ template_id: active ? active.template_id : fallback, source: active ? "schedule" : "default" });
+
+    const active = activeRows[0];
+    res.json({
+      template_id: active ? active.template_id : fallback,
+      source: active ? "schedule" : "default"
+    });
   }),
 );
 

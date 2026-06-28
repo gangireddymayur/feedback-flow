@@ -263,7 +263,20 @@ export const Devices = {
 // Schedules
 // =================================================================
 
-export type RepeatMode = "once" | "every_day" | "weekdays" | "n_days";
+export type RepeatMode = "none" | "daily" | "custom";
+
+export type ApiScheduleInstance = {
+  id: number;
+  schedule_id: number;
+  device_id: number;
+  template_id: number;
+  template_name: string | null;
+  date: string; // YYYY-MM-DD
+  start_time: string; // HH:MM
+  end_time: string;   // HH:MM
+  start_datetime: string;
+  end_datetime: string;
+};
 
 export type ApiSchedule = {
   id: number;
@@ -272,34 +285,61 @@ export type ApiSchedule = {
   template_name: string | null;
   start_time: string; // HH:MM
   end_time: string;   // HH:MM
-  repeat_mode: RepeatMode;
   start_date: string; // YYYY-MM-DD
-  weekdays: number[] | null;
-  days_count: number | null;
+  repeat_mode: RepeatMode;
+  repeat_interval: number;
+  days_count: number;
 };
 
 export const Schedules = {
-  list: async (device_id?: number) => {
-    const qs = device_id ? `?device_id=${device_id}` : "";
-    return await http<{ schedules: ApiSchedule[] }>(`/schedules${qs}`);
+  list: async (deviceId: number) => {
+    return await http<{ schedules: ApiSchedule[]; instances: ApiScheduleInstance[] }>(`/schedules/device/${deviceId}`);
   },
   create: async (body: {
-    device_ids: number[];
+    device_id: number;
     template_id: number;
     start_time: string;
     end_time: string;
-    repeat_mode: RepeatMode;
     start_date: string;
-    weekdays?: number[] | null;
-    days_count?: number | null;
+    repeat_mode: RepeatMode;
+    repeat_interval?: number;
+    days_count?: number;
   }) => {
-    return await http<{ ok: true; created: number }>("/schedules", {
+    return await http<{ ok: true; id: number; created_instances: number }>("/schedules", {
       method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  update: async (
+    id: number,
+    body: {
+      template_id?: number;
+      start_time?: string;
+      end_time?: string;
+      start_date?: string;
+      repeat_mode?: RepeatMode;
+      repeat_interval?: number;
+      days_count?: number;
+    }
+  ) => {
+    return await http<{ ok: true; created_instances: number }>(`/schedules/${id}`, {
+      method: "PUT",
       body: JSON.stringify(body),
     });
   },
   remove: async (id: number) => {
     return await http<{ ok: true }>(`/schedules/${id}`, { method: "DELETE" });
+  },
+  repeat: async (body: {
+    schedule_id: number;
+    repeat_mode: RepeatMode;
+    repeat_interval?: number;
+    days_count?: number;
+  }) => {
+    return await http<{ ok: true; created_instances: number }>("/schedules/repeat", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   },
   copyDay: async (body: { device_id: number; source_date: string; target_dates: string[] }) => {
     return await http<{ ok: true; created: number }>("/schedules/copy-day", {

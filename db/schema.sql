@@ -77,7 +77,49 @@ CREATE TABLE responses (
   INDEX idx_responses_submitted (submitted_at),
   CONSTRAINT fk_resp_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL,
   CONSTRAINT fk_resp_device   FOREIGN KEY (device_id)   REFERENCES devices(id)   ON DELETE SET NULL
+-- ---------------- schedules ----------------
+CREATE TABLE schedules (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  device_id   INT NOT NULL,
+  template_id INT NOT NULL,
+  owner_id    INT NOT NULL,
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL,
+  start_date  DATE NOT NULL,
+  created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_schedules_device   FOREIGN KEY (device_id)   REFERENCES devices(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_schedules_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+  CONSTRAINT fk_schedules_owner    FOREIGN KEY (owner_id)    REFERENCES users(id)     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- schedule recurrences ----------------
+CREATE TABLE schedule_recurrences (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  schedule_id     INT NOT NULL UNIQUE,
+  repeat_mode     ENUM('none', 'daily', 'custom') NOT NULL DEFAULT 'none',
+  repeat_interval INT DEFAULT 1,
+  days_count      INT DEFAULT 1,
+  CONSTRAINT fk_recurrences_schedule FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------- schedule instances ----------------
+CREATE TABLE schedule_instances (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  schedule_id     INT NOT NULL,
+  device_id       INT NOT NULL,
+  template_id     INT NOT NULL,
+  date            DATE NOT NULL,
+  start_time      TIME NOT NULL,
+  end_time        TIME NOT NULL,
+  start_datetime  DATETIME NOT NULL,
+  end_datetime    DATETIME NOT NULL,
+  CONSTRAINT fk_instances_schedule FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+  CONSTRAINT fk_instances_device   FOREIGN KEY (device_id)   REFERENCES devices(id)   ON DELETE CASCADE,
+  CONSTRAINT fk_instances_template FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE INDEX idx_instances_device_time ON schedule_instances (device_id, start_datetime, end_datetime);
 
 SET FOREIGN_KEY_CHECKS = 1;
 
