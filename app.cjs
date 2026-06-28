@@ -665,7 +665,21 @@ app.post(
 // Helper to generate instances for a schedule
 function generateInstances(scheduleId, deviceId, templateId, startTime, endTime, startDate, repeatMode, repeatInterval = 1, daysCount = 1) {
   const instances = [];
-  const baseDate = new Date(startDate + "T00:00:00");
+  
+  // Normalize startDate to YYYY-MM-DD string (handles string or JS Date object)
+  let dateStrInput = "";
+  if (startDate instanceof Date) {
+    const y = startDate.getFullYear();
+    const m = String(startDate.getMonth() + 1).padStart(2, "0");
+    const day = String(startDate.getDate()).padStart(2, "0");
+    dateStrInput = `${y}-${m}-${day}`;
+  } else if (typeof startDate === "string") {
+    dateStrInput = startDate.slice(0, 10);
+  } else {
+    dateStrInput = String(startDate || "").slice(0, 10);
+  }
+
+  const baseDate = new Date(dateStrInput + "T00:00:00");
   
   let count = 1;
   if (repeatMode === "daily" || repeatMode === "custom") {
