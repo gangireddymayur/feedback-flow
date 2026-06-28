@@ -421,3 +421,46 @@ export const Admins = {
     });
   },
 };
+
+// =================================================================
+// Screensavers
+// =================================================================
+
+export type ApiScreensaver = {
+  id: number;
+  owner_id: number;
+  name: string;
+  url: string;
+  type: "image" | "video";
+  is_active: number;
+  timeout_seconds: number;
+  created_at: string;
+};
+
+export const Screensavers = {
+  list: async () => {
+    return await http<{ screensavers: ApiScreensaver[] }>("/screensavers");
+  },
+  upload: async (body: { name: string; filename: string; base64Data: string; type: "image" | "video" }) => {
+    return await http<{ ok: boolean; screensaver: ApiScreensaver }>("/screensavers/upload", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  activate: async (body: { id: number; timeout_seconds: number }) => {
+    return await http<{ ok: boolean }>("/screensavers/activate", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  deactivate: async () => {
+    return await http<{ ok: boolean }>("/screensavers/deactivate", {
+      method: "POST",
+    });
+  },
+  remove: async (id: number) => {
+    return await http<{ ok: boolean }>(`/screensavers/${id}`, {
+      method: "DELETE",
+    });
+  },
+};

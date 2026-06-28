@@ -13,6 +13,7 @@ import {
   Bell,
   Sparkles,
   CalendarClock,
+  Tv,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuth, useAuth, logout } from "@/lib/auth-store";
@@ -38,6 +39,7 @@ const NAV: NavItem[] = [
   { to: "/responses", label: "Responses", icon: MessageSquare, roles: ["sub"] },
   { to: "/customers", label: "Customers", icon: Users, roles: ["sub"] },
   { to: "/reports", label: "Reports", icon: FileText, roles: ["super", "sub"] },
+  { to: "/screensaver", label: "Screen Saver", icon: Tv, roles: ["sub"] },
   { to: "/analytics", label: "Analytics", icon: BarChart3, roles: ["super"] },
   { to: "/admins", label: "Sub Admins", icon: Users, roles: ["super"] },
   { to: "/settings", label: "Settings", icon: Settings, roles: ["super", "sub"] },

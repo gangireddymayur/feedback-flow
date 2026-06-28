@@ -58,6 +58,25 @@ const pool = mysql.createPool({
       console.log("[db] Added schedules_enabled column to devices table.");
     }
 
+    // Screensavers Table initialization
+    const [screensaversExist] = await pool.query("SHOW TABLES LIKE 'screensavers'");
+    if (screensaversExist.length === 0) {
+      console.log("[db] Initializing screensavers database table...");
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS screensavers (
+          id              INT AUTO_INCREMENT PRIMARY KEY,
+          owner_id        INT NOT NULL,
+          name            VARCHAR(255) NOT NULL,
+          url             VARCHAR(255) NOT NULL,
+          type            VARCHAR(64) NOT NULL DEFAULT 'image',
+          is_active       TINYINT(1) DEFAULT 0,
+          timeout_seconds INT DEFAULT 300,
+          created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+          CONSTRAINT fk_screensavers_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    }
+
     // Scheduling Module tables initialization
     const [tableExist] = await pool.query("SHOW TABLES LIKE 'schedules'");
     if (tableExist.length === 0) {
@@ -1547,13 +1566,134 @@ app.get(
     );
 
     const active = activeRows[0];
+
+    // Fetch active screensaver for this device owner
+    const [ssRows] = await pool.query(
+      "SELECT url, type, timeout_seconds FROM screensavers WHERE owner_id = ? AND is_active = 1 LIMIT 1",
+      [req.device.owner_id]
+    );
+
     res.json({
       template_id: active ? active.template_id : fallback,
-      source: active ? "schedule" : "default"
+      source: active ? "schedule" : "default",
+      screensaver: ssRows[0] || null
     });
   }),
 );
 
+// GET /api/screensavers
+app.get(
+  "/api/screensavers",
+  auth(),
+  asyncH(async (req, res) => {
+    const [rows] = await pool.query(
+      "SELECT * FROM screensavers WHERE owner_id = ? ORDER BY created_at DESC",
+      [req.user.id]
+    );
+    res.json({ screensavers: rows });
+  })
+);
+
+// POST /api/screensavers/upload
+app.post(
+  "/api/screensavers/upload",
+  auth(),
+  asyncH(async (req, res) => {
+    const { name, filename, base64Data, type = "image" } = req.body || {};
+    if (!name || !filename || !base64Data) {
+      return res.status(400).json({ error: "name, filename, and base64Data required" });
+    }
+
+    // Parse base64 and write to uploads/
+    const buffer = Buffer.from(base64Data, "base64");
+    const uploadsDir = path.join(__dirname, "uploads");
+    const fs = require("node:fs");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir);
+    }
+
+    const uniqueFilename = `${Date.now()}_${filename.replace(/\s+/g, "_")}`;
+    const filePath = path.join(uploadsDir, uniqueFilename);
+    fs.writeFileSync(filePath, buffer);
+
+    const fileUrl = `/uploads/${uniqueFilename}`;
+
+    const [result] = await pool.query(
+      "INSERT INTO screensavers (owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, 0, 300)",
+      [req.user.id, name, fileUrl, type]
+    );
+
+    res.json({
+      ok: true,
+      screensaver: {
+        id: result.insertId,
+        name,
+        url: fileUrl,
+        type,
+        is_active: 0,
+        timeout_seconds: 300
+      }
+    });
+  })
+);
+
+// POST /api/screensavers/activate
+app.post(
+  "/api/screensavers/activate",
+  auth(),
+  asyncH(async (req, res) => {
+    const { id, timeout_seconds } = req.body || {};
+    if (!id) return res.status(400).json({ error: "id required" });
+
+    // Set all screensavers for this user as inactive
+    await pool.query("UPDATE screensavers SET is_active = 0 WHERE owner_id = ?", [req.user.id]);
+
+    // Set selected screensaver as active and update timeout
+    await pool.query(
+      "UPDATE screensavers SET is_active = 1, timeout_seconds = ? WHERE id = ? AND owner_id = ?",
+      [Number(timeout_seconds) || 300, Number(id), req.user.id]
+    );
+
+    res.json({ ok: true });
+  })
+);
+
+// POST /api/screensavers/deactivate
+app.post(
+  "/api/screensavers/deactivate",
+  auth(),
+  asyncH(async (req, res) => {
+    await pool.query("UPDATE screensavers SET is_active = 0 WHERE owner_id = ?", [req.user.id]);
+    res.json({ ok: true });
+  })
+);
+
+// DELETE /api/screensavers/:id
+app.delete(
+  "/api/screensavers/:id",
+  auth(),
+  asyncH(async (req, res) => {
+    const id = Number(req.params.id);
+
+    const [rows] = await pool.query("SELECT url FROM screensavers WHERE id = ? AND owner_id = ?", [id, req.user.id]);
+    if (rows.length > 0) {
+      const url = rows[0].url;
+      const filename = url.replace("/uploads/", "");
+      const filePath = path.join(__dirname, "uploads", filename);
+      const fs = require("node:fs");
+      if (fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (e) {
+          console.warn("Could not delete screensaver file: ", e);
+        }
+      }
+    }
+
+    await pool.query("DELETE FROM screensavers WHERE id = ? AND owner_id = ?", [id, req.user.id]);
+    res.json({ ok: true });
+  })
+);
 
 app.use("/api", (err, _req, res, _next) => {
   console.error("[api error]", err);
@@ -1561,6 +1701,7 @@ app.use("/api", (err, _req, res, _next) => {
 });
 
 const distDir = path.join(__dirname, "dist");
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(express.static(distDir, { maxAge: "1h", index: false }));
 app.get(/^(?!\/api).*/, (_req, res) => {
   res.sendFile(path.join(distDir, "index.html"));

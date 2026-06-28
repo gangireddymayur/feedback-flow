@@ -21,6 +21,7 @@ import { Route as AdminsRouteImport } from './routes/admins'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TemplatesBuilderRouteImport } from './routes/templates.builder'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ScreensaverRouteImport } from './routes/screensaver'
 
 const TemplatesRoute = TemplatesRouteImport.update({
   id: '/templates',
@@ -35,6 +36,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScreensaverRoute = ScreensaverRouteImport.update({
+  id: '/screensaver',
+  path: '/screensaver',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScheduleRoute = ScheduleRouteImport.update({
@@ -93,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/responses': typeof ResponsesRoute
   '/schedule': typeof ScheduleRoute
   '/reports': typeof ReportsRoute
+  '/screensaver': typeof ScreensaverRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/responses': typeof ResponsesRoute
   '/schedule': typeof ScheduleRoute
   '/reports': typeof ReportsRoute
+  '/screensaver': typeof ScreensaverRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/responses': typeof ResponsesRoute
   '/schedule': typeof ScheduleRoute
   '/reports': typeof ReportsRoute
+  '/screensaver': typeof ScreensaverRoute
   '/settings': typeof SettingsRoute
   '/templates': typeof TemplatesRouteWithChildren
   '/templates/builder': typeof TemplatesBuilderRoute
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/responses'
     | '/schedule'
     | '/reports'
+    | '/screensaver'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/responses'
     | '/schedule'
     | '/reports'
+    | '/screensaver'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/responses'
     | '/schedule'
     | '/reports'
+    | '/screensaver'
     | '/settings'
     | '/templates'
     | '/templates/builder'
@@ -181,6 +193,7 @@ export interface RootRouteChildren {
   ResponsesRoute: typeof ResponsesRoute
   ScheduleRoute: typeof ScheduleRoute
   ReportsRoute: typeof ReportsRoute
+  ScreensaverRoute: typeof ScreensaverRoute
   SettingsRoute: typeof SettingsRoute
   TemplatesRoute: typeof TemplatesRouteWithChildren
 }
@@ -199,6 +212,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/screensaver': {
+      id: '/screensaver'
+      path: '/screensaver'
+      fullPath: '/screensaver'
+      preLoaderRoute: typeof ScreensaverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -296,6 +316,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResponsesRoute: ResponsesRoute,
   ScheduleRoute: ScheduleRoute,
   ReportsRoute: ReportsRoute,
+  ScreensaverRoute: ScreensaverRoute,
   SettingsRoute: SettingsRoute,
   TemplatesRoute: TemplatesRouteWithChildren,
 }
