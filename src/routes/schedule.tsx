@@ -62,6 +62,13 @@ function toISO(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+// Helper: Parse YYYY-MM-DD safely into a local Date object
+function parseISODate(s: string) {
+  if (!s) return new Date();
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // Helper: Convert time string "HH:MM:SS" or "HH:MM" to minutes of day
 function parseHHMM(s: string) {
   if (!s) return 0;
@@ -168,7 +175,7 @@ function SchedulePage() {
 
   const getBulkRecurrenceRangeText = () => {
     if (!bulkRepeatDate) return "";
-    const start = new Date(bulkRepeatDate + "T00:00:00");
+    const start = parseISODate(bulkRepeatDate);
     const totalDays = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
     const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
 
@@ -186,7 +193,7 @@ function SchedulePage() {
 
   const getRecurrenceRangeText = () => {
     if (!selectedSchedule) return "";
-    const start = new Date(selectedSchedule.start_date + "T00:00:00");
+    const start = parseISODate(selectedSchedule.start_date);
     const totalDays = editRepeatMode === "none" ? 1 : editDaysCount;
     const interval = editRepeatMode === "custom" ? editRepeatInterval : 1;
 
@@ -233,7 +240,7 @@ function SchedulePage() {
 
   // Calculations for dates of the current week view
   const weekDates = React.useMemo(() => {
-    const base = getMonday(new Date(currentWeekDate + "T00:00:00"));
+    const base = getMonday(parseISODate(currentWeekDate));
     return Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(base.getTime());
       d.setDate(base.getDate() + i);
@@ -429,7 +436,7 @@ function SchedulePage() {
           newEnd = 24 * 60;
         }
 
-        const d = new Date(dragState.originalDate + "T00:00:00");
+        const d = parseISODate(dragState.originalDate);
         d.setDate(d.getDate() + dayDelta);
 
         setDragState((prev) => ({
@@ -582,13 +589,13 @@ function SchedulePage() {
   };
 
   const handlePrevWeek = () => {
-    const d = new Date(currentWeekDate + "T00:00:00");
+    const d = parseISODate(currentWeekDate);
     d.setDate(d.getDate() - 7);
     setCurrentWeekDate(toISO(d));
   };
 
   const handleNextWeek = () => {
-    const d = new Date(currentWeekDate + "T00:00:00");
+    const d = parseISODate(currentWeekDate);
     d.setDate(d.getDate() + 7);
     setCurrentWeekDate(toISO(d));
   };
@@ -881,7 +888,7 @@ function SchedulePage() {
                   const dateIso = toISO(date);
                   const isSelected = selectedDate === dateIso;
                   const isCurrent = dateIso === toISO(new Date());
-                  const isPast = new Date(dateIso + "T00:00:00") < new Date(toISO(new Date()) + "T00:00:00");
+                  const isPast = parseISODate(dateIso).getTime() < parseISODate(toISO(new Date())).getTime();
                   const formattedDay = date.toLocaleDateString(undefined, { day: "numeric" });
                   
                   return (
@@ -1167,7 +1174,7 @@ function SchedulePage() {
       {/* DIALOG: Edit repeat configuration / delete schedule       */}
       {/* ======================================================== */}
       <Dialog open={editPopupOpen} onOpenChange={setEditPopupOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Configure Recurrence</DialogTitle>
             <DialogDescription>
@@ -1421,7 +1428,7 @@ function SchedulePage() {
       {/* DIALOG: Bulk Repeat Day Schedules                         */}
       {/* ======================================================== */}
       <Dialog open={bulkRepeatOpen} onOpenChange={setBulkRepeatOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Repeat Day Schedule</DialogTitle>
             <DialogDescription>
@@ -1434,7 +1441,7 @@ function SchedulePage() {
               {/* Day Schedules List */}
               <div className="bg-white/5 border border-white/5 rounded-xl p-3 space-y-2">
                 <div className="text-xs text-muted-foreground font-semibold">
-                  Scheduled Templates on {new Date(bulkRepeatDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}:
+                  Scheduled Templates on {parseISODate(bulkRepeatDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}:
                 </div>
                 
                 {(() => {
@@ -1594,7 +1601,7 @@ function SchedulePage() {
 
                   // Generate target dates list
                   const targetDates: string[] = [];
-                  const baseDate = new Date(bulkRepeatDate + "T00:00:00");
+                  const baseDate = parseISODate(bulkRepeatDate);
                   const occurrences = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
                   const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
 
@@ -1628,7 +1635,7 @@ function SchedulePage() {
       {/* DIALOG: Save Recurring Change Options                     */}
       {/* ======================================================== */}
       <Dialog open={pendingUpdate !== null} onOpenChange={(open) => !open && setPendingUpdate(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Save Recurring Change</DialogTitle>
             <DialogDescription>
@@ -1693,7 +1700,7 @@ function SchedulePage() {
       {/* DIALOG: Confirm Overwrite for Bulk Replication            */}
       {/* ======================================================== */}
       <Dialog open={bulkOverwriteDates !== null} onOpenChange={(open) => !open && setBulkOverwriteDates(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
             <DialogDescription>
@@ -1706,7 +1713,7 @@ function SchedulePage() {
               onClick={() => {
                 if (bulkRepeatDate) {
                   const targetDates: string[] = [];
-                  const baseDate = new Date(bulkRepeatDate + "T00:00:00");
+                  const baseDate = parseISODate(bulkRepeatDate);
                   const occurrences = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
                   const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
 
@@ -1743,7 +1750,7 @@ function SchedulePage() {
       {/* DIALOG: Confirm Overwrite for Recurrence Edit             */}
       {/* ======================================================== */}
       <Dialog open={repeatOverwritePayload !== null} onOpenChange={(open) => !open && setRepeatOverwritePayload(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
             <DialogDescription>
