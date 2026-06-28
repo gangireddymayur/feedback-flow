@@ -344,6 +344,18 @@ export const Schedules = {
       body: JSON.stringify(body),
     });
   },
+  exception: async (body: {
+    schedule_id: number;
+    date: string;
+    start_time: string;
+    end_time: string;
+    template_id: number;
+  }) => {
+    return await http<{ ok: true }>("/schedules/exception", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
   copyDay: async (body: { device_id: number; source_date: string; target_dates: string[] }) => {
     return await http<{ ok: true; created: number }>("/schedules/copy-day", {
       method: "POST",

@@ -1140,67 +1140,107 @@ function SchedulePage() {
           )}
 
           <DialogFooter className="mt-4 gap-2 sm:gap-0 flex-wrap">
+            {/* Delete Buttons left aligned */}
             {selectedSchedule && selectedSchedule.repeat_mode !== "none" ? (
-              <div className="flex gap-2 mr-auto">
+              <div className="flex gap-1.5 mr-auto">
                 <Button
                   variant="destructive"
-                  className="text-xs bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+                  size="sm"
+                  className="text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 px-2.5 h-8"
                   onClick={() => deleteMut.mutate({ id: selectedSchedule.id, date: selectedDate })}
                   disabled={deleteMut.isPending}
                 >
-                  <Trash2 className="size-3.5 mr-1.5" /> Delete Day
+                  <Trash2 className="size-3 mr-1" /> Delete Day
                 </Button>
                 <Button
                   variant="destructive"
-                  className="text-xs bg-rose-500/20 border border-rose-500/30 text-rose-200 hover:bg-rose-500/30 font-semibold"
+                  size="sm"
+                  className="text-[10px] bg-rose-500/20 border border-rose-500/30 text-rose-200 hover:bg-rose-500/30 font-semibold px-2.5 h-8"
                   onClick={() => deleteMut.mutate({ id: selectedSchedule.id })}
                   disabled={deleteMut.isPending}
                 >
-                  <Trash2 className="size-3.5 mr-1.5" /> Delete Series
+                  <Trash2 className="size-3 mr-1" /> Delete Series
                 </Button>
               </div>
             ) : (
               <Button
                 variant="destructive"
-                className="mr-auto text-xs bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
+                size="sm"
+                className="mr-auto text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 px-3 h-8"
                 onClick={() => deleteMut.mutate({ id: selectedSchedule!.id })}
                 disabled={deleteMut.isPending}
               >
-                <Trash2 className="size-3.5 mr-1.5" /> Delete
+                <Trash2 className="size-3 mr-1" /> Delete
               </Button>
             )}
-            <Button
-              variant="outline"
-              className="border-white/10"
-              onClick={() => setEditPopupOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (selectedSchedule && selectedSchedule.repeat_mode !== "none") {
-                  setPendingUpdate({
-                    id: selectedSchedule.id,
-                    date: selectedDate,
-                    start_time: editStartTime,
-                    end_time: editEndTime,
-                    template_id: selectedSchedule.template_id,
-                  });
-                } else {
-                  repeatMut.mutate({
-                    schedule_id: selectedSchedule!.id,
-                    repeat_mode: editRepeatMode,
-                    repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
-                    days_count: editRepeatMode === "none" ? 1 : editDaysCount,
-                    start_time: editStartTime,
-                    end_time: editEndTime,
-                  });
-                }
-              }}
-              disabled={repeatMut.isPending}
-            >
-              <Repeat className="size-3.5 mr-1.5" /> Save Recurrence
-            </Button>
+
+            {/* Cancel and Save Actions right aligned */}
+            <div className="flex gap-1.5 items-center w-full sm:w-auto mt-2 sm:mt-0 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-white/10 text-xs h-8"
+                onClick={() => setEditPopupOpen(false)}
+              >
+                Cancel
+              </Button>
+
+              {selectedSchedule && selectedSchedule.repeat_mode !== "none" ? (
+                <>
+                  <Button
+                    size="sm"
+                    className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => {
+                      updateOccurrenceMut.mutate({
+                        id: selectedSchedule.id,
+                        date: selectedDate,
+                        start_time: editStartTime,
+                        end_time: editEndTime,
+                        template_id: selectedSchedule.template_id,
+                      });
+                    }}
+                    disabled={updateOccurrenceMut.isPending}
+                  >
+                    Save This Day
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="text-xs h-8 bg-primary hover:bg-primary/95"
+                    onClick={() => {
+                      repeatMut.mutate({
+                        schedule_id: selectedSchedule.id,
+                        repeat_mode: editRepeatMode,
+                        repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
+                        days_count: editRepeatMode === "none" ? 1 : editDaysCount,
+                        start_time: editStartTime,
+                        end_time: editEndTime,
+                      });
+                    }}
+                    disabled={repeatMut.isPending}
+                  >
+                    Save Entire Series
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  className="text-xs h-8 bg-primary hover:bg-primary/95"
+                  onClick={() => {
+                    repeatMut.mutate({
+                      schedule_id: selectedSchedule!.id,
+                      repeat_mode: editRepeatMode,
+                      repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
+                      days_count: editRepeatMode === "none" ? 1 : editDaysCount,
+                      start_time: editStartTime,
+                      end_time: editEndTime,
+                    });
+                  }}
+                  disabled={repeatMut.isPending}
+                >
+                  Save Changes
+                </Button>
+              )}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

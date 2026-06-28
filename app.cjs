@@ -1049,6 +1049,89 @@ app.put(
   })
 );
 
+// POST /api/schedules/exception
+app.post(
+  "/api/schedules/exception",
+  auth(),
+  asyncH(async (req, res) => {
+    const { schedule_id, date, start_time, end_time, template_id } = req.body || {};
+    if (!schedule_id || !date || !start_time || !end_time || !template_id) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
+    const formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
+
+    if (formattedStartTime >= formattedEndTime) {
+      return res.status(400).json({ error: "End time must be after start time" });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? LIMIT 1", [schedule_id]);
+      if (curr.length === 0) {
+        await conn.rollback();
+        return res.status(404).json({ error: "Schedule not found" });
+      }
+      const s = curr[0];
+
+      // Proposed instances
+      const proposedInstances = [{
+        schedule_id: 0,
+        device_id: s.device_id,
+        template_id: Number(template_id),
+        date: date,
+        start_time: formattedStartTime,
+        end_time: formattedEndTime,
+        start_datetime: `${date} ${formattedStartTime}`,
+        end_datetime: `${date} ${formattedEndTime}`
+      }];
+
+      // Temporarily delete old instance to avoid overlap check self-conflict
+      await conn.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [s.id, date]);
+
+      // Check overlap
+      const overlapResult = await checkOverlap(conn, s.device_id, proposedInstances);
+      if (overlapResult.overlapping) {
+        await conn.rollback();
+        return res.status(400).json({
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+        });
+      }
+
+      // Create new standalone schedule
+      const [newScheduleRes] = await conn.query(
+        `INSERT INTO schedules (device_id, template_id, user_id, start_time, end_time, start_date)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [s.device_id, Number(template_id), req.user.id, formattedStartTime, formattedEndTime, date]
+      );
+      const newScheduleId = newScheduleRes.insertId;
+
+      await conn.query(
+        `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
+         VALUES (?, 'none', 1, 1)`,
+        [newScheduleId]
+      );
+
+      await conn.query(
+        `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newScheduleId, s.device_id, Number(template_id), date, formattedStartTime, formattedEndTime, `${date} ${formattedStartTime}`, `${date} ${formattedEndTime}`]
+      );
+
+      await conn.commit();
+      res.json({ ok: true });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  })
+);
+
 // DELETE /api/schedules/:id
 app.delete(
   "/api/schedules/:id",
