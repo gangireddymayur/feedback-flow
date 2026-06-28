@@ -340,6 +340,16 @@ function SchedulePage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const clearDayMut = useMutation({
+    mutationFn: () => Schedules.clearDay({ device_id: selectedDeviceId!, date: bulkRepeatDate! }),
+    onSuccess: () => {
+      toast.success("Day schedules cleared");
+      setBulkRepeatOpen(false);
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const updateOccurrenceMut = useMutation({
     mutationFn: async (payload: {
       id: number;
@@ -1549,51 +1559,67 @@ function SchedulePage() {
             </div>
           )}
 
-          <DialogFooter className="mt-4 gap-2">
-            <Button
-              variant="outline"
-              className="border-white/10 w-full sm:w-auto"
-              onClick={() => setBulkRepeatOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="w-full sm:w-auto"
-              onClick={() => {
-                if (!bulkRepeatDate) return;
-                const dayInstanceSchedules = instances.filter(i => i.date === bulkRepeatDate);
-                if (dayInstanceSchedules.length === 0) {
-                  toast.error("No schedules to repeat on this day");
-                  return;
-                }
+          <DialogFooter className="mt-4 flex flex-col sm:flex-row gap-2 justify-between">
+            {bulkRepeatDate && instances.some((i) => i.date === bulkRepeatDate) && (
+              <Button
+                variant="destructive"
+                className="bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 w-full sm:w-auto sm:mr-auto text-xs h-9"
+                onClick={() => {
+                  if (confirm("Are you sure you want to clear all templates scheduled on this day?")) {
+                    clearDayMut.mutate();
+                  }
+                }}
+                disabled={clearDayMut.isPending}
+              >
+                <Trash2 className="size-3.5 mr-1" /> Delete for This Day
+              </Button>
+            )}
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto justify-end">
+              <Button
+                variant="outline"
+                className="border-white/10 w-full sm:w-auto text-xs h-9"
+                onClick={() => setBulkRepeatOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="w-full sm:w-auto text-xs h-9"
+                onClick={() => {
+                  if (!bulkRepeatDate) return;
+                  const dayInstanceSchedules = instances.filter((i) => i.date === bulkRepeatDate);
+                  if (dayInstanceSchedules.length === 0) {
+                    toast.error("No schedules to repeat on this day");
+                    return;
+                  }
 
-                // Generate target dates list
-                const targetDates: string[] = [];
-                const baseDate = new Date(bulkRepeatDate + "T00:00:00");
-                const occurrences = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
-                const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
+                  // Generate target dates list
+                  const targetDates: string[] = [];
+                  const baseDate = new Date(bulkRepeatDate + "T00:00:00");
+                  const occurrences = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
+                  const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
 
-                for (let i = 1; i < occurrences; i++) {
-                  const nextD = new Date(baseDate.getTime());
-                  nextD.setDate(baseDate.getDate() + i * interval);
-                  targetDates.push(toISO(nextD));
-                }
+                  for (let i = 1; i < occurrences; i++) {
+                    const nextD = new Date(baseDate.getTime());
+                    nextD.setDate(baseDate.getDate() + i * interval);
+                    targetDates.push(toISO(nextD));
+                  }
 
-                if (targetDates.length === 0) {
-                  toast.error("Please select a repeat pattern greater than 1 day");
-                  return;
-                }
+                  if (targetDates.length === 0) {
+                    toast.error("Please select a repeat pattern greater than 1 day");
+                    return;
+                  }
 
-                bulkRepeatMut.mutate({
-                  source_date: bulkRepeatDate,
-                  target_dates: targetDates,
-                  overwrite: false,
-                });
-              }}
-              disabled={bulkRepeatMut.isPending}
-            >
-              <Repeat className="size-3.5 mr-1.5" /> Save Day Recurrence
-            </Button>
+                  bulkRepeatMut.mutate({
+                    source_date: bulkRepeatDate,
+                    target_dates: targetDates,
+                    overwrite: false,
+                  });
+                }}
+                disabled={bulkRepeatMut.isPending}
+              >
+                <Repeat className="size-3.5 mr-1.5" /> Save Day Recurrence
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

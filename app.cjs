@@ -1245,6 +1245,35 @@ app.delete(
   })
 );
 
+// POST /api/schedules/clear-day
+app.post(
+  "/api/schedules/clear-day",
+  auth(),
+  asyncH(async (req, res) => {
+    const { device_id, date } = req.body || {};
+    if (!device_id || !date) {
+      return res.status(400).json({ error: "device_id and date required" });
+    }
+
+    // Find all schedule instances for this device on this date
+    const [instances] = await pool.query(
+      `SELECT DISTINCT r.schedule_id 
+       FROM schedule_instances r
+       JOIN schedules s ON s.id = r.schedule_id
+       WHERE s.device_id = ? AND r.date = ?`,
+      [Number(device_id), date]
+    );
+
+    for (const inst of instances) {
+      await pool.query(
+        "DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", 
+        [inst.schedule_id, date]
+      );
+    }
+    res.json({ ok: true });
+  })
+);
+
 // POST /api/schedules/repeat
 app.post(
   "/api/schedules/repeat",

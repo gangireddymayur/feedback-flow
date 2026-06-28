@@ -304,7 +304,7 @@ function ReportsPage() {
         description="Build and extract premium CSV summaries of reviews, tablets, and customer answers."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+      <div className="grid grid-cols-1 max-w-xl gap-6 mt-6">
         {/* Card 1: Feedback Responses Report (Recommended) */}
         <GlassCard className="flex flex-col justify-between border border-white/5 relative group overflow-hidden">
           <div className="absolute top-3 right-3 bg-primary/20 text-primary border border-primary/20 text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md">
@@ -332,66 +332,6 @@ function ReportsPage() {
               size="sm"
               className="text-xs h-8 text-primary border border-primary/20 hover:bg-primary/5 bg-transparent font-medium"
               onClick={() => setDownloadModalOpen(true)}
-            >
-              <Download className="size-3.5 mr-1" /> Build report
-            </Button>
-          </div>
-        </GlassCard>
-
-        {/* Card 2: Customer Sentiment & Stars Summary */}
-        <GlassCard className="flex flex-col justify-between border border-white/5">
-          <div>
-            <div className="size-10 rounded-xl bg-emerald-500/10 grid place-items-center mb-4 border border-emerald-500/20">
-              <Sparkles className="size-5 text-emerald-400" />
-            </div>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-1.5">
-              Sentiment & NPS Report
-              <span className="text-[10px] text-muted-foreground bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
-                CSV
-              </span>
-            </h2>
-            <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-sm">
-              Aggregated ratings overview detailing the Net Promoter Score (NPS) breakdown, average star scores, and promoter ratios.
-            </p>
-          </div>
-          <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <Info className="size-3.5" /> Quick calculation on active reviews
-            </span>
-            <Button
-              size="sm"
-              className="text-xs h-8 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/5 bg-transparent font-medium"
-              onClick={handleDownloadSentimentSummary}
-            >
-              <Download className="size-3.5 mr-1" /> Build report
-            </Button>
-          </div>
-        </GlassCard>
-
-        {/* Card 3: Device Performance Directory */}
-        <GlassCard className="flex flex-col justify-between border border-white/5">
-          <div>
-            <div className="size-10 rounded-xl bg-blue-500/10 grid place-items-center mb-4 border border-blue-500/20">
-              <Smartphone className="size-5 text-blue-400" />
-            </div>
-            <h2 className="text-base font-semibold text-foreground flex items-center gap-1.5">
-              Devices Directory Log
-              <span className="text-[10px] text-muted-foreground bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
-                CSV
-              </span>
-            </h2>
-            <p className="text-xs text-muted-foreground mt-2 leading-relaxed max-w-sm">
-              Detailed registry of paired device terminals, current synchronization status codes, templates linked, and total activity levels.
-            </p>
-          </div>
-          <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-              <Info className="size-3.5" /> Sync timestamps and pairing codes
-            </span>
-            <Button
-              size="sm"
-              className="text-xs h-8 text-blue-400 border border-blue-500/20 hover:bg-blue-500/5 bg-transparent font-medium"
-              onClick={handleDownloadDevicePerformance}
             >
               <Download className="size-3.5 mr-1" /> Build report
             </Button>

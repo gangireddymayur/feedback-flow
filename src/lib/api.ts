@@ -372,6 +372,12 @@ export const Schedules = {
       body: JSON.stringify(body),
     });
   },
+  clearDay: async (body: { device_id: number; date: string }) => {
+    return await http<{ ok: boolean }>("/schedules/clear-day", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 // =================================================================
