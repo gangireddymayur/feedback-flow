@@ -108,6 +108,7 @@ export type ApiDevice = {
   last_sync: string | null;
   template_id: number | null;
   responses_today: number;
+  schedules_enabled?: number;
 };
 
 export type ApiResponse = {
@@ -249,7 +250,13 @@ export const Devices = {
   },
   update: async (
     id: number,
-    body: { name: string; location: string | null; status?: ApiDevice["status"] },
+    body: {
+      name?: string;
+      location?: string | null;
+      status?: ApiDevice["status"];
+      schedules_enabled?: boolean;
+      template_id?: number | null;
+    },
   ) => {
     return await http<{ ok: true }>(`/devices/${id}`, {
       method: "PUT",

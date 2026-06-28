@@ -52,6 +52,12 @@ const pool = mysql.createPool({
       console.log("[db] Added branding column to templates table.");
     }
 
+    const [devCols] = await pool.query("SHOW COLUMNS FROM devices LIKE 'schedules_enabled'");
+    if (devCols.length === 0) {
+      await pool.query("ALTER TABLE devices ADD COLUMN schedules_enabled TINYINT(1) DEFAULT 1");
+      console.log("[db] Added schedules_enabled column to devices table.");
+    }
+
     // Scheduling Module tables initialization
     const [tableExist] = await pool.query("SHOW TABLES LIKE 'schedules'");
     if (tableExist.length === 0) {
@@ -450,14 +456,31 @@ app.put(
   "/api/devices/:id",
   auth(),
   asyncH(async (req, res) => {
-    const { name, location, status } = req.body || {};
-    if (!name) return res.status(400).json({ error: "name required" });
-    await pool.query("UPDATE devices SET name = ?, location = ?, status = ? WHERE id = ?", [
-      name,
-      location || null,
-      status || "online",
-      Number(req.params.id),
-    ]);
+    const { name, location, status, schedules_enabled, template_id } = req.body || {};
+
+    const [existing] = await pool.query("SELECT * FROM devices WHERE id = ? LIMIT 1", [Number(req.params.id)]);
+    if (existing.length === 0) return res.status(404).json({ error: "Device not found" });
+    const dev = existing[0];
+
+    const finalName = name !== undefined ? name : dev.name;
+    const finalLocation = location !== undefined ? location : dev.location;
+    const finalStatus = status !== undefined ? status : dev.status;
+    const finalSchedulesEnabled = schedules_enabled !== undefined ? (schedules_enabled ? 1 : 0) : (dev.schedules_enabled ?? 1);
+    const finalTemplateId = template_id !== undefined ? template_id : dev.template_id;
+
+    await pool.query(
+      `UPDATE devices 
+       SET name = ?, location = ?, status = ?, schedules_enabled = ?, template_id = ? 
+       WHERE id = ?`,
+      [
+        finalName,
+        finalLocation,
+        finalStatus,
+        finalSchedulesEnabled,
+        finalTemplateId,
+        Number(req.params.id)
+      ]
+    );
     res.json({ ok: true });
   }),
 );
@@ -1424,11 +1447,19 @@ app.get(
   deviceAuth,
   asyncH(async (req, res) => {
     const [drows] = await pool.query(
-      "SELECT id, template_id FROM devices WHERE id = ? LIMIT 1",
+      "SELECT id, template_id, schedules_enabled FROM devices WHERE id = ? LIMIT 1",
       [req.device.id],
     );
     if (!drows[0]) return res.status(404).json({ error: "Device not found" });
     const fallback = drows[0].template_id;
+    const schedulesEnabled = drows[0].schedules_enabled ?? 1;
+
+    if (!schedulesEnabled) {
+      return res.json({
+        template_id: fallback,
+        source: "default"
+      });
+    }
 
     const now = new Date();
     const y = now.getFullYear();

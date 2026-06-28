@@ -15,6 +15,7 @@ import {
   Repeat,
   Move,
   Info,
+  SlidersHorizontal,
 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -131,6 +132,9 @@ function SchedulePage() {
   const [deviceSearch, setDeviceSearch] = React.useState("");
   const [templateSearch, setTemplateSearch] = React.useState("");
   const [selectedDate, setSelectedDate] = React.useState<string>(toISO(new Date()));
+
+  const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
+  const schedulesEnabled = selectedDevice ? (selectedDevice.schedules_enabled !== 0) : true;
 
   // Active schedule editing state
   const [selectedSchedule, setSelectedSchedule] = React.useState<ApiSchedule | null>(null);
@@ -343,16 +347,13 @@ function SchedulePage() {
       end_time: string;
       template_id: number;
     }) => {
-      // Step 1: Delete this specific day instance from the recurring series
-      await Schedules.remove(payload.id, payload.date);
-      // Step 2: Create a standalone schedule for this date/time window
-      await Schedules.create({
-        device_id: selectedDeviceId!,
-        template_id: payload.template_id,
+      // Call the transactional backend exception endpoint
+      await Schedules.exception({
+        schedule_id: payload.id,
+        date: payload.date,
         start_time: payload.start_time,
         end_time: payload.end_time,
-        start_date: payload.date,
-        repeat_mode: "none",
+        template_id: payload.template_id,
       });
     },
     onSuccess: () => {
@@ -360,6 +361,34 @@ function SchedulePage() {
       setPendingUpdate(null);
       setEditPopupOpen(false);
       qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const updateDeviceSchedulesMode = useMutation({
+    mutationFn: async (disable: boolean) => {
+      if (!selectedDeviceId) return;
+      await Devices.update(selectedDeviceId, {
+        schedules_enabled: !disable,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Device schedule mode updated");
+      qc.invalidateQueries({ queryKey: ["devices"] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const updateDeviceDefaultTemplate = useMutation({
+    mutationFn: async (templateId: number | null) => {
+      if (!selectedDeviceId) return;
+      await Devices.update(selectedDeviceId, {
+        template_id: templateId,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Device default template updated");
+      qc.invalidateQueries({ queryKey: ["devices"] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -594,7 +623,7 @@ function SchedulePage() {
                 className="pl-8 bg-white/5 border-white/10 text-xs h-8"
               />
             </div>
-            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-1 max-h-[195px] overflow-y-auto pr-1 custom-scrollbar">
               {filteredDevices.map((d) => {
                 const isSelected = d.id === selectedDeviceId;
                 return (
@@ -730,6 +759,62 @@ function SchedulePage() {
               Today
             </Button>
           </GlassCard>
+
+          {/* Schedule Mode control panel */}
+          {selectedDevice && (
+            <GlassCard className="p-4 flex flex-col gap-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
+                Schedule Mode
+              </h2>
+              
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-xs font-medium text-foreground">Disable Schedule</span>
+                  <span className="text-[10px] text-muted-foreground">Use a default template for everything</span>
+                </div>
+                <button
+                  onClick={() => {
+                    const nextVal = selectedDevice.schedules_enabled === 0;
+                    updateDeviceSchedulesMode.mutate(nextVal);
+                  }}
+                  disabled={updateDeviceSchedulesMode.isPending}
+                  className={cn(
+                    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-primary/40 focus:ring-offset-1 focus:ring-offset-background",
+                    selectedDevice.schedules_enabled === 0 ? "bg-amber-600/70 border-amber-500/50" : "bg-white/10 border-white/5"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out",
+                      selectedDevice.schedules_enabled === 0 ? "translate-x-4" : "translate-x-0"
+                    )}
+                  />
+                </button>
+              </div>
+
+              {selectedDevice.schedules_enabled === 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <Label className="text-[10px] text-muted-foreground font-semibold">Default 24/7 Template</Label>
+                  <select
+                    value={selectedDevice.template_id || ""}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : null;
+                      updateDeviceDefaultTemplate.mutate(val);
+                    }}
+                    disabled={updateDeviceDefaultTemplate.isPending}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl h-8 px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
+                  >
+                    <option value="" disabled className="bg-[#0d0f12] text-muted-foreground">Select a default template...</option>
+                    {templates.map((t) => (
+                      <option key={t.id} value={t.id} className="bg-[#0d0f12] text-foreground">
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </GlassCard>
+          )}
         </div>
 
         {/* ======================================================== */}
@@ -850,6 +935,15 @@ function SchedulePage() {
 
               {/* Day Columns containing blocks */}
               <div className="grid grid-cols-7 relative divide-x divide-white/5 min-h-[1440px] bg-white/[0.005]">
+                {!schedulesEnabled && (
+                  <div className="absolute inset-0 bg-black/75 backdrop-blur-[1px] z-[60] flex flex-col items-center justify-center text-center p-4 select-none">
+                    <SlidersHorizontal className="size-8 text-amber-500/80 mb-2 animate-pulse" />
+                    <h4 className="text-sm font-semibold text-foreground">Schedules Disabled</h4>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
+                      This device is configured to display its default fallback template 24/7. Turn on "Enable Scheduling" in the sidebar to configure the timeline.
+                    </p>
+                  </div>
+                )}
                 {/* Horizontal row line guide overlays */}
                 {Array.from({ length: HOURS }).map((_, h) => (
                   <div
@@ -896,6 +990,9 @@ function SchedulePage() {
                         const height = (endMins - startMins) * PX_PER_MIN;
                         const color = templateColor.get(inst.template_id) || "oklch(0.76 0.17 210)";
 
+                        const todayStr = toISO(new Date());
+                        const isPastDay = dateIso < todayStr;
+
                         const isTargetDate = isDraggingThis && dragState.currentDate === dateIso;
                         const shouldDisplay = !isDraggingThis || isTargetDate;
 
@@ -905,9 +1002,12 @@ function SchedulePage() {
                           <div
                             key={inst.id}
                             draggable="false"
-                            onClick={() => handleBlockClick(inst.schedule_id)}
+                            onClick={() => !isPastDay && handleBlockClick(inst.schedule_id)}
                             className={cn(
-                              "absolute left-1 right-1 rounded-xl p-2 text-[10px] overflow-hidden group shadow-md transition-shadow hover:shadow-lg border-l-4 cursor-pointer",
+                              "absolute left-1 right-1 rounded-xl p-2 text-[10px] overflow-hidden group shadow-md transition-shadow hover:shadow-lg border-l-4",
+                              isPastDay 
+                                ? "opacity-50 blur-[0.5px] cursor-not-allowed pointer-events-none" 
+                                : "cursor-pointer",
                               isDraggingThis && "opacity-90 shadow-2xl scale-[0.98] ring-1 ring-primary/40"
                             )}
                             style={{
@@ -918,13 +1018,15 @@ function SchedulePage() {
                             }}
                           >
                             {/* Resize Handle Top */}
-                            <div
-                              className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-10"
-                              onMouseDown={(e) => handleBlockMouseDown(e, inst, "resize-top")}
-                            />
+                            {!isPastDay && (
+                              <div
+                                className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-10"
+                                onMouseDown={(e) => handleBlockMouseDown(e, inst, "resize-top")}
+                              />
+                            )}
 
                             {/* Block Content */}
-                            <div className="flex flex-col h-full pointer-events-none select-none">
+                            <div className="flex flex-col h-full pointer-events-none select-none relative">
                               <div className="font-semibold text-foreground truncate flex items-center gap-1">
                                 <span className="size-1.5 rounded-full shrink-0" style={{ background: color }} />
                                 {inst.template_name}
@@ -932,23 +1034,33 @@ function SchedulePage() {
                               <div className="text-muted-foreground text-[9px] mt-0.5 font-medium">
                                 {formatMinsAMPM(startMins)} - {formatMinsAMPM(endMins)}
                               </div>
-                              {/* Drag handle decorator icon */}
-                              <div className="mt-auto ml-auto opacity-0 group-hover:opacity-60 transition-opacity">
-                                <Move className="size-3 text-muted-foreground" />
-                              </div>
+                              {isPastDay ? (
+                                <div className="mt-auto mr-auto text-[8px] bg-white/5 text-muted-foreground px-1 py-0.5 rounded border border-white/5 font-semibold tracking-wide uppercase">
+                                  Completed
+                                </div>
+                              ) : (
+                                /* Drag handle decorator icon */
+                                <div className="mt-auto ml-auto opacity-0 group-hover:opacity-60 transition-opacity">
+                                  <Move className="size-3 text-muted-foreground" />
+                                </div>
+                              )}
                             </div>
 
                             {/* Resize Handle Bottom */}
-                            <div
-                              className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-10"
-                              onMouseDown={(e) => handleBlockMouseDown(e, inst, "resize-bottom")}
-                            />
+                            {!isPastDay && (
+                              <div
+                                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-10"
+                                onMouseDown={(e) => handleBlockMouseDown(e, inst, "resize-bottom")}
+                              />
+                            )}
 
                             {/* Drag handle center zone */}
-                            <div
-                              className="absolute inset-x-2 inset-y-2 cursor-grab active:cursor-grabbing"
-                              onMouseDown={(e) => handleBlockMouseDown(e, inst, "move")}
-                            />
+                            {!isPastDay && (
+                              <div
+                                className="absolute inset-x-2 inset-y-2 cursor-grab active:cursor-grabbing"
+                                onMouseDown={(e) => handleBlockMouseDown(e, inst, "move")}
+                              />
+                            )}
                           </div>
                         );
                       })}
@@ -978,7 +1090,7 @@ function SchedulePage() {
               />
             </div>
 
-            <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+            <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
               {filteredTemplates.map((t) => {
                 const color = templateColor.get(t.id) || "oklch(0.76 0.17 210)";
                 return (
