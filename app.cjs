@@ -380,7 +380,7 @@ app.get(
   asyncH(async (_req, res) => {
     const [rows] = await pool.query(
       `SELECT d.id, d.name, d.location, d.status, d.android_version, d.last_sync,
-              d.template_id,
+              d.template_id, d.schedules_enabled,
               TIMESTAMPDIFF(SECOND, d.last_sync, NOW()) AS seconds_since_sync,
               (SELECT COUNT(*) FROM responses r WHERE r.device_id = d.id AND DATE(r.submitted_at) = CURDATE()) AS responses_today
        FROM devices d ORDER BY d.id DESC`,
