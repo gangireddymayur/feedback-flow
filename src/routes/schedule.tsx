@@ -141,6 +141,15 @@ function SchedulePage() {
   const [editStartTime, setEditStartTime] = React.useState("09:00");
   const [editEndTime, setEditEndTime] = React.useState("17:00");
 
+  // Edit occurrence vs series confirmation state
+  const [pendingUpdate, setPendingUpdate] = React.useState<{
+    id: number;
+    date: string;
+    start_time: string;
+    end_time: string;
+    template_id: number;
+  } | null>(null);
+
   // Bulk repeat day schedules state
   const [bulkRepeatOpen, setBulkRepeatOpen] = React.useState(false);
   const [bulkRepeatDate, setBulkRepeatDate] = React.useState<string | null>(null);
@@ -309,6 +318,35 @@ function SchedulePage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const updateOccurrenceMut = useMutation({
+    mutationFn: async (payload: {
+      id: number;
+      date: string;
+      start_time: string;
+      end_time: string;
+      template_id: number;
+    }) => {
+      // Step 1: Delete this specific day instance from the recurring series
+      await Schedules.remove(payload.id, payload.date);
+      // Step 2: Create a standalone schedule for this date/time window
+      await Schedules.create({
+        device_id: selectedDeviceId!,
+        template_id: payload.template_id,
+        start_time: payload.start_time,
+        end_time: payload.end_time,
+        start_date: payload.date,
+        repeat_mode: "none",
+      });
+    },
+    onSuccess: () => {
+      toast.success("Updated schedule for this day only");
+      setPendingUpdate(null);
+      setEditPopupOpen(false);
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   // Handle global mouse move & mouse up for Drag-Move / Drag-Resize gestures
   React.useEffect(() => {
     if (dragState.action === "idle") return;
@@ -376,14 +414,28 @@ function SchedulePage() {
           return;
         }
 
-        updateMut.mutate({
-          id: blockId,
-          body: {
-            start_date: currentDate,
-            start_time: toHHMM(currentStartMins),
-            end_time: toHHMM(currentEndMins),
-          },
-        });
+        const parent = schedules.find((s) => s.id === blockId);
+        const startTimeStr = toHHMM(currentStartMins);
+        const endTimeStr = toHHMM(currentEndMins);
+
+        if (parent && parent.repeat_mode !== "none") {
+          setPendingUpdate({
+            id: blockId,
+            date: currentDate,
+            start_time: startTimeStr,
+            end_time: endTimeStr,
+            template_id: parent.template_id,
+          });
+        } else {
+          updateMut.mutate({
+            id: blockId,
+            body: {
+              start_date: currentDate,
+              start_time: startTimeStr,
+              end_time: endTimeStr,
+            },
+          });
+        }
       }
     };
 
@@ -1126,14 +1178,24 @@ function SchedulePage() {
             </Button>
             <Button
               onClick={() => {
-                repeatMut.mutate({
-                  schedule_id: selectedSchedule!.id,
-                  repeat_mode: editRepeatMode,
-                  repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
-                  days_count: editRepeatMode === "none" ? 1 : editDaysCount,
-                  start_time: editStartTime,
-                  end_time: editEndTime,
-                });
+                if (selectedSchedule && selectedSchedule.repeat_mode !== "none") {
+                  setPendingUpdate({
+                    id: selectedSchedule.id,
+                    date: selectedDate,
+                    start_time: editStartTime,
+                    end_time: editEndTime,
+                    template_id: selectedSchedule.template_id,
+                  });
+                } else {
+                  repeatMut.mutate({
+                    schedule_id: selectedSchedule!.id,
+                    repeat_mode: editRepeatMode,
+                    repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
+                    days_count: editRepeatMode === "none" ? 1 : editDaysCount,
+                    start_time: editStartTime,
+                    end_time: editEndTime,
+                  });
+                }
               }}
               disabled={repeatMut.isPending}
             >
@@ -1314,6 +1376,71 @@ function SchedulePage() {
               <Repeat className="size-3.5 mr-1.5" /> Save Day Recurrence
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Save Recurring Change Options                     */}
+      {/* ======================================================== */}
+      <Dialog open={pendingUpdate !== null} onOpenChange={(open) => !open && setPendingUpdate(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Save Recurring Change</DialogTitle>
+            <DialogDescription>
+              This is a recurring schedule window. How would you like to apply this edit?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              onClick={() => {
+                if (pendingUpdate) {
+                  updateOccurrenceMut.mutate(pendingUpdate);
+                }
+              }}
+              disabled={updateOccurrenceMut.isPending}
+              className="w-full text-xs font-semibold"
+            >
+              Update Only This Day
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (pendingUpdate) {
+                  if (selectedSchedule && selectedSchedule.id === pendingUpdate.id) {
+                    repeatMut.mutate({
+                      schedule_id: pendingUpdate.id,
+                      repeat_mode: editRepeatMode,
+                      repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
+                      days_count: editRepeatMode === "none" ? 1 : editDaysCount,
+                      start_time: pendingUpdate.start_time,
+                      end_time: pendingUpdate.end_time,
+                    });
+                  } else {
+                    updateMut.mutate({
+                      id: pendingUpdate.id,
+                      body: {
+                        start_date: pendingUpdate.date,
+                        start_time: pendingUpdate.start_time,
+                        end_time: pendingUpdate.end_time,
+                      },
+                    });
+                    setPendingUpdate(null);
+                  }
+                }
+              }}
+              disabled={updateMut.isPending || repeatMut.isPending}
+              className="w-full text-xs border-white/10"
+            >
+              Update Entire Series
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setPendingUpdate(null)}
+              className="w-full text-xs text-muted-foreground"
+            >
+              Cancel
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
