@@ -377,7 +377,17 @@ app.get(
       [req.device.id],
     );
     if (!rows[0]) return res.status(404).json({ error: "Device not found" });
-    res.json(rows[0]);
+
+    // Fetch active screensaver for this device owner
+    const [ssRows] = await pool.query(
+      "SELECT url, type, timeout_seconds FROM screensavers WHERE owner_id = ? AND is_active = 1 LIMIT 1",
+      [req.device.owner_id]
+    );
+
+    res.json({
+      ...rows[0],
+      screensaver: ssRows[0] || null
+    });
   }),
 );
 
