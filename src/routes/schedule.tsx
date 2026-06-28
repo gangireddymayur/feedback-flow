@@ -132,6 +132,7 @@ function SchedulePage() {
   const [deviceSearch, setDeviceSearch] = React.useState("");
   const [templateSearch, setTemplateSearch] = React.useState("");
   const [selectedDate, setSelectedDate] = React.useState<string>(toISO(new Date()));
+  const [currentWeekDate, setCurrentWeekDate] = React.useState<string>(toISO(new Date()));
 
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
   const schedulesEnabled = selectedDevice ? (selectedDevice.schedules_enabled !== 0) : true;
@@ -232,13 +233,13 @@ function SchedulePage() {
 
   // Calculations for dates of the current week view
   const weekDates = React.useMemo(() => {
-    const base = getMonday(new Date(selectedDate + "T00:00:00"));
+    const base = getMonday(new Date(currentWeekDate + "T00:00:00"));
     return Array.from({ length: 7 }).map((_, i) => {
       const d = new Date(base.getTime());
       d.setDate(base.getDate() + i);
       return d;
     });
-  }, [selectedDate]);
+  }, [currentWeekDate]);
 
   // Live clock for time indicator
   const [nowTime, setNowTime] = React.useState(new Date());
@@ -257,7 +258,7 @@ function SchedulePage() {
     updateWidth();
     window.addEventListener("resize", updateWidth);
     return () => window.removeEventListener("resize", updateWidth);
-  }, [selectedDate, selectedDeviceId]);
+  }, [currentWeekDate, selectedDeviceId]);
 
   // Mutations
   const createMut = useMutation({
@@ -571,19 +572,22 @@ function SchedulePage() {
   };
 
   const handlePrevWeek = () => {
-    const d = new Date(selectedDate + "T00:00:00");
+    const d = new Date(currentWeekDate + "T00:00:00");
     d.setDate(d.getDate() - 7);
-    setSelectedDate(toISO(d));
+    setCurrentWeekDate(toISO(d));
   };
 
   const handleNextWeek = () => {
-    const d = new Date(selectedDate + "T00:00:00");
+    const d = new Date(currentWeekDate + "T00:00:00");
     d.setDate(d.getDate() + 7);
-    setSelectedDate(toISO(d));
+    setCurrentWeekDate(toISO(d));
   };
 
   const handleToday = () => {
-    setSelectedDate(toISO(new Date()));
+    const today = toISO(new Date());
+    setCurrentWeekDate(today);
+    setSelectedDate(today);
+    setCalendarMonth(new Date());
   };
 
   if (devicesQ.isLoading || templatesQ.isLoading) {
@@ -732,7 +736,10 @@ function SchedulePage() {
                 return (
                   <button
                     key={idx}
-                    onClick={() => setSelectedDate(cellIso)}
+                    onClick={() => {
+                      setSelectedDate(cellIso);
+                      setCurrentWeekDate(cellIso);
+                    }}
                     className={cn(
                       "aspect-square text-[10px] rounded-md transition-colors relative flex flex-col items-center justify-center font-medium",
                       isSelected
@@ -857,7 +864,7 @@ function SchedulePage() {
           {/* Week Calendar Board */}
           <GlassCard className="p-0 overflow-hidden flex flex-col select-none">
             {/* Headers row */}
-            <div className="grid grid-cols-[60px_1fr] border-b border-white/5 bg-white/[0.02]">
+            <div className="grid grid-cols-[60px_1fr] border-b border-white/5 bg-white/[0.02] pr-2">
               <div className="h-10 border-r border-white/5" />
               <div className="grid grid-cols-7 h-10 divide-x divide-white/5">
                 {weekDates.map((date, idx) => {
@@ -873,11 +880,18 @@ function SchedulePage() {
                       onClick={() => {
                         if (!schedulesEnabled) return;
                         setSelectedDate(dateIso);
-                        setBulkRepeatDate(dateIso);
-                        setBulkRepeatMode("none");
-                        setBulkRepeatInterval(1);
-                        setBulkRepeatDaysCount(6);
-                        setBulkRepeatOpen(true);
+                        setCurrentWeekDate(dateIso);
+                        
+                        const dayInstances = instances.filter((i) => i.date === dateIso);
+                        if (dayInstances.length > 0) {
+                          setBulkRepeatDate(dateIso);
+                          setBulkRepeatMode("none");
+                          setBulkRepeatInterval(1);
+                          setBulkRepeatDaysCount(6);
+                          setBulkRepeatOpen(true);
+                        } else {
+                          toast.info("No templates scheduled on this day to repeat.");
+                        }
                       }}
                       className={cn(
                         "flex flex-col items-center justify-center text-center py-1 transition-colors",
@@ -922,7 +936,7 @@ function SchedulePage() {
 
             {/* Scrollable Timeline */}
             <div
-              className="grid grid-cols-[60px_1fr] relative overflow-y-auto max-h-[620px]"
+              className="grid grid-cols-[60px_1fr] relative overflow-y-scroll max-h-[620px]"
             >
               {/* Hour scale vertical labels */}
               <div className="flex flex-col text-[10px] text-muted-foreground/60 bg-white/[0.01]">
