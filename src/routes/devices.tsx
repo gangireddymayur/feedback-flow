@@ -1,7 +1,7 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MapPin, Smartphone, Trash2, FileText, Edit2, Pause, Play } from "lucide-react";
+import { Plus, MapPin, Smartphone, Trash2, Edit2, Pause, Play, Calendar } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,13 +15,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Devices, Templates, ApiDevice } from "@/lib/api";
 import { LoadingState, ErrorState } from "@/routes/templates";
 import { toast } from "sonner";
@@ -40,16 +33,6 @@ function DevicesPage() {
   const devices = data?.devices ?? [];
   const templates = templatesQ.data?.templates ?? [];
 
-  const assign = useMutation({
-    mutationFn: ({ id, template_id }: { id: number; template_id: number | null }) =>
-      Devices.assignTemplate(id, template_id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["devices"] });
-      toast.success("Template assigned");
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-
   const [open, setOpen] = React.useState(false);
   const [code, setCode] = React.useState("");
   const [name, setName] = React.useState("");
@@ -60,19 +43,6 @@ function DevicesPage() {
   const [editDevice, setEditDevice] = React.useState<ApiDevice | null>(null);
   const [editName, setEditName] = React.useState("");
   const [editLocation, setEditLocation] = React.useState("");
-
-  const pair = useMutation({
-    mutationFn: () => Devices.pair(code, name, location),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["devices"] });
-      toast.success("Device paired");
-      setOpen(false);
-      setCode("");
-      setName("");
-      setLocation("");
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
 
   const updateMut = useMutation({
     mutationFn: ({
@@ -138,50 +108,67 @@ function DevicesPage() {
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Plus className="size-4" /> Pair Device
+                <Plus className="size-4 mr-2" /> Pair Device
               </Button>
             </DialogTrigger>
             <DialogContent className="glass-strong border-white/10 sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Pair a new device</DialogTitle>
+                <DialogTitle>Pair Review OS Device</DialogTitle>
                 <DialogDescription>
-                  Open the ReviewOS app on the tablet and enter the 6-digit code it displays.
+                  Enter the 6-digit pairing code shown on the tablet, and give this device a friendly name.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3 pt-2">
-                <Label htmlFor="code">Pairing code</Label>
-                <Input
-                  id="code"
-                  placeholder="• • • • • •"
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                  className="text-center text-2xl tracking-[0.5em] bg-white/5 border-white/10 h-14"
-                />
-                <Label htmlFor="dname">Device name</Label>
-                <Input
-                  id="dname"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                  placeholder="Lobby Tablet"
-                />
-                <Label htmlFor="dloc">Location</Label>
-                <Input
-                  id="dloc"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                  placeholder="Downtown Branch"
-                />
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pair-code">Pairing Code</Label>
+                  <Input
+                    id="pair-code"
+                    placeholder="123 456"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    className="bg-white/5 border-white/10 text-center text-lg font-semibold tracking-widest uppercase"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="device-name">Device Name</Label>
+                  <Input
+                    id="device-name"
+                    placeholder="Front Desk Tablet"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="bg-white/5 border-white/10"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="device-loc">Location / Department</Label>
+                  <Input
+                    id="device-loc"
+                    placeholder="Lobby / Reception"
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="bg-white/5 border-white/10"
+                  />
+                </div>
               </div>
               <DialogFooter>
                 <Button
                   className="w-full"
-                  onClick={() => pair.mutate()}
-                  disabled={pair.isPending || code.length !== 6 || !name}
+                  onClick={async () => {
+                    if (!code || !name) return toast.error("Code and Name are required");
+                    try {
+                      await Devices.pair(code, name, location);
+                      toast.success("Device paired successfully!");
+                      qc.invalidateQueries({ queryKey: ["devices"] });
+                      setCode("");
+                      setName("");
+                      setLocation("");
+                      setOpen(false);
+                    } catch (e) {
+                      toast.error((e as Error).message);
+                    }
+                  }}
                 >
-                  {pair.isPending ? "Pairing…" : "Pair device"}
+                  Pair Device
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -189,13 +176,14 @@ function DevicesPage() {
         }
       />
 
-      {isLoading && <LoadingState />}
-      {error && <ErrorState message={(error as Error).message} />}
-
-      {!isLoading && !error && (
+      {isLoading ? (
+        <LoadingState />
+      ) : error ? (
+        <ErrorState message={(error as Error).message} />
+      ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <Stat label="Total" value={devices.length} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <Stat label="Total paired" value={devices.length} />
             <Stat
               label="Online"
               value={devices.filter((d) => d.status === "online").length}
@@ -258,42 +246,24 @@ function DevicesPage() {
                           <StatusPill status={d.status} />
                         </td>
                         <td className="px-3 py-4">
-                          <Select
-                            value={d.template_id ? String(d.template_id) : "none"}
-                            onValueChange={(v) =>
-                              assign.mutate({
-                                id: d.id,
-                                template_id: v === "none" ? null : Number(v),
-                              })
-                            }
-                          >
-                            <SelectTrigger className="h-8 w-[200px] bg-white/5 border-white/10 text-xs">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <FileText className="size-3.5 text-muted-foreground shrink-0" />
-                                <SelectValue placeholder="No template" />
+                          <div className="flex flex-col gap-1">
+                            {current ? (
+                              <div className="flex items-center gap-1.5 text-xs text-foreground font-medium">
+                                <span className="size-1.5 rounded-full bg-emerald-400" />
+                                {current.name}
                               </div>
-                            </SelectTrigger>
-                            <SelectContent className="glass-strong border-white/10">
-                              <SelectItem value="none">No template</SelectItem>
-                              {templates.map((t) => (
-                                <SelectItem
-                                  key={t.id}
-                                  value={String(t.id)}
-                                  disabled={t.status !== "active"}
-                                >
-                                  {t.name}{" "}
-                                  {t.status !== "active" && (
-                                    <span className="text-muted-foreground">({t.status})</span>
-                                  )}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {current && (
-                            <div className="text-[10px] text-muted-foreground mt-1 truncate max-w-[200px]">
-                              Showing on device · {(current.questions ?? []).length} questions
-                            </div>
-                          )}
+                            ) : (
+                              <div className="text-xs text-muted-foreground font-medium">
+                                No fallback template
+                              </div>
+                            )}
+                            <Link
+                              to="/schedule"
+                              className="text-[10px] text-muted-foreground hover:text-primary transition flex items-center gap-1"
+                            >
+                              <Calendar className="size-3" /> Managed via Scheduler
+                            </Link>
+                          </div>
                         </td>
                         <td className="px-3 py-4 text-muted-foreground">
                           {d.last_sync ? new Date(d.last_sync).toLocaleString() : "never"}

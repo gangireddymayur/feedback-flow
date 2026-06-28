@@ -617,25 +617,44 @@ function SchedulePage() {
               <div className="h-10 border-r border-white/5" />
               <div className="grid grid-cols-7 h-10 divide-x divide-white/5">
                 {weekDates.map((date, idx) => {
-                  const isCurrent = toISO(date) === toISO(new Date());
+                  const dateIso = toISO(date);
+                  const isSelected = selectedDate === dateIso;
+                  const isCurrent = dateIso === toISO(new Date());
+                  const isPast = new Date(dateIso + "T00:00:00") < new Date(toISO(new Date()) + "T00:00:00");
                   const formattedDay = date.toLocaleDateString(undefined, { day: "numeric" });
+                  
                   return (
                     <div
                       key={idx}
+                      onClick={() => setSelectedDate(dateIso)}
                       className={cn(
-                        "flex flex-col items-center justify-center text-center py-1 transition-colors",
+                        "flex flex-col items-center justify-center text-center py-1 cursor-pointer transition-colors hover:bg-white/5",
+                        isSelected && "bg-emerald-500/5",
                         isCurrent && "bg-primary/5"
                       )}
                     >
-                      <span className="text-[10px] text-muted-foreground font-semibold">
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold",
+                          isSelected
+                            ? "text-emerald-400"
+                            : isPast
+                              ? "text-rose-400/90"
+                              : "text-muted-foreground"
+                        )}
+                      >
                         {WEEKDAYS[idx]}
                       </span>
                       <span
                         className={cn(
-                          "text-xs font-bold leading-none mt-0.5 flex items-center justify-center size-5 rounded-full",
-                          isCurrent
-                            ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
-                            : "text-foreground"
+                          "text-xs font-bold leading-none mt-0.5 flex items-center justify-center size-6 rounded-full transition-all",
+                          isSelected
+                            ? "bg-emerald-500 text-white shadow-sm shadow-emerald-500/30"
+                            : isCurrent
+                              ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
+                              : isPast
+                                ? "bg-rose-500/10 border border-rose-500/20 text-rose-400"
+                                : "text-foreground"
                         )}
                       >
                         {formattedDay}
