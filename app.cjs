@@ -692,7 +692,10 @@ function generateInstances(scheduleId, deviceId, templateId, startTime, endTime,
     const curDate = new Date(baseDate.getTime());
     curDate.setDate(baseDate.getDate() + i * interval);
     
-    const dateStr = curDate.toISOString().slice(0, 10);
+    const y = curDate.getFullYear();
+    const m = String(curDate.getMonth() + 1).padStart(2, "0");
+    const d = String(curDate.getDate()).padStart(2, "0");
+    const dateStr = `${y}-${m}-${d}`;
     const startDatetimeStr = `${dateStr} ${startTime}`;
     const endDatetimeStr = `${dateStr} ${endTime}`;
 
