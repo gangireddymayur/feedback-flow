@@ -16,9 +16,11 @@ export function setToken(t: string | null) {
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  body: any;
+  constructor(message: string, status: number, body?: any) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -37,7 +39,7 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const text = await res.text();
   const body = text ? safeJson(text) : null;
-  if (!res.ok) throw new ApiError(body?.error || res.statusText, res.status);
+  if (!res.ok) throw new ApiError(body?.error || res.statusText, res.status, body);
   return body as T;
 }
 
@@ -338,6 +340,7 @@ export const Schedules = {
     days_count?: number;
     start_time?: string;
     end_time?: string;
+    overwrite?: boolean;
   }) => {
     return await http<{ ok: true; created_instances: number }>("/schedules/repeat", {
       method: "POST",
@@ -356,8 +359,8 @@ export const Schedules = {
       body: JSON.stringify(body),
     });
   },
-  copyDay: async (body: { device_id: number; source_date: string; target_dates: string[] }) => {
-    return await http<{ ok: true; created: number }>("/schedules/copy-day", {
+  copyDay: async (body: { device_id: number; source_date: string; target_dates: string[]; overwrite?: boolean }) => {
+    return await http<{ ok: boolean; has_existing?: boolean; existing_dates?: string[]; created?: number }>("/schedules/copy-day", {
       method: "POST",
       body: JSON.stringify(body),
     });

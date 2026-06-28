@@ -1077,6 +1077,39 @@ app.post(
       }
       const s = curr[0];
 
+      // Find all other recurring schedules on this date for this device
+      const [otherInstances] = await conn.query(
+        `SELECT i.id as instance_id, i.schedule_id, i.template_id, i.start_time, i.end_time 
+         FROM schedule_instances i
+         JOIN schedules sch ON sch.id = i.schedule_id
+         JOIN schedule_recurrences r ON r.schedule_id = sch.id
+         WHERE i.device_id = ? AND i.date = ? AND i.schedule_id != ? AND r.repeat_mode != 'none'`,
+        [s.device_id, date, s.id]
+      );
+
+      // Convert all other recurring schedule occurrences on this day to standalone schedules
+      for (const inst of otherInstances) {
+        await conn.query("DELETE FROM schedule_instances WHERE id = ?", [inst.instance_id]);
+
+        const [newS] = await conn.query(
+          `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [s.device_id, inst.template_id, req.user.id, inst.start_time, inst.end_time, date]
+        );
+
+        await conn.query(
+          `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
+           VALUES (?, 'none', 1, 1)`,
+          [newS.insertId]
+        );
+
+        await conn.query(
+          `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [newS.insertId, s.device_id, inst.template_id, date, inst.start_time, inst.end_time, `${date} ${inst.start_time}`, `${date} ${inst.end_time}`]
+        );
+      }
+
       // Proposed instances
       const proposedInstances = [{
         schedule_id: 0,
@@ -1103,7 +1136,7 @@ app.post(
 
       // Create new standalone schedule
       const [newScheduleRes] = await conn.query(
-        `INSERT INTO schedules (device_id, template_id, user_id, start_time, end_time, start_date)
+        `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [s.device_id, Number(template_id), req.user.id, formattedStartTime, formattedEndTime, date]
       );
@@ -1156,7 +1189,7 @@ app.post(
   "/api/schedules/repeat",
   auth(),
   asyncH(async (req, res) => {
-    const { schedule_id, repeat_mode, repeat_interval = 1, days_count = 1, start_time, end_time } = req.body || {};
+    const { schedule_id, repeat_mode, repeat_interval = 1, days_count = 1, start_time, end_time, overwrite = false } = req.body || {};
     if (!schedule_id || !repeat_mode) {
       return res.status(400).json({ error: "schedule_id and repeat_mode required" });
     }
@@ -1218,12 +1251,29 @@ app.post(
         Number(days_count)
       );
 
+      if (overwrite) {
+        for (const inst of proposedInstances) {
+          await conn.query(
+            `DELETE FROM schedule_instances 
+             WHERE device_id = ? AND date = ? AND schedule_id != ? AND start_time < ? AND end_time > ?`,
+            [s.device_id, inst.date, s.id, inst.end_time, inst.start_time]
+          );
+        }
+        await conn.query(
+          `DELETE s FROM schedules s
+           LEFT JOIN schedule_instances i ON i.schedule_id = s.id
+           WHERE s.device_id = ? AND i.id IS NULL`,
+          [s.device_id]
+        );
+      }
+
       // Check overlap
       const overlapResult = await checkOverlap(conn, s.device_id, proposedInstances, s.id);
       if (overlapResult.overlapping) {
         await conn.rollback();
         return res.status(400).json({
-          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`,
+          has_overlap: true
         });
       }
 
@@ -1271,10 +1321,10 @@ app.post(
   "/api/schedules/copy-day",
   auth(),
   asyncH(async (req, res) => {
-    const { device_id, source_date, target_dates = [] } = req.body || {};
+    const { device_id, source_date, target_dates = [], overwrite = false } = req.body || {};
     if (!device_id || !source_date || !Array.isArray(target_dates) || target_dates.length === 0)
       return res.status(400).json({ error: "device_id, source_date, target_dates[] required" });
-    
+
     // Find all instances running on the source date
     const [src] = await pool.query(
       `SELECT template_id, start_time, end_time FROM schedule_instances
@@ -1284,9 +1334,46 @@ app.post(
 
     if (src.length === 0) return res.json({ ok: true, created: 0 });
 
+    // Check for existing schedules on target dates if overwrite is not approved yet
+    if (!overwrite) {
+      const [existing] = await pool.query(
+        `SELECT DISTINCT date FROM schedule_instances 
+         WHERE device_id = ? AND date IN (?)`,
+        [Number(device_id), target_dates]
+      );
+      if (existing.length > 0) {
+        return res.json({
+          ok: false,
+          has_existing: true,
+          existing_dates: existing.map(row => {
+            const d = new Date(row.date);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const da = String(d.getDate()).padStart(2, "0");
+            return `${y}-${m}-${da}`;
+          })
+        });
+      }
+    }
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+
+      if (overwrite) {
+        // Delete all instances on target dates for this device
+        await conn.query(
+          `DELETE FROM schedule_instances WHERE device_id = ? AND date IN (?)`,
+          [Number(device_id), target_dates]
+        );
+        // Clean up empty schedules
+        await conn.query(
+          `DELETE s FROM schedules s
+           LEFT JOIN schedule_instances i ON i.schedule_id = s.id
+           WHERE s.device_id = ? AND i.id IS NULL`,
+          [Number(device_id)]
+        );
+      }
 
       let createdCount = 0;
       for (const targetDate of target_dates) {

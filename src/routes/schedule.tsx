@@ -157,6 +157,10 @@ function SchedulePage() {
   const [bulkRepeatInterval, setBulkRepeatInterval] = React.useState(1);
   const [bulkRepeatDaysCount, setBulkRepeatDaysCount] = React.useState(6);
 
+  // Overwrite state variables
+  const [bulkOverwriteDates, setBulkOverwriteDates] = React.useState<string[] | null>(null);
+  const [repeatOverwritePayload, setRepeatOverwritePayload] = React.useState<Parameters<typeof Schedules.repeat>[0] | null>(null);
+
   const getBulkRecurrenceRangeText = () => {
     if (!bulkRepeatDate) return "";
     const start = new Date(bulkRepeatDate + "T00:00:00");
@@ -287,35 +291,48 @@ function SchedulePage() {
     onSuccess: () => {
       toast.success("Recurrence updated");
       setEditPopupOpen(false);
+      setRepeatOverwritePayload(null);
       qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: any) => {
+      if (e.body && e.body.has_overlap) {
+        setRepeatOverwritePayload({
+          schedule_id: selectedSchedule!.id,
+          repeat_mode: editRepeatMode,
+          repeat_interval: editRepeatMode === "custom" ? editRepeatInterval : 1,
+          days_count: editRepeatMode === "none" ? 1 : editDaysCount,
+          start_time: editStartTime,
+          end_time: editEndTime,
+        });
+      } else {
+        toast.error(e.message || "An error occurred");
+      }
+    },
   });
 
   const bulkRepeatMut = useMutation({
     mutationFn: async (payload: {
-      schedule_ids: number[];
-      repeat_mode: RepeatMode;
-      repeat_interval: number;
-      days_count: number;
-    }) => {
-      await Promise.all(
-        payload.schedule_ids.map((id) =>
-          Schedules.repeat({
-            schedule_id: id,
-            repeat_mode: payload.repeat_mode,
-            repeat_interval: payload.repeat_interval,
-            days_count: payload.days_count,
-          })
-        )
-      );
+      source_date: string;
+      target_dates: string[];
+      overwrite?: boolean;
+    }) =>
+      Schedules.copyDay({
+        device_id: selectedDeviceId!,
+        source_date: payload.source_date,
+        target_dates: payload.target_dates,
+        overwrite: payload.overwrite,
+      }),
+    onSuccess: (data, variables) => {
+      if (data && data.has_existing) {
+        setBulkOverwriteDates(data.existing_dates || []);
+      } else {
+        toast.success("Day schedules replicated successfully");
+        setBulkRepeatOpen(false);
+        setBulkOverwriteDates(null);
+        qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+      }
     },
-    onSuccess: () => {
-      toast.success("Day schedules recurrence updated successfully");
-      setBulkRepeatOpen(false);
-      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
-    },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e) => toast.error(e.message),
   });
 
   const updateOccurrenceMut = useMutation({
@@ -1403,17 +1420,34 @@ function SchedulePage() {
             <Button
               className="w-full sm:w-auto"
               onClick={() => {
+                if (!bulkRepeatDate) return;
                 const dayInstanceSchedules = instances.filter(i => i.date === bulkRepeatDate);
-                const dayScheduleIds = Array.from(new Set(dayInstanceSchedules.map(i => i.schedule_id)));
-                if (dayScheduleIds.length === 0) {
+                if (dayInstanceSchedules.length === 0) {
                   toast.error("No schedules to repeat on this day");
                   return;
                 }
+
+                // Generate target dates list
+                const targetDates: string[] = [];
+                const baseDate = new Date(bulkRepeatDate + "T00:00:00");
+                const occurrences = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
+                const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
+
+                for (let i = 1; i < occurrences; i++) {
+                  const nextD = new Date(baseDate.getTime());
+                  nextD.setDate(baseDate.getDate() + i * interval);
+                  targetDates.push(toISO(nextD));
+                }
+
+                if (targetDates.length === 0) {
+                  toast.error("Please select a repeat pattern greater than 1 day");
+                  return;
+                }
+
                 bulkRepeatMut.mutate({
-                  schedule_ids: dayScheduleIds,
-                  repeat_mode: bulkRepeatMode,
-                  repeat_interval: bulkRepeatMode === "custom" ? bulkRepeatInterval : 1,
-                  days_count: bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount,
+                  source_date: bulkRepeatDate,
+                  target_dates: targetDates,
+                  overwrite: false,
                 });
               }}
               disabled={bulkRepeatMut.isPending}
@@ -1484,6 +1518,94 @@ function SchedulePage() {
               className="w-full text-xs text-muted-foreground"
             >
               Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Confirm Overwrite for Bulk Replication            */}
+      {/* ======================================================== */}
+      <Dialog open={bulkOverwriteDates !== null} onOpenChange={(open) => !open && setBulkOverwriteDates(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
+            <DialogDescription>
+              Schedules already exist on some of the target dates. Do you want to overwrite them?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (bulkRepeatDate) {
+                  const targetDates: string[] = [];
+                  const baseDate = new Date(bulkRepeatDate + "T00:00:00");
+                  const occurrences = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
+                  const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
+
+                  for (let i = 1; i < occurrences; i++) {
+                    const nextD = new Date(baseDate.getTime());
+                    nextD.setDate(baseDate.getDate() + i * interval);
+                    targetDates.push(toISO(nextD));
+                  }
+
+                  bulkRepeatMut.mutate({
+                    source_date: bulkRepeatDate,
+                    target_dates: targetDates,
+                    overwrite: true,
+                  });
+                }
+              }}
+              disabled={bulkRepeatMut.isPending}
+              className="w-full text-xs font-semibold"
+            >
+              Yes, Overwrite Them
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setBulkOverwriteDates(null)}
+              className="w-full text-xs border-white/10"
+            >
+              No, Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Confirm Overwrite for Recurrence Edit             */}
+      {/* ======================================================== */}
+      <Dialog open={repeatOverwritePayload !== null} onOpenChange={(open) => !open && setRepeatOverwritePayload(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
+            <DialogDescription>
+              This recurrence pattern overlaps with existing schedules on future dates. Do you want to overwrite those overlapping windows?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (repeatOverwritePayload) {
+                  repeatMut.mutate({
+                    ...repeatOverwritePayload,
+                    overwrite: true,
+                  });
+                }
+              }}
+              disabled={repeatMut.isPending}
+              className="w-full text-xs font-semibold"
+            >
+              Yes, Overwrite Conflicts
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setRepeatOverwritePayload(null)}
+              className="w-full text-xs border-white/10"
+            >
+              No, Cancel
             </Button>
           </div>
         </DialogContent>
