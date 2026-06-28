@@ -1139,47 +1139,12 @@ function SchedulePage() {
             </div>
           )}
 
-          <DialogFooter className="mt-4 gap-2 sm:gap-0 flex-wrap">
-            {/* Delete Buttons left aligned */}
-            {selectedSchedule && selectedSchedule.repeat_mode !== "none" ? (
-              <div className="flex gap-1.5 mr-auto">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 px-2.5 h-8"
-                  onClick={() => deleteMut.mutate({ id: selectedSchedule.id, date: selectedDate })}
-                  disabled={deleteMut.isPending}
-                >
-                  <Trash2 className="size-3 mr-1" /> Delete Day
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="text-[10px] bg-rose-500/20 border border-rose-500/30 text-rose-200 hover:bg-rose-500/30 font-semibold px-2.5 h-8"
-                  onClick={() => deleteMut.mutate({ id: selectedSchedule.id })}
-                  disabled={deleteMut.isPending}
-                >
-                  <Trash2 className="size-3 mr-1" /> Delete Series
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="destructive"
-                size="sm"
-                className="mr-auto text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 px-3 h-8"
-                onClick={() => deleteMut.mutate({ id: selectedSchedule!.id })}
-                disabled={deleteMut.isPending}
-              >
-                <Trash2 className="size-3 mr-1" /> Delete
-              </Button>
-            )}
-
-            {/* Cancel and Save Actions right aligned */}
-            <div className="flex gap-1.5 items-center w-full sm:w-auto mt-2 sm:mt-0 justify-end">
+          <div className="mt-6 pt-4 border-t border-white/5 space-y-4">
+            {/* Save Actions Row */}
+            <div className="flex justify-end gap-2">
               <Button
                 variant="outline"
-                size="sm"
-                className="border-white/10 text-xs h-8"
+                className="border-white/10 text-xs h-9 px-4"
                 onClick={() => setEditPopupOpen(false)}
               >
                 Cancel
@@ -1188,8 +1153,7 @@ function SchedulePage() {
               {selectedSchedule && selectedSchedule.repeat_mode !== "none" ? (
                 <>
                   <Button
-                    size="sm"
-                    className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-4"
                     onClick={() => {
                       updateOccurrenceMut.mutate({
                         id: selectedSchedule.id,
@@ -1204,8 +1168,7 @@ function SchedulePage() {
                     Save This Day
                   </Button>
                   <Button
-                    size="sm"
-                    className="text-xs h-8 bg-primary hover:bg-primary/95"
+                    className="text-xs h-9 bg-primary hover:bg-primary/95 px-4"
                     onClick={() => {
                       repeatMut.mutate({
                         schedule_id: selectedSchedule.id,
@@ -1223,8 +1186,7 @@ function SchedulePage() {
                 </>
               ) : (
                 <Button
-                  size="sm"
-                  className="text-xs h-8 bg-primary hover:bg-primary/95"
+                  className="text-xs h-9 bg-primary hover:bg-primary/95 px-4"
                   onClick={() => {
                     repeatMut.mutate({
                       schedule_id: selectedSchedule!.id,
@@ -1241,7 +1203,50 @@ function SchedulePage() {
                 </Button>
               )}
             </div>
-          </DialogFooter>
+
+            {/* Danger Zone Separator & Delete Row */}
+            {selectedSchedule && (
+              <div className="pt-3.5 border-t border-dashed border-white/5 flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold select-none">
+                  Danger Zone
+                </span>
+                <div className="flex gap-2">
+                  {selectedSchedule.repeat_mode !== "none" ? (
+                    <>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 h-8 px-3"
+                        onClick={() => deleteMut.mutate({ id: selectedSchedule.id, date: selectedDate })}
+                        disabled={deleteMut.isPending}
+                      >
+                        <Trash2 className="size-3.5 mr-1" /> Delete Day
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="text-[10px] bg-rose-500/20 border border-rose-500/30 text-rose-200 hover:bg-rose-500/30 font-semibold h-8 px-3"
+                        onClick={() => deleteMut.mutate({ id: selectedSchedule.id })}
+                        disabled={deleteMut.isPending}
+                      >
+                        <Trash2 className="size-3.5 mr-1" /> Delete Series
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 h-8 px-3.5"
+                      onClick={() => deleteMut.mutate({ id: selectedSchedule.id })}
+                      disabled={deleteMut.isPending}
+                    >
+                      <Trash2 className="size-3.5 mr-1" /> Delete Schedule
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
