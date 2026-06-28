@@ -141,6 +141,31 @@ function SchedulePage() {
   const [editStartTime, setEditStartTime] = React.useState("09:00");
   const [editEndTime, setEditEndTime] = React.useState("17:00");
 
+  // Bulk repeat day schedules state
+  const [bulkRepeatOpen, setBulkRepeatOpen] = React.useState(false);
+  const [bulkRepeatDate, setBulkRepeatDate] = React.useState<string | null>(null);
+  const [bulkRepeatMode, setBulkRepeatMode] = React.useState<RepeatMode>("none");
+  const [bulkRepeatInterval, setBulkRepeatInterval] = React.useState(1);
+  const [bulkRepeatDaysCount, setBulkRepeatDaysCount] = React.useState(6);
+
+  const getBulkRecurrenceRangeText = () => {
+    if (!bulkRepeatDate) return "";
+    const start = new Date(bulkRepeatDate + "T00:00:00");
+    const totalDays = bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount;
+    const interval = bulkRepeatMode === "custom" ? bulkRepeatInterval : 1;
+
+    const end = new Date(start.getTime());
+    end.setDate(start.getDate() + (totalDays - 1) * interval);
+
+    const startStr = start.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const endStr = end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+
+    if (bulkRepeatMode === "none") {
+      return `Occurs only on ${startStr}`;
+    }
+    return `Repeats from ${startStr} to ${endStr} (${totalDays} occurrences)`;
+  };
+
   const getRecurrenceRangeText = () => {
     if (!selectedSchedule) return "";
     const start = new Date(selectedSchedule.start_date + "T00:00:00");
@@ -256,6 +281,32 @@ function SchedulePage() {
       qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
     },
     onError: (e) => toast.error(e.message),
+  });
+
+  const bulkRepeatMut = useMutation({
+    mutationFn: async (payload: {
+      schedule_ids: number[];
+      repeat_mode: RepeatMode;
+      repeat_interval: number;
+      days_count: number;
+    }) => {
+      await Promise.all(
+        payload.schedule_ids.map((id) =>
+          Schedules.repeat({
+            schedule_id: id,
+            repeat_mode: payload.repeat_mode,
+            repeat_interval: payload.repeat_interval,
+            days_count: payload.days_count,
+          })
+        )
+      );
+    },
+    onSuccess: () => {
+      toast.success("Day schedules recurrence updated successfully");
+      setBulkRepeatOpen(false);
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   // Handle global mouse move & mouse up for Drag-Move / Drag-Resize gestures
@@ -661,7 +712,14 @@ function SchedulePage() {
                   return (
                     <div
                       key={idx}
-                      onClick={() => setSelectedDate(dateIso)}
+                      onClick={() => {
+                        setSelectedDate(dateIso);
+                        setBulkRepeatDate(dateIso);
+                        setBulkRepeatMode("none");
+                        setBulkRepeatInterval(1);
+                        setBulkRepeatDaysCount(6);
+                        setBulkRepeatOpen(true);
+                      }}
                       className={cn(
                         "flex flex-col items-center justify-center text-center py-1 cursor-pointer transition-colors hover:bg-white/5",
                         isSelected && "bg-emerald-500/5",
@@ -1063,6 +1121,180 @@ function SchedulePage() {
               disabled={repeatMut.isPending}
             >
               <Repeat className="size-3.5 mr-1.5" /> Save Recurrence
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Bulk Repeat Day Schedules                         */}
+      {/* ======================================================== */}
+      <Dialog open={bulkRepeatOpen} onOpenChange={setBulkRepeatOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Repeat Day Schedule</DialogTitle>
+            <DialogDescription>
+              Configure the recurrence rule to copy all templates scheduled on this date to other days.
+            </DialogDescription>
+          </DialogHeader>
+
+          {bulkRepeatDate && (
+            <div className="space-y-4 pt-2">
+              {/* Day Schedules List */}
+              <div className="bg-white/5 border border-white/5 rounded-xl p-3 space-y-2">
+                <div className="text-xs text-muted-foreground font-semibold">
+                  Scheduled Templates on {new Date(bulkRepeatDate + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}:
+                </div>
+                
+                {(() => {
+                  const dayInstanceSchedules = instances.filter(i => i.date === bulkRepeatDate);
+                  const dayScheduleIds = Array.from(new Set(dayInstanceSchedules.map(i => i.schedule_id)));
+                  const targetSchedules = schedules.filter(s => dayScheduleIds.includes(s.id));
+
+                  if (targetSchedules.length === 0) {
+                    return (
+                      <div className="text-xs text-muted-foreground italic">
+                        No templates scheduled on this day. Add templates to the calendar grid first.
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+                      {targetSchedules.map((s) => {
+                        const color = templateColor.get(s.template_id) || "oklch(0.76 0.17 210)";
+                        return (
+                          <div key={s.id} className="flex items-center justify-between text-xs">
+                            <div className="font-medium text-foreground flex items-center gap-1.5">
+                              <span className="size-1.5 rounded-full" style={{ background: color }} />
+                              {s.template_name}
+                            </div>
+                            <div className="text-muted-foreground font-mono">
+                              {s.start_time.slice(0, 5)} - {s.end_time.slice(0, 5)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Recurrence Mode Selector */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground font-semibold">Repeat Pattern</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      ["none", "No Repeat"],
+                      ["daily", "Daily"],
+                      ["custom", "Every X Days"],
+                    ] as Array<[RepeatMode, string]>
+                  ).map(([k, l]) => (
+                    <button
+                      key={k}
+                      onClick={() => setBulkRepeatMode(k)}
+                      className={cn(
+                        "py-2 rounded-xl text-xs border font-medium transition-all",
+                        bulkRepeatMode === k
+                          ? "bg-primary/20 border-primary/40 text-foreground"
+                          : "bg-white/5 border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Interval settings */}
+              {bulkRepeatMode === "custom" && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <Label className="text-xs text-muted-foreground font-semibold">Repeat Interval</Label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Every</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={bulkRepeatInterval}
+                      onChange={(e) => setBulkRepeatInterval(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-20 bg-white/5 border-white/10 h-8 text-center text-xs"
+                    />
+                    <span className="text-xs text-muted-foreground">days</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Occurrences / Days count limit */}
+              {bulkRepeatMode !== "none" && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <Label className="text-xs text-muted-foreground font-semibold">Repeat For</Label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {[1, 6, 12, 30].map((num) => (
+                      <button
+                        key={num}
+                        onClick={() => setBulkRepeatDaysCount(num)}
+                        className={cn(
+                          "px-3 py-1 rounded-md text-xs border transition-colors",
+                          bulkRepeatDaysCount === num
+                            ? "bg-white/15 border-white/20 text-foreground"
+                            : "bg-white/5 border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                        )}
+                      >
+                        {num} day{num > 1 ? "s" : ""}
+                      </button>
+                    ))}
+                    <div className="flex items-center gap-1.5 ml-auto">
+                      <span className="text-xs text-muted-foreground">Custom:</span>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={365}
+                        value={bulkRepeatDaysCount}
+                        onChange={(e) => setBulkRepeatDaysCount(Math.max(1, Number(e.target.value) || 1))}
+                        className="w-16 bg-white/5 border-white/10 h-8 text-center text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Dynamic Range Summary */}
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-3 text-xs text-muted-foreground flex items-center gap-2 mt-2">
+                <Info className="size-4 text-primary shrink-0" />
+                <span>{getBulkRecurrenceRangeText()}</span>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="mt-4 gap-2">
+            <Button
+              variant="outline"
+              className="border-white/10 w-full sm:w-auto"
+              onClick={() => setBulkRepeatOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="w-full sm:w-auto"
+              onClick={() => {
+                const dayInstanceSchedules = instances.filter(i => i.date === bulkRepeatDate);
+                const dayScheduleIds = Array.from(new Set(dayInstanceSchedules.map(i => i.schedule_id)));
+                if (dayScheduleIds.length === 0) {
+                  toast.error("No schedules to repeat on this day");
+                  return;
+                }
+                bulkRepeatMut.mutate({
+                  schedule_ids: dayScheduleIds,
+                  repeat_mode: bulkRepeatMode,
+                  repeat_interval: bulkRepeatMode === "custom" ? bulkRepeatInterval : 1,
+                  days_count: bulkRepeatMode === "none" ? 1 : bulkRepeatDaysCount,
+                });
+              }}
+              disabled={bulkRepeatMut.isPending}
+            >
+              <Repeat className="size-3.5 mr-1.5" /> Save Day Recurrence
             </Button>
           </DialogFooter>
         </DialogContent>
