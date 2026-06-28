@@ -1261,8 +1261,15 @@ app.get(
     const fallback = drows[0].template_id;
 
     const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const hhmm = now.toTimeString().slice(0, 8); // format: HH:MM:SS
+    const y = now.getFullYear();
+    const mo = String(now.getMonth() + 1).padStart(2, "0");
+    const da = String(now.getDate()).padStart(2, "0");
+    const today = `${y}-${mo}-${da}`;
+
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mi = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const hhmm = `${hh}:${mi}:${ss}`;
 
     const [activeRows] = await pool.query(
       `SELECT template_id FROM schedule_instances
