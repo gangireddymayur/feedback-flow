@@ -366,10 +366,10 @@ function SchedulePage() {
   });
 
   const updateDeviceSchedulesMode = useMutation({
-    mutationFn: async (disable: boolean) => {
+    mutationFn: async (enabled: boolean) => {
       if (!selectedDeviceId) return;
       await Devices.update(selectedDeviceId, {
-        schedules_enabled: !disable,
+        schedules_enabled: enabled,
       });
     },
     onSuccess: () => {
@@ -871,6 +871,7 @@ function SchedulePage() {
                     <div
                       key={idx}
                       onClick={() => {
+                        if (!schedulesEnabled) return;
                         setSelectedDate(dateIso);
                         setBulkRepeatDate(dateIso);
                         setBulkRepeatMode("none");
@@ -879,7 +880,10 @@ function SchedulePage() {
                         setBulkRepeatOpen(true);
                       }}
                       className={cn(
-                        "flex flex-col items-center justify-center text-center py-1 cursor-pointer transition-colors hover:bg-white/5",
+                        "flex flex-col items-center justify-center text-center py-1 transition-colors",
+                        !schedulesEnabled
+                          ? "opacity-40 cursor-not-allowed pointer-events-none"
+                          : "cursor-pointer hover:bg-white/5",
                         isSelected && "bg-emerald-500/5",
                         isCurrent && "bg-primary/5"
                       )}
@@ -936,7 +940,12 @@ function SchedulePage() {
               {/* Day Columns containing blocks */}
               <div className="grid grid-cols-7 relative divide-x divide-white/5 min-h-[1440px] bg-white/[0.005]">
                 {!schedulesEnabled && (
-                  <div className="absolute inset-0 bg-black/75 backdrop-blur-[1px] z-[60] flex flex-col items-center justify-center text-center p-4 select-none">
+                  <div
+                    onClick={() => {
+                      toast.info(`Device is running its default fallback template: ${selectedDevice?.template_id ? templates.find(t => t.id === selectedDevice.template_id)?.name || 'Survey' : 'None'}. Turn on "Enable Scheduling" in the sidebar to configure the timeline.`);
+                    }}
+                    className="absolute inset-0 bg-black/75 backdrop-blur-[1px] z-[60] flex flex-col items-center justify-center text-center p-4 select-none cursor-pointer"
+                  >
                     <SlidersHorizontal className="size-8 text-amber-500/80 mb-2 animate-pulse" />
                     <h4 className="text-sm font-semibold text-foreground">Schedules Disabled</h4>
                     <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
