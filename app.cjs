@@ -213,7 +213,7 @@ async function createPairingCode(ownerId = null) {
 }
 
 // ---------------- public tablet pairing ----------------
-app.post(
+app.all(
   "/api/public/devices/request-code",
   asyncH(async (_req, res) => {
     res.json(await createPairingCode(null));
