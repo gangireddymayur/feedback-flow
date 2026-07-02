@@ -38,7 +38,7 @@ function SettingsPage() {
   const [formState, setFormState] = React.useState({
     name: "",
     organization: "",
-    timezone: "UTC",
+    timezone: "IST",
     avatar_url: "",
     show_brand_header: 0,
   });
@@ -50,7 +50,7 @@ function SettingsPage() {
     setFormState({
       name: auth.name,
       organization: profileQ.data?.profile.organization ?? "",
-      timezone: profileQ.data?.profile.timezone ?? "UTC",
+      timezone: "IST",
       avatar_url: profileQ.data?.profile.avatar_url ?? "",
       show_brand_header: profileQ.data?.profile.show_brand_header ?? 0,
     });
@@ -60,7 +60,7 @@ function SettingsPage() {
     if (!profileQ.data) return null;
     return {
       organization: profileQ.data.profile.organization ?? "",
-      timezone: profileQ.data.profile.timezone ?? "UTC",
+      timezone: "IST",
       avatar_url: profileQ.data.profile.avatar_url ?? "",
       show_brand_header: profileQ.data.profile.show_brand_header ?? 0,
     };
@@ -70,7 +70,6 @@ function SettingsPage() {
     if (!originalState) return false;
     return (
       formState.organization !== originalState.organization ||
-      formState.timezone !== originalState.timezone ||
       formState.avatar_url !== originalState.avatar_url ||
       formState.show_brand_header !== originalState.show_brand_header
     );
@@ -80,7 +79,7 @@ function SettingsPage() {
     mutationFn: () =>
       Profile.update({
         organization: formState.organization,
-        timezone: formState.timezone,
+        timezone: "IST",
         avatar_url: formState.avatar_url || null,
         show_brand_header: formState.show_brand_header,
       }),
@@ -168,7 +167,7 @@ function SettingsPage() {
                     setFormState((prev) => ({
                       ...prev,
                       organization: originalState.organization,
-                      timezone: originalState.timezone,
+                      timezone: "IST",
                       avatar_url: originalState.avatar_url,
                       show_brand_header: originalState.show_brand_header,
                     }));
@@ -202,26 +201,8 @@ function SettingsPage() {
               onChange={(e) => setFormState({ ...formState, organization: e.target.value })}
               disabled={!isEditing}
               placeholder="Your company/org name"
-              className={!isEditing ? "bg-white/[0.02] border-white/5 opacity-80" : ""}
+              className={`md:col-span-2 ${!isEditing ? "bg-white/[0.02] border-white/5 opacity-80" : ""}`}
             />
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">Timezone</Label>
-              <select
-                value={formState.timezone}
-                onChange={(e) => setFormState({ ...formState, timezone: e.target.value })}
-                disabled={!isEditing}
-                className={`w-full bg-white/5 border rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none transition-all ${
-                  !isEditing ? "opacity-80 border-white/5 bg-transparent" : "border-white/10 focus:ring-1 focus:ring-primary/40"
-                }`}
-              >
-                <option value="UTC" className="bg-zinc-950">UTC</option>
-                <option value="GMT" className="bg-zinc-950">GMT</option>
-                <option value="EST" className="bg-zinc-950">EST</option>
-                <option value="CST" className="bg-zinc-950">CST</option>
-                <option value="PST" className="bg-zinc-950">PST</option>
-                <option value="IST" className="bg-zinc-950">IST</option>
-              </select>
-            </div>
           </div>
 
           {/* Logo upload and preview */}
