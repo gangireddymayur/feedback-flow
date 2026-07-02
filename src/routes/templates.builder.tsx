@@ -56,6 +56,9 @@ import { cn } from "@/lib/utils";
 
 const builderSearchSchema = z.object({
   templateId: z.coerce.number().optional(),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
 });
 
 const ALL_EMOJIS = [
@@ -145,10 +148,10 @@ function makeQuestion(type: QuestionType, page = 1): BuilderQuestion {
 function BuilderPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { templateId } = Route.useSearch();
+  const { templateId, name: qName, description: qDesc, category: qCat } = Route.useSearch();
 
-  const [name, setName] = React.useState("Untitled Template");
-  const [description, setDescription] = React.useState("");
+  const [name, setName] = React.useState(qName || "Untitled Template");
+  const [description, setDescription] = React.useState(qDesc || "");
   const [displayMode, setDisplayMode] = React.useState<"multi_page" | "single_page">("multi_page");
 
   const [activePage, setActivePage] = React.useState<number>(1);
@@ -334,7 +337,7 @@ function BuilderPage() {
         await Templates.create({
           name,
           description,
-          category: "General",
+          category: qCat || "General",
           status: publish ? "active" : "draft",
           displayMode,
           questions,

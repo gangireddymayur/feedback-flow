@@ -1,4 +1,5 @@
-import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import * as React from "react";
+import { createFileRoute, Link, Outlet, useRouterState, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, MoreHorizontal, Trash2, Loader2, Power, PowerOff, Copy, Edit2 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
@@ -12,6 +13,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Templates, ApiTemplate } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -20,6 +31,30 @@ export const Route = createFileRoute("/templates")({ component: TemplatesPage })
 function TemplatesPage() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const qc = useQueryClient();
+  const router = useRouter();
+
+  const [open, setOpen] = React.useState(false);
+  const [newName, setNewName] = React.useState("");
+  const [newDesc, setNewDesc] = React.useState("");
+  const [newCat, setNewCat] = React.useState("General");
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setOpen(false);
+    router.navigate({
+      to: "/templates/builder",
+      search: {
+        name: newName,
+        description: newDesc,
+        category: newCat,
+      },
+    });
+    setNewName("");
+    setNewDesc("");
+    setNewCat("General");
+  };
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["templates"],
     queryFn: () => Templates.list(),
@@ -32,21 +67,22 @@ function TemplatesPage() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
-  const setStatusMut = useMutation({
-    mutationFn: ({
-      id,
-      status,
-      t,
-    }: {
-      id: number;
-      status: "active" | "draft" | "inactive";
-      t: ApiTemplate;
-    }) =>
-      Templates.update(id, {
+  const updateStatus = useMutation({
+    mutationFn: (args: { id: number; status: "active" | "inactive" }) =>
+      Templates.update(args.id, { status: args.status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["templates"] });
+      toast.success("Status updated");
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const update = useMutation({
+    mutationFn: (t: ApiTemplate) =>
+      Templates.update(t.id, {
         name: t.name,
         description: t.description,
         category: t.category,
-        status,
+        status: t.status,
         questions: t.questions ?? [],
       }),
     onSuccess: () => {
@@ -81,13 +117,78 @@ function TemplatesPage() {
         title="Templates"
         description="Drag-and-drop review forms — unlimited questions, live preview."
         actions={
-          <Button asChild>
-            <Link to="/templates/builder">
-              <Plus className="size-4" /> New Template
-            </Link>
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="size-4" /> New Template
           </Button>
         }
       />
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md bg-zinc-950 border-zinc-800 text-foreground">
+          <DialogHeader>
+            <DialogTitle>Create New Template</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">
+              Give your new feedback template a name and category to start designing.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreate} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="tpl-name" className="text-xs text-muted-foreground font-semibold">
+                Template Name
+              </Label>
+              <Input
+                id="tpl-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Cafe Dining Review"
+                required
+                className="bg-white/5 border-white/10 text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="tpl-cat" className="text-xs text-muted-foreground font-semibold">
+                Category
+              </Label>
+              <select
+                id="tpl-cat"
+                value={newCat}
+                onChange={(e) => setNewCat(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
+              >
+                <option value="General" className="bg-[#0d0f12]">General</option>
+                <option value="F&B" className="bg-[#0d0f12]">F&B (Dining)</option>
+                <option value="Retail" className="bg-[#0d0f12]">Retail / Shopping</option>
+                <option value="Hospitality" className="bg-[#0d0f12]">Hospitality / Hotel</option>
+                <option value="Services" className="bg-[#0d0f12]">Services / Salon</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="tpl-desc" className="text-xs text-muted-foreground font-semibold">
+                Description (Optional)
+              </Label>
+              <Textarea
+                id="tpl-desc"
+                value={newDesc}
+                onChange={(e) => setNewDesc(e.target.value)}
+                placeholder="Brief description of this customer survey..."
+                className="bg-white/5 border-white/10 text-xs min-h-16 resize-none"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-white/5 pt-3 mt-4">
+              <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)} className="h-8 text-xs border-white/10">
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" className="h-8 text-xs font-semibold bg-primary hover:bg-primary/95 text-primary-foreground">
+                Start Building
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {isLoading && <LoadingState />}
       {error && <ErrorState message={(error as Error).message} />}
