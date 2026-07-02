@@ -474,3 +474,19 @@ export const Screensavers = {
     });
   },
 };
+
+// =================================================================
+// Backup & Restore
+// =================================================================
+
+export const Backup = {
+  download: async (): Promise<any> => {
+    return await http<any>("/backup");
+  },
+  restore: async (payload: any): Promise<{ ok: true }> => {
+    return await http<{ ok: true }>("/restore", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+};

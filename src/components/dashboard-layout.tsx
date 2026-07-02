@@ -19,6 +19,14 @@ import { cn } from "@/lib/utils";
 import { getAuth, useAuth, logout } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useQuery } from "@tanstack/react-query";
+import { Templates, Devices } from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type NavItem = {
   to: string;
@@ -49,6 +57,50 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+
+  // Keyboard listener for Cmd+K / Ctrl+K
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const { data: tData } = useQuery({
+    queryKey: ["templates-search"],
+    queryFn: () => Templates.list(),
+    enabled: searchOpen && auth?.role === "sub",
+  });
+  const { data: dData } = useQuery({
+    queryKey: ["devices-search"],
+    queryFn: () => Devices.list(),
+    enabled: searchOpen && auth?.role === "sub",
+  });
+
+  const templates = tData?.templates ?? [];
+  const devices = dData?.devices ?? [];
+
+  const filteredTemplates = templates.filter((t) =>
+    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (t.description || "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredDevices = devices.filter((d) =>
+    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (d.location || "").toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const navigateTo = (to: string, search?: any) => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    router.navigate({ to, search });
+  };
 
   React.useEffect(() => {
     if (typeof window !== "undefined" && getAuth() === null) {
@@ -112,11 +164,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 min-w-0 p-4 lg:p-6 lg:pl-0">
         <header className="glass rounded-2xl px-4 py-3 flex items-center gap-3 mb-6">
-          <div className="relative flex-1 max-w-xl">
+          <div className="relative flex-1 max-w-xl cursor-pointer" onClick={() => setSearchOpen(true)}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
-              placeholder="Search templates, devices, responses…"
-              className="pl-9 bg-white/5 border-white/10 focus-visible:ring-primary/40"
+              readOnly
+              placeholder={auth.role === "sub" ? "Search templates, devices… (⌘K)" : "Search analytics & reports… (⌘K)"}
+              className="pl-9 bg-white/5 border-white/10 focus-visible:ring-primary/40 cursor-pointer text-xs h-9"
             />
           </div>
           <Button variant="ghost" size="icon" className="relative">
@@ -129,6 +182,109 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </header>
         <div className="space-y-6">{children}</div>
       </main>
+
+      <Dialog open={searchOpen} onOpenChange={(openVal) => {
+        setSearchOpen(openVal);
+        if (!openVal) setSearchQuery("");
+      }}>
+        <DialogContent className="max-w-lg bg-zinc-950 border-zinc-800 text-foreground p-0 overflow-hidden">
+          <div className="flex items-center border-b border-white/10 px-3 py-3">
+            <Search className="size-4 text-muted-foreground mr-2 shrink-0" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Type template or device name to search…"
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+              autoFocus
+            />
+          </div>
+
+          <div className="max-h-[300px] overflow-y-auto p-2 space-y-4">
+            {auth.role === "sub" ? (
+              <>
+                <div className="space-y-1">
+                  <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Templates
+                  </div>
+                  {filteredTemplates.length === 0 ? (
+                    <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                      No matching templates found
+                    </div>
+                  ) : (
+                    filteredTemplates.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => navigateTo("/templates/builder", { templateId: t.id })}
+                        className="w-full text-left px-2 py-2 text-xs rounded-xl hover:bg-white/5 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FileText className="size-3.5 text-primary shrink-0" />
+                          <span className="font-medium truncate">{t.name}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground uppercase bg-white/5 px-1.5 py-0.5 rounded">{t.category}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Devices
+                  </div>
+                  {filteredDevices.length === 0 ? (
+                    <div className="px-2 py-3 text-xs text-muted-foreground text-center">
+                      No matching devices found
+                    </div>
+                  ) : (
+                    filteredDevices.map((d) => (
+                      <button
+                        key={d.id}
+                        onClick={() => navigateTo("/devices")}
+                        className="w-full text-left px-2 py-2 text-xs rounded-xl hover:bg-white/5 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Smartphone className="size-3.5 text-emerald-400 shrink-0" />
+                          <span className="font-medium truncate">{d.name}</span>
+                        </div>
+                        {d.location && (
+                          <span className="text-[10px] text-muted-foreground truncate">{d.location}</span>
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="space-y-1">
+                <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Navigation
+                </div>
+                <button
+                  onClick={() => navigateTo("/reports")}
+                  className="w-full text-left px-2 py-2 text-xs rounded-xl hover:bg-white/5 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <FileText className="size-3.5 text-primary shrink-0" />
+                  <span className="font-medium">Go to Reports</span>
+                </button>
+                <button
+                  onClick={() => navigateTo("/analytics")}
+                  className="w-full text-left px-2 py-2 text-xs rounded-xl hover:bg-white/5 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <BarChart3 className="size-3.5 text-sky-400 shrink-0" />
+                  <span className="font-medium">Go to Analytics</span>
+                </button>
+                <button
+                  onClick={() => navigateTo("/settings")}
+                  className="w-full text-left px-2 py-2 text-xs rounded-xl hover:bg-white/5 flex items-center gap-2 transition-colors cursor-pointer"
+                >
+                  <Settings className="size-3.5 text-muted-foreground shrink-0" />
+                  <span className="font-medium">Go to Settings</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

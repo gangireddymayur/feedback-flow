@@ -1826,6 +1826,199 @@ app.delete(
   })
 );
 
+// GET /api/backup (Download full user database segment)
+app.get(
+  "/api/backup",
+  auth(),
+  asyncH(async (req, res) => {
+    const userId = req.user.id;
+
+    const [profile] = await pool.query(
+      "SELECT organization, timezone, avatar_url, show_brand_header FROM user_profiles WHERE user_id = ? LIMIT 1",
+      [userId]
+    );
+
+    const [templates] = await pool.query(
+      "SELECT id, name, description, category, status, questions, display_mode, branding FROM templates WHERE owner_id = ?",
+      [userId]
+    );
+
+    const [devices] = await pool.query(
+      "SELECT id, name, location, status, android_version, template_id, schedules_enabled FROM devices WHERE owner_id = ?",
+      [userId]
+    );
+
+    const [screensavers] = await pool.query(
+      "SELECT id, name, url, type, is_active, timeout_seconds FROM screensavers WHERE owner_id = ?",
+      [userId]
+    );
+
+    const [schedules] = await pool.query(
+      "SELECT id, device_id, template_id, start_time, end_time, start_date FROM schedules WHERE owner_id = ?",
+      [userId]
+    );
+
+    const scheduleIds = schedules.map(s => s.id);
+    let recurrences = [];
+    let instances = [];
+    if (scheduleIds.length > 0) {
+      const [recRows] = await pool.query(
+        "SELECT schedule_id, repeat_mode, repeat_interval, days_count FROM schedule_recurrences WHERE schedule_id IN (?)",
+        [scheduleIds]
+      );
+      recurrences = recRows;
+
+      const [instRows] = await pool.query(
+        "SELECT schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime FROM schedule_instances WHERE schedule_id IN (?)",
+        [scheduleIds]
+      );
+      instances = instRows;
+    }
+
+    const templateIds = templates.map(t => t.id);
+    const deviceIds = devices.map(d => d.id);
+    let responses = [];
+    if (templateIds.length > 0 || deviceIds.length > 0) {
+      let respQuery = "SELECT id, template_id, device_id, rating, answers, duration_seconds, submitted_at FROM responses WHERE 1=0";
+      const respParams = [];
+      if (templateIds.length > 0) {
+        respQuery += " OR template_id IN (?)";
+        respParams.push(templateIds);
+      }
+      if (deviceIds.length > 0) {
+        respQuery += " OR device_id IN (?)";
+        respParams.push(deviceIds);
+      }
+      const [respRows] = await pool.query(respQuery, respParams);
+      responses = respRows;
+    }
+
+    res.json({
+      version: 1,
+      profile: profile[0] || null,
+      templates,
+      devices,
+      screensavers,
+      schedules,
+      recurrences,
+      instances,
+      responses
+    });
+  })
+);
+
+// POST /api/restore (Upload and reconstruct user database segment mapping IDs dynamically)
+app.post(
+  "/api/restore",
+  auth(),
+  asyncH(async (req, res) => {
+    const userId = req.user.id;
+    const { profile, templates = [], devices = [], screensavers = [], schedules = [], recurrences = [], instances = [], responses = [] } = req.body || {};
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // 1. Restore Profile
+      if (profile) {
+        await conn.query(
+          `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header)
+           VALUES (?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url), show_brand_header=VALUES(show_brand_header)`,
+          [userId, profile.organization, profile.timezone || "IST", profile.avatar_url, profile.show_brand_header || 0]
+        );
+      }
+
+      // 2. Restore Templates & map IDs
+      const templateIdMap = {}; // oldTemplateId -> newTemplateId
+      for (const t of templates) {
+        const [r] = await conn.query(
+          "INSERT INTO templates (owner_id, name, description, category, status, questions, display_mode, branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [userId, t.name, t.description || "", t.category || "General", t.status || "draft", JSON.stringify(parseJson(t.questions, [])), t.display_mode || "multi_page", JSON.stringify(parseJson(t.branding, null))]
+        );
+        templateIdMap[t.id] = r.insertId;
+      }
+
+      // 3. Restore Devices & map IDs
+      const deviceIdMap = {}; // oldDeviceId -> newDeviceId
+      for (const d of devices) {
+        const mappedTemplateId = d.template_id ? (templateIdMap[d.template_id] || null) : null;
+        const [r] = await conn.query(
+          "INSERT INTO devices (owner_id, name, location, status, android_version, template_id, schedules_enabled) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [userId, d.name, d.location || null, d.status || "offline", d.android_version || "Android 14", mappedTemplateId, d.schedules_enabled !== undefined ? d.schedules_enabled : 1]
+        );
+        deviceIdMap[d.id] = r.insertId;
+      }
+
+      // 4. Restore Screensavers
+      for (const s of screensavers) {
+        await conn.query(
+          "INSERT INTO screensavers (owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, ?, ?)",
+          [userId, s.name, s.url, s.type || "image", s.is_active || 0, s.timeout_seconds || 300]
+        );
+      }
+
+      // 5. Restore Schedules & Recurrences & map IDs
+      const scheduleIdMap = {}; // oldScheduleId -> newScheduleId
+      for (const s of schedules) {
+        const newDevId = deviceIdMap[s.device_id];
+        const newTplId = templateIdMap[s.template_id];
+        if (!newDevId || !newTplId) continue;
+
+        const [r] = await conn.query(
+          "INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date) VALUES (?, ?, ?, ?, ?, ?)",
+          [newDevId, newTplId, userId, s.start_time, s.end_time, s.start_date]
+        );
+        scheduleIdMap[s.id] = r.insertId;
+      }
+
+      // 6. Restore Recurrence config
+      for (const rec of recurrences) {
+        const newSchId = scheduleIdMap[rec.schedule_id];
+        if (!newSchId) continue;
+        await conn.query(
+          "INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count) VALUES (?, ?, ?, ?)",
+          [newSchId, rec.repeat_mode || "none", rec.repeat_interval || 1, rec.days_count || 1]
+        );
+      }
+
+      // 7. Restore Schedule Instances
+      for (const inst of instances) {
+        const newSchId = scheduleIdMap[inst.schedule_id];
+        const newDevId = deviceIdMap[inst.device_id];
+        const newTplId = templateIdMap[inst.template_id];
+        if (!newSchId || !newDevId || !newTplId) continue;
+
+        await conn.query(
+          `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [newSchId, newDevId, newTplId, inst.date, inst.start_time, inst.end_time, inst.start_datetime, inst.end_datetime]
+        );
+      }
+
+      // 8. Restore Responses
+      for (const resp of responses) {
+        const newTplId = templateIdMap[resp.template_id];
+        const newDevId = resp.device_id ? (deviceIdMap[resp.device_id] || null) : null;
+        if (!newTplId) continue;
+
+        await conn.query(
+          "INSERT INTO responses (template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [newTplId, newDevId, resp.rating, JSON.stringify(parseJson(resp.answers, {})), resp.duration_seconds || 0, resp.submitted_at]
+        );
+      }
+
+      await conn.commit();
+      res.json({ ok: true });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  })
+);
+
 app.use("/api", (err, _req, res, _next) => {
   console.error("[api error]", err);
   res.status(500).json({ error: err.message || "Server error" });

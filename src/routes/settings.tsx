@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useAuth, logout } from "@/lib/auth-store";
-import { Auth, Profile, Upload } from "@/lib/api";
+import { Auth, Profile, Upload, Backup } from "@/lib/api";
 import { toast } from "sonner";
 import { LogOut, Edit2, X, Save, Image as ImageIcon, Loader2 } from "lucide-react";
 import {
@@ -137,6 +137,52 @@ function SettingsPage() {
     logout();
     router.navigate({ to: "/login" });
   }
+
+  const [restoring, setRestoring] = React.useState(false);
+
+  const handleDownloadBackup = async () => {
+    try {
+      const data = await Backup.download();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.href = url;
+      link.download = `reviewos_backup_${dateStr}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("Backup downloaded successfully");
+    } catch (err) {
+      toast.error("Failed to generate backup: " + (err as Error).message);
+    }
+  };
+
+  const handleRestoreBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ok = window.confirm(
+      "WARNING: Restoring backup will import all templates, devices, responses, and schedules from the file. Do you want to proceed?"
+    );
+    if (!ok) return;
+
+    setRestoring(true);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      await Backup.restore(payload);
+      toast.success("Data restored successfully! Refreshing dashboard...");
+      qc.invalidateQueries();
+      router.invalidate();
+    } catch (err) {
+      toast.error("Failed to restore backup: " + (err as Error).message);
+    } finally {
+      setRestoring(false);
+      e.target.value = "";
+    }
+  };
 
   if (!auth) return null;
 
@@ -293,6 +339,30 @@ function SettingsPage() {
               <Button className="w-full mt-2 h-9 text-xs" onClick={onChangePassword} disabled={changePw.isPending}>
                 {changePw.isPending ? "Updating…" : "Update Password"}
               </Button>
+            </div>
+          </GlassCard>
+
+          {/* Backup & Restore Card */}
+          <GlassCard>
+            <h3 className="font-semibold text-lg mb-1">Backup & Restore</h3>
+            <p className="text-xs text-muted-foreground mb-4">Export or import your complete account data (templates, devices, and responses).</p>
+            <div className="space-y-3">
+              <Button variant="outline" className="w-full h-9 text-xs border-white/10" onClick={handleDownloadBackup}>
+                Download Backup
+              </Button>
+              <div className="relative">
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleRestoreBackup}
+                  disabled={restoring}
+                  className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                  id="backup-file-input"
+                />
+                <Button variant="outline" className="w-full h-9 text-xs border-white/10" disabled={restoring}>
+                  {restoring ? "Restoring Data…" : "Upload Backup File"}
+                </Button>
+              </div>
             </div>
           </GlassCard>
 
