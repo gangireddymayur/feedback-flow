@@ -483,6 +483,7 @@ function BuilderPage() {
                 </div>
               </div>
 
+              {/*
               <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
                 <div>
                   <Label className="text-xs font-semibold text-foreground">Template Settings & Branding</Label>
@@ -497,8 +498,9 @@ function BuilderPage() {
                   Edit Branding
                 </Button>
               </div>
+              */}
             </GlassCard>
-
+ 
             <Canvas
               questions={questions}
               selectedId={selectedId}
@@ -514,7 +516,7 @@ function BuilderPage() {
               branding={branding}
             />
           </div>
-
+ 
           {/* Inspector */}
           <GlassCard className="col-span-12 lg:col-span-3 p-4 h-fit lg:sticky lg:top-6">
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -523,7 +525,8 @@ function BuilderPage() {
             {selected ? (
               <Inspector q={selected} onChange={updateSelected} />
             ) : (
-              <BrandingInspector branding={branding} onChange={setBranding} />
+              /* <BrandingInspector branding={branding} onChange={setBranding} /> */
+              <p className="text-xs text-muted-foreground">Select a question card on the canvas to customize its settings.</p>
             )}
           </GlassCard>
         </div>
