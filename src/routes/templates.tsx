@@ -67,7 +67,7 @@ function TemplatesPage() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
-  const updateStatus = useMutation({
+  const setStatusMut = useMutation({
     mutationFn: (args: { id: number; status: "active" | "inactive" }) =>
       Templates.update(args.id, { status: args.status }),
     onSuccess: () => {

@@ -525,6 +525,26 @@ function SchedulePage() {
   // Month Switcher for Mini Calendar
   const [calendarMonth, setCalendarMonth] = React.useState(new Date());
 
+  const calendarCells = React.useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const first = new Date(year, month, 1);
+    // Adjust first weekday: Mon=0, Sun=6
+    let firstDayIndex = first.getDay() - 1;
+    if (firstDayIndex === -1) firstDayIndex = 6;
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells: Array<{ date: Date; isCurrent: boolean } | null> = [];
+
+    for (let i = 0; i < firstDayIndex; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      cells.push({ date: new Date(year, month, d), isCurrent: true });
+    }
+
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [calendarMonth]);
+
   const handleBlockClick = (scheduleId: number) => {
     const parent = schedules.find((s) => s.id === scheduleId);
     if (parent) {
@@ -724,25 +744,7 @@ function SchedulePage() {
             </div>
 
             <div className="grid grid-cols-7 gap-0.5">
-              {React.useMemo(() => {
-                const year = calendarMonth.getFullYear();
-                const month = calendarMonth.getMonth();
-                const first = new Date(year, month, 1);
-                // Adjust first weekday: Mon=0, Sun=6
-                let firstDayIndex = first.getDay() - 1;
-                if (firstDayIndex === -1) firstDayIndex = 6;
-
-                const daysInMonth = new Date(year, month + 1, 0).getDate();
-                const cells: Array<{ date: Date; isCurrent: boolean } | null> = [];
-
-                for (let i = 0; i < firstDayIndex; i++) cells.push(null);
-                for (let d = 1; d <= daysInMonth; d++) {
-                  cells.push({ date: new Date(year, month, d), isCurrent: true });
-                }
-
-                while (cells.length % 7 !== 0) cells.push(null);
-                return cells;
-              }, [calendarMonth]).map((cell, idx) => {
+              {calendarCells.map((cell, idx) => {
                 if (cell === null) return <div key={idx} className="aspect-square" />;
 
                 const cellIso = toISO(cell.date);
