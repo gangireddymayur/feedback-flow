@@ -420,19 +420,69 @@ app.get(
   deviceAuth,
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
-      "SELECT id, owner_id, name, location, status, android_version, last_sync, template_id, created_at FROM devices WHERE id = ? LIMIT 1",
+      "SELECT id, owner_id, name, location, status, android_version, last_sync, template_id, created_at, schedules_enabled FROM devices WHERE id = ? LIMIT 1",
       [req.device.id],
     );
     if (!rows[0]) return res.status(404).json({ error: "Device not found" });
 
+    const fallback = rows[0].template_id;
+    const schedulesEnabled = rows[0].schedules_enabled ?? 1;
+    let activeTemplateId = fallback;
+
+    if (schedulesEnabled) {
+      // Fetch owner's timezone to translate server time to client time
+      const [profileRows] = await pool.query(
+        "SELECT timezone FROM user_profiles WHERE user_id = ? LIMIT 1",
+        [rows[0].owner_id]
+      );
+      const tzName = profileRows[0]?.timezone || "IST";
+      const tzMap = {
+        "IST": "Asia/Kolkata",
+        "EST": "America/New_York",
+        "CST": "America/Chicago",
+        "PST": "America/Los_Angeles",
+        "GMT": "Europe/London",
+        "UTC": "UTC"
+      };
+      const targetTz = tzMap[tzName] || tzName || "Asia/Kolkata";
+
+      const formatOpt = { timeZone: targetTz, hour12: false };
+      const dateStr = new Intl.DateTimeFormat("en-US", {
+        ...formatOpt,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      }).format(new Date());
+      const [mm, dd, yyyy] = dateStr.split("/");
+      const today = `${yyyy}-${mm}-${dd}`;
+
+      const hhmm = new Intl.DateTimeFormat("en-US", {
+        ...formatOpt,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      }).format(new Date());
+
+      const [activeRows] = await pool.query(
+        `SELECT template_id FROM schedule_instances
+         WHERE device_id = ? AND date = ? AND start_time <= ? AND end_time > ?
+         LIMIT 1`,
+        [req.device.id, today, hhmm, hhmm]
+      );
+      if (activeRows[0]) {
+        activeTemplateId = activeRows[0].template_id;
+      }
+    }
+
     // Fetch active screensaver for this device owner
     const [ssRows] = await pool.query(
       "SELECT url, type, timeout_seconds FROM screensavers WHERE owner_id = ? AND is_active = 1 LIMIT 1",
-      [req.device.owner_id]
+      [rows[0].owner_id]
     );
 
     res.json({
       ...rows[0],
+      template_id: activeTemplateId,
       screensaver: ssRows[0] || null
     });
   }),
