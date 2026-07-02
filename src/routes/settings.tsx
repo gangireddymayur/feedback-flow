@@ -1,77 +1,93 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth-store";
-import { Auth, Profile, Notifications } from "@/lib/api";
+import { useAuth, logout } from "@/lib/auth-store";
+import { Auth, Profile, Upload } from "@/lib/api";
 import { toast } from "sonner";
+import { LogOut, Edit2, X, Save, Image as ImageIcon, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/settings")({ component: SettingsPage });
-
-const SUPER_TOGGLES = [
-  { name: "new_sub_admin", label: "New sub-admin invited", def: true },
-  { name: "sub_disabled", label: "Sub-admin disabled", def: true },
-  { name: "weekly_summary", label: "Org weekly summary", def: true },
-  { name: "billing", label: "Billing & usage alerts", def: true },
-  { name: "security", label: "Security sign-in alerts", def: true },
-];
-const SUB_TOGGLES = [
-  { name: "new_review", label: "New review submitted", def: true },
-  { name: "low_rating", label: "Low rating alert (≤2★)", def: true },
-  { name: "device_offline", label: "Device offline", def: true },
-  { name: "weekly_email", label: "Weekly summary email", def: false },
-  { name: "sync_fail", label: "Sync failures", def: true },
-];
 
 function SettingsPage() {
   const auth = useAuth();
   const qc = useQueryClient();
+  const router = useRouter();
+
+  const [logoutOpen, setLogoutOpen] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [uploadingLogo, setUploadingLogo] = React.useState(false);
 
   const profileQ = useQuery({
     queryKey: ["profile"],
     queryFn: () => Profile.get(),
     enabled: !!auth,
   });
-  /*
-  const prefsQ = useQuery({
-    queryKey: ["notif-prefs"],
-    queryFn: () => Notifications.get(),
-    enabled: !!auth,
-  });
-  */
 
-  const [profile, setProfile] = React.useState({
+  const [formState, setFormState] = React.useState({
     name: "",
-    email: "",
     organization: "",
     timezone: "UTC",
+    avatar_url: "",
+    show_brand_header: 0,
   });
+
   const [pw, setPw] = React.useState({ current: "", next: "", confirm: "" });
 
   React.useEffect(() => {
     if (!auth) return;
-    setProfile({
+    setFormState({
       name: auth.name,
-      email: auth.email,
       organization: profileQ.data?.profile.organization ?? "",
       timezone: profileQ.data?.profile.timezone ?? "UTC",
+      avatar_url: profileQ.data?.profile.avatar_url ?? "",
+      show_brand_header: profileQ.data?.profile.show_brand_header ?? 0,
     });
   }, [auth, profileQ.data]);
+
+  const originalState = React.useMemo(() => {
+    if (!profileQ.data) return null;
+    return {
+      organization: profileQ.data.profile.organization ?? "",
+      timezone: profileQ.data.profile.timezone ?? "UTC",
+      avatar_url: profileQ.data.profile.avatar_url ?? "",
+      show_brand_header: profileQ.data.profile.show_brand_header ?? 0,
+    };
+  }, [profileQ.data]);
+
+  const hasChanges = React.useMemo(() => {
+    if (!originalState) return false;
+    return (
+      formState.organization !== originalState.organization ||
+      formState.timezone !== originalState.timezone ||
+      formState.avatar_url !== originalState.avatar_url ||
+      formState.show_brand_header !== originalState.show_brand_header
+    );
+  }, [formState, originalState]);
 
   const saveProfile = useMutation({
     mutationFn: () =>
       Profile.update({
-        organization: profile.organization,
-        timezone: profile.timezone,
-        avatar_url: null,
+        organization: formState.organization,
+        timezone: formState.timezone,
+        avatar_url: formState.avatar_url || null,
+        show_brand_header: formState.show_brand_header,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
-      toast.success("Profile updated");
+      toast.success("Profile updated successfully");
+      setIsEditing(false);
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -79,11 +95,37 @@ function SettingsPage() {
   const changePw = useMutation({
     mutationFn: () => Auth.changePassword(pw.current, pw.next),
     onSuccess: () => {
-      toast.success("Password updated");
+      toast.success("Password updated successfully");
       setPw({ current: "", next: "", confirm: "" });
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Str = (reader.result as string).split(",")[1];
+          const res = await Upload.file(file.name, base64Str);
+          setFormState((prev) => ({ ...prev, avatar_url: res.url }));
+          toast.success("Logo uploaded successfully");
+        } catch (err) {
+          toast.error("Logo upload failed: " + (err as Error).message);
+        } finally {
+          setUploadingLogo(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      toast.error("File reading failed");
+      setUploadingLogo(false);
+    }
+  };
 
   function onChangePassword() {
     if (!pw.current || pw.next.length < 8) return toast.error("New password must be 8+ characters");
@@ -91,128 +133,227 @@ function SettingsPage() {
     changePw.mutate();
   }
 
+  function handleLogout() {
+    setLogoutOpen(false);
+    logout();
+    router.navigate({ to: "/login" });
+  }
+
   if (!auth) return null;
-  const toggles = auth.role === "super" ? SUPER_TOGGLES : SUB_TOGGLES;
 
   return (
     <DashboardLayout>
       <PageHeader
         title="Settings"
-        description="Profile, notifications, and workspace preferences."
+        description="Profile, branding preferences, and security options."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <GlassCard className="lg:col-span-3">
-          <h3 className="font-semibold mb-4">Profile</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Profile and Branding Settings Card */}
+        <GlassCard className="lg:col-span-2 space-y-6">
+          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div>
+              <h3 className="font-semibold text-lg">Profile & Branding</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Manage organization info and logo asset settings.</p>
+            </div>
+            {!isEditing ? (
+              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-8 border-white/10 text-xs">
+                <Edit2 className="size-3.5 mr-1.5" /> Edit Info
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => {
+                  setIsEditing(false);
+                  if (originalState) {
+                    setFormState((prev) => ({
+                      ...prev,
+                      organization: originalState.organization,
+                      timezone: originalState.timezone,
+                      avatar_url: originalState.avatar_url,
+                      show_brand_header: originalState.show_brand_header,
+                    }));
+                  }
+                }} className="h-8 text-xs text-muted-foreground">
+                  <X className="size-3.5 mr-1.5" /> Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => saveProfile.mutate()}
+                  disabled={!hasChanges || saveProfile.isPending}
+                  className="h-8 text-xs font-semibold bg-primary hover:bg-primary/90"
+                >
+                  <Save className="size-3.5 mr-1.5" /> Save Changes
+                </Button>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field
-              label="Full name"
-              value={profile.name}
-              onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+              label="Full Name"
+              value={formState.name}
+              disabled
+              className="bg-white/5 border-white/5 opacity-70"
             />
-            <Field label="Email" value={profile.email} disabled />
+            <Field label="Email Address" value={auth.email} disabled className="bg-white/5 border-white/5 opacity-70" />
             <Field
-              label="Organization"
-              value={profile.organization}
-              onChange={(e) => setProfile({ ...profile, organization: e.target.value })}
+              label="Organization Name"
+              value={formState.organization}
+              onChange={(e) => setFormState({ ...formState, organization: e.target.value })}
+              disabled={!isEditing}
+              placeholder="Your company/org name"
+              className={!isEditing ? "bg-white/[0.02] border-white/5 opacity-80" : ""}
             />
-            <Field
-              label="Timezone"
-              value={profile.timezone}
-              onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground">Timezone</Label>
+              <select
+                value={formState.timezone}
+                onChange={(e) => setFormState({ ...formState, timezone: e.target.value })}
+                disabled={!isEditing}
+                className={`w-full bg-white/5 border rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none transition-all ${
+                  !isEditing ? "opacity-80 border-white/5 bg-transparent" : "border-white/10 focus:ring-1 focus:ring-primary/40"
+                }`}
+              >
+                <option value="UTC" className="bg-zinc-950">UTC</option>
+                <option value="GMT" className="bg-zinc-950">GMT</option>
+                <option value="EST" className="bg-zinc-950">EST</option>
+                <option value="CST" className="bg-zinc-950">CST</option>
+                <option value="PST" className="bg-zinc-950">PST</option>
+                <option value="IST" className="bg-zinc-950">IST</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Logo upload and preview */}
+          <div className="space-y-3 pt-3 border-t border-white/5">
+            <Label className="text-xs font-semibold text-muted-foreground">Company Logo</Label>
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <div className="size-20 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-content-center overflow-hidden shrink-0 relative">
+                {formState.avatar_url ? (
+                  <img
+                    src={formState.avatar_url}
+                    alt="Company logo preview"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <ImageIcon className="size-8 text-muted-foreground" />
+                )}
+                {uploadingLogo && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                    <Loader2 className="size-5 animate-spin text-primary" />
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2 text-center sm:text-left">
+                <p className="text-[11px] text-muted-foreground">
+                  Recommended size: 250x250 pixels. PNG or JPG format.
+                </p>
+                <div className="relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    disabled={!isEditing || uploadingLogo}
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    id="logo-file-input"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs border-white/10"
+                    disabled={!isEditing || uploadingLogo}
+                  >
+                    Choose Image
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Brand Header Toggle */}
+          <div className="flex items-center justify-between border-t border-white/5 pt-4">
+            <div>
+              <Label className="text-sm font-semibold text-foreground">Show Brand Header on Devices</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">Display logo, organization name, and local clock on tablet screens.</p>
+            </div>
+            <Switch
+              disabled={!isEditing}
+              checked={formState.show_brand_header === 1}
+              onCheckedChange={(checked) => setFormState((prev) => ({ ...prev, show_brand_header: checked ? 1 : 0 }))}
             />
           </div>
-          <Button
-            className="mt-5"
-            onClick={() => saveProfile.mutate()}
-            disabled={saveProfile.isPending}
-          >
-            {saveProfile.isPending ? "Saving…" : "Save changes"}
-          </Button>
         </GlassCard>
 
-        {/*
-        <GlassCard>
-          <h3 className="font-semibold mb-1">Notifications</h3>
-          <p className="text-xs text-muted-foreground mb-4">
-            {auth.role === "super"
-              ? "Org-level alerts only."
-              : "Operational alerts for your devices."}
-          </p>
-          <div className="space-y-4">
-            {toggles.map((t) => (
-              <Toggle
-                key={t.name}
-                name={t.name}
-                label={t.label}
-                checked={prefsQ.data?.prefs[t.name] ?? t.def}
+        {/* Security Password Card */}
+        <div className="space-y-6">
+          <GlassCard>
+            <h3 className="font-semibold text-lg mb-1">Security</h3>
+            <p className="text-xs text-muted-foreground mb-4">Update your account password.</p>
+            <div className="space-y-4">
+              <Field
+                label="Current Password"
+                type="password"
+                value={pw.current}
+                onChange={(e) => setPw({ ...pw, current: e.target.value })}
               />
-            ))}
-          </div>
-        </GlassCard>
-        */}
+              <Field
+                label="New Password"
+                type="password"
+                value={pw.next}
+                onChange={(e) => setPw({ ...pw, next: e.target.value })}
+              />
+              <Field
+                label="Confirm New Password"
+                type="password"
+                value={pw.confirm}
+                onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+              />
+              <Button className="w-full mt-2 h-9 text-xs" onClick={onChangePassword} disabled={changePw.isPending}>
+                {changePw.isPending ? "Updating…" : "Update Password"}
+              </Button>
+            </div>
+          </GlassCard>
 
-        <GlassCard className="lg:col-span-3">
-          <h3 className="font-semibold mb-1">Security</h3>
-          <p className="text-xs text-muted-foreground mb-4">Update your account password.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Field
-              label="Current password"
-              type="password"
-              value={pw.current}
-              onChange={(e) => setPw({ ...pw, current: e.target.value })}
-            />
-            <Field
-              label="New password"
-              type="password"
-              value={pw.next}
-              onChange={(e) => setPw({ ...pw, next: e.target.value })}
-            />
-            <Field
-              label="Confirm new password"
-              type="password"
-              value={pw.confirm}
-              onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
-            />
-          </div>
-          <Button className="mt-5" onClick={onChangePassword} disabled={changePw.isPending}>
-            {changePw.isPending ? "Updating…" : "Update password"}
-          </Button>
-        </GlassCard>
+          {/* Session Management / Log Out Card */}
+          <GlassCard className="border-red-500/20 bg-red-500/[0.01]">
+            <h3 className="font-semibold text-red-400 text-lg mb-1">Session</h3>
+            <p className="text-xs text-muted-foreground mb-4">Log out of your current session on this device.</p>
+            <Button variant="destructive" className="w-full h-9 text-xs" onClick={() => setLogoutOpen(true)}>
+              <LogOut className="size-4 mr-2" /> Log Out
+            </Button>
+          </GlassCard>
+        </div>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+        <DialogContent className="max-w-sm bg-zinc-950 border-zinc-800 text-foreground">
+          <DialogHeader>
+            <DialogTitle>Confirm Log Out</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs pt-1">
+              Are you sure you want to log out? You will need to enter your credentials to access the dashboard again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-3 border-t border-white/5 mt-4">
+            <Button variant="outline" size="sm" onClick={() => setLogoutOpen(false)} className="h-8 text-xs border-white/10">
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleLogout} className="h-8 text-xs font-semibold">
+              Log Out
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
 
-function Field({ label, ...props }: { label: string } & React.ComponentProps<typeof Input>) {
+function Field({ label, className, ...props }: { label: string } & React.ComponentProps<typeof Input>) {
   return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input {...props} className="bg-white/5 border-white/10" />
-    </div>
-  );
-}
-
-function Toggle({ name, label, checked }: { name: string; label: string; checked: boolean }) {
-  const qc = useQueryClient();
-  const m = useMutation({
-    mutationFn: (v: boolean) => Notifications.update({ [name]: v }),
-    onMutate: async (v) => {
-      await qc.cancelQueries({ queryKey: ["notif-prefs"] });
-      const prev = qc.getQueryData<{ prefs: Record<string, boolean> }>(["notif-prefs"]);
-      qc.setQueryData(["notif-prefs"], { prefs: { ...(prev?.prefs ?? {}), [name]: v } });
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["notif-prefs"], ctx.prev);
-      toast.error("Couldn't save");
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notif-prefs"] }),
-  });
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm">{label}</span>
-      <Switch checked={checked} onCheckedChange={(v) => m.mutate(v)} />
+    <div className="space-y-1.5">
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      <Input {...props} className={`bg-white/5 border-white/10 text-xs h-9 ${className || ""}`} />
     </div>
   );
 }

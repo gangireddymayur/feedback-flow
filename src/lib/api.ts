@@ -139,6 +139,7 @@ export type ApiProfile = {
   organization: string | null;
   timezone: string | null;
   avatar_url: string | null;
+  show_brand_header?: number;
 };
 
 // =================================================================
@@ -175,6 +176,15 @@ export const Profile = {
     return await http<{ ok: true }>("/profile", {
       method: "PUT",
       body: JSON.stringify(body),
+    });
+  },
+};
+
+export const Upload = {
+  file: async (filename: string, base64Data: string): Promise<{ ok: true; url: string }> => {
+    return await http<{ ok: true; url: string }>("/upload", {
+      method: "POST",
+      body: JSON.stringify({ filename, base64Data }),
     });
   },
 };

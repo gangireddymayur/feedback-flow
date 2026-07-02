@@ -107,18 +107,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div className="text-sm font-medium truncate">{auth.name}</div>
             <div className="text-[11px] text-muted-foreground truncate">{auth.email}</div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => {
-              logout();
-              router.navigate({ to: "/login" });
-            }}
-            aria-label="Log out"
-          >
-            <LogOut className="size-4" />
-          </Button>
         </div>
       </aside>
 

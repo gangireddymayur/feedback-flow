@@ -58,6 +58,15 @@ const pool = mysql.createPool({
       console.log("[db] Added branding column to templates table.");
     }
 
+    const [profileTableExist] = await pool.query("SHOW TABLES LIKE 'user_profiles'");
+    if (profileTableExist.length > 0) {
+      const [profileTableCols] = await pool.query("SHOW COLUMNS FROM user_profiles LIKE 'show_brand_header'");
+      if (profileTableCols.length === 0) {
+        await pool.query("ALTER TABLE user_profiles ADD COLUMN show_brand_header TINYINT(1) DEFAULT 0");
+        console.log("[db] Added show_brand_header column to user_profiles table.");
+      }
+    }
+
     const [devCols] = await pool.query("SHOW COLUMNS FROM devices LIKE 'schedules_enabled'");
     if (devCols.length === 0) {
       await pool.query("ALTER TABLE devices ADD COLUMN schedules_enabled TINYINT(1) DEFAULT 1");
@@ -328,16 +337,41 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const id = Number(req.params.id);
+    const ownerId = req.device ? req.device.owner_id : req.user.id;
     const [rows] = await pool.query(
       "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates WHERE id = ? AND owner_id = ? LIMIT 1",
-      [id, req.user.id],
+      [id, ownerId],
     );
     const template = rows[0];
     if (!template) return res.status(404).json({ error: "Template not found" });
+
+    // Load owner profile settings to override branding if show_brand_header is enabled
+    const [profileRows] = await pool.query(
+      "SELECT organization, avatar_url, show_brand_header FROM user_profiles WHERE user_id = ? LIMIT 1",
+      [ownerId]
+    );
+    const profile = profileRows[0] || {};
+    let brandingObj = parseJson(template.branding, null) || {};
+    
+    if (profile.show_brand_header) {
+      brandingObj = {
+        enabled: true,
+        companyName: profile.organization || brandingObj.companyName || "ReviewOS",
+        logoUrl: profile.avatar_url || brandingObj.logoUrl || null,
+        show_brand_header: true,
+        position: brandingObj.position || "top_right",
+        size: brandingObj.size || 100,
+        offsetX: brandingObj.offsetX || 16,
+        offsetY: brandingObj.offsetY || 16,
+      };
+    } else {
+      brandingObj.show_brand_header = false;
+    }
+
     res.json({
       ...template,
       displayMode: template.display_mode,
-      branding: parseJson(template.branding, null),
+      branding: brandingObj,
       questions: parseJson(template.questions, []),
     });
   }),
@@ -694,10 +728,10 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
-      "SELECT organization, timezone, avatar_url FROM user_profiles WHERE user_id = ? LIMIT 1",
+      "SELECT organization, timezone, avatar_url, show_brand_header FROM user_profiles WHERE user_id = ? LIMIT 1",
       [req.user.id],
     );
-    res.json({ profile: rows[0] || { organization: null, timezone: "UTC", avatar_url: null } });
+    res.json({ profile: rows[0] || { organization: null, timezone: "UTC", avatar_url: null, show_brand_header: 0 } });
   }),
 );
 
@@ -705,15 +739,38 @@ app.put(
   "/api/profile",
   auth(),
   asyncH(async (req, res) => {
-    const { organization = null, timezone = "UTC", avatar_url = null } = req.body || {};
+    const { organization = null, timezone = "UTC", avatar_url = null, show_brand_header = 0 } = req.body || {};
     await pool.query(
-      `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url)`,
-      [req.user.id, organization, timezone, avatar_url],
+      `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url), show_brand_header=VALUES(show_brand_header)`,
+      [req.user.id, organization, timezone, avatar_url, show_brand_header],
     );
     res.json({ ok: true });
   }),
+);
+
+// Generic file upload helper
+app.post(
+  "/api/upload",
+  auth(),
+  asyncH(async (req, res) => {
+    const { filename, base64Data } = req.body || {};
+    if (!filename || !base64Data) {
+      return res.status(400).json({ error: "filename and base64Data required" });
+    }
+    const buffer = Buffer.from(base64Data, "base64");
+    const uploadsDir = path.join(__dirname, "uploads");
+    const fs = require("node:fs");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir);
+    }
+    const uniqueFilename = `${Date.now()}_${filename.replace(/\s+/g, "_")}`;
+    const filePath = path.join(uploadsDir, uniqueFilename);
+    fs.writeFileSync(filePath, buffer);
+    const fileUrl = `/uploads/${uniqueFilename}`;
+    res.json({ ok: true, url: fileUrl });
+  })
 );
 
 // ---------------- update password ----------------
