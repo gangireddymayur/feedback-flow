@@ -362,7 +362,10 @@ app.get(
       [ownerId]
     );
     const profile = profileRows[0] || {};
-    let brandingObj = parseJson(template.branding, null) || {};
+    let brandingObj = parseJson(template.branding, null) || { enabled: false };
+    if (brandingObj.enabled === undefined) {
+      brandingObj.enabled = false;
+    }
     
     if (profile.show_brand_header) {
       brandingObj = {
