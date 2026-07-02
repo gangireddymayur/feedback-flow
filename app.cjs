@@ -1678,16 +1678,38 @@ app.get(
       });
     }
 
-    const now = new Date();
-    const y = now.getFullYear();
-    const mo = String(now.getMonth() + 1).padStart(2, "0");
-    const da = String(now.getDate()).padStart(2, "0");
-    const today = `${y}-${mo}-${da}`;
+    // Fetch owner's timezone to translate server time to client time
+    const [profileRows] = await pool.query(
+      "SELECT timezone FROM user_profiles WHERE user_id = ? LIMIT 1",
+      [req.device.owner_id]
+    );
+    const tzName = profileRows[0]?.timezone || "IST";
+    const tzMap = {
+      "IST": "Asia/Kolkata",
+      "EST": "America/New_York",
+      "CST": "America/Chicago",
+      "PST": "America/Los_Angeles",
+      "GMT": "Europe/London",
+      "UTC": "UTC"
+    };
+    const targetTz = tzMap[tzName] || tzName || "Asia/Kolkata";
 
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mi = String(now.getMinutes()).padStart(2, "0");
-    const ss = String(now.getSeconds()).padStart(2, "0");
-    const hhmm = `${hh}:${mi}:${ss}`;
+    const formatOpt = { timeZone: targetTz, hour12: false };
+    const dateStr = new Intl.DateTimeFormat("en-US", {
+      ...formatOpt,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+    const [mm, dd, yyyy] = dateStr.split("/");
+    const today = `${yyyy}-${mm}-${dd}`;
+
+    const hhmm = new Intl.DateTimeFormat("en-US", {
+      ...formatOpt,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    }).format(new Date());
 
     const [activeRows] = await pool.query(
       `SELECT template_id FROM schedule_instances
