@@ -21,7 +21,13 @@ const {
   DB_NAME,
   JWT_SECRET = "change-me-in-plesk-env",
   PORT = 3000,
+  NODE_ENV,
 } = process.env;
+
+if (NODE_ENV === "production" && JWT_SECRET === "change-me-in-plesk-env") {
+  console.error("FATAL ERROR: Environment variable JWT_SECRET is unset or insecure in production mode!");
+  process.exit(1);
+}
 
 if (!DB_USER || !DB_PASSWORD || !DB_NAME) {
   console.warn("[startup] DB env vars missing; API will return 500s until DB_* are set in Plesk.");
@@ -270,9 +276,10 @@ app.get(
 app.get(
   "/api/templates",
   auth(),
-  asyncH(async (_req, res) => {
+  asyncH(async (req, res) => {
     const [rows] = await pool.query(
-      "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates ORDER BY id DESC",
+      "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates WHERE owner_id = ? ORDER BY id DESC",
+      [req.user.id]
     );
     res.json({
       templates: rows.map((t) => ({
@@ -322,8 +329,8 @@ app.get(
   asyncH(async (req, res) => {
     const id = Number(req.params.id);
     const [rows] = await pool.query(
-      "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates WHERE id = ? LIMIT 1",
-      [id],
+      "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates WHERE id = ? AND owner_id = ? LIMIT 1",
+      [id, req.user.id],
     );
     const template = rows[0];
     if (!template) return res.status(404).json({ error: "Template not found" });
@@ -341,8 +348,8 @@ app.put(
   auth(),
   asyncH(async (req, res) => {
     const { name, description, category, status, questions, displayMode, branding } = req.body || {};
-    await pool.query(
-      "UPDATE templates SET name=?, description=?, category=?, status=?, questions=?, display_mode=?, branding=?, updated_at=NOW() WHERE id=?",
+    const [result] = await pool.query(
+      "UPDATE templates SET name=?, description=?, category=?, status=?, questions=?, display_mode=?, branding=?, updated_at=NOW() WHERE id=? AND owner_id=?",
       [
         name,
         description,
@@ -352,8 +359,10 @@ app.put(
         displayMode || "multi_page",
         JSON.stringify(branding || null),
         Number(req.params.id),
+        req.user.id,
       ],
     );
+    if (result.affectedRows === 0) return res.status(403).json({ error: "Access denied" });
     res.json({ ok: true });
   }),
 );
@@ -362,7 +371,11 @@ app.delete(
   "/api/templates/:id",
   auth(),
   asyncH(async (req, res) => {
-    await pool.query("DELETE FROM templates WHERE id = ?", [Number(req.params.id)]);
+    const [result] = await pool.query("DELETE FROM templates WHERE id = ? AND owner_id = ?", [
+      Number(req.params.id),
+      req.user.id
+    ]);
+    if (result.affectedRows === 0) return res.status(403).json({ error: "Access denied" });
     res.json({ ok: true });
   }),
 );
@@ -406,13 +419,14 @@ app.post(
 app.get(
   "/api/devices",
   auth(),
-  asyncH(async (_req, res) => {
+  asyncH(async (req, res) => {
     const [rows] = await pool.query(
       `SELECT d.id, d.name, d.location, d.status, d.android_version, d.last_sync,
               d.template_id, d.schedules_enabled,
               TIMESTAMPDIFF(SECOND, d.last_sync, NOW()) AS seconds_since_sync,
               (SELECT COUNT(*) FROM responses r WHERE r.device_id = d.id AND DATE(r.submitted_at) = CURDATE()) AS responses_today
-       FROM devices d ORDER BY d.id DESC`,
+       FROM devices d WHERE d.owner_id = ? ORDER BY d.id DESC`,
+       [req.user.id]
     );
     const processedDevices = rows.map((d) => {
       let calcStatus = "offline";
@@ -472,11 +486,20 @@ app.put(
   "/api/devices/:id/template",
   auth(),
   asyncH(async (req, res) => {
+    const deviceId = Number(req.params.id);
     const tid = req.body?.template_id ?? null;
-    await pool.query("UPDATE devices SET template_id = ? WHERE id = ?", [
+
+    if (tid !== null) {
+      const [tpl] = await pool.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [tid, req.user.id]);
+      if (tpl.length === 0) return res.status(403).json({ error: "Access denied" });
+    }
+
+    const [result] = await pool.query("UPDATE devices SET template_id = ? WHERE id = ? AND owner_id = ?", [
       tid,
-      Number(req.params.id),
+      deviceId,
+      req.user.id,
     ]);
+    if (result.affectedRows === 0) return res.status(403).json({ error: "Access denied" });
     res.json({ ok: true });
   }),
 );
@@ -485,11 +508,17 @@ app.put(
   "/api/devices/:id",
   auth(),
   asyncH(async (req, res) => {
+    const deviceId = Number(req.params.id);
     const { name, location, status, schedules_enabled, template_id } = req.body || {};
 
-    const [existing] = await pool.query("SELECT * FROM devices WHERE id = ? LIMIT 1", [Number(req.params.id)]);
-    if (existing.length === 0) return res.status(404).json({ error: "Device not found" });
+    const [existing] = await pool.query("SELECT * FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [deviceId, req.user.id]);
+    if (existing.length === 0) return res.status(403).json({ error: "Access denied" });
     const dev = existing[0];
+
+    if (template_id !== undefined && template_id !== null) {
+      const [tpl] = await pool.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [template_id, req.user.id]);
+      if (tpl.length === 0) return res.status(403).json({ error: "Access denied" });
+    }
 
     const finalName = name !== undefined ? name : dev.name;
     const finalLocation = location !== undefined ? location : dev.location;
@@ -500,14 +529,15 @@ app.put(
     await pool.query(
       `UPDATE devices 
        SET name = ?, location = ?, status = ?, schedules_enabled = ?, template_id = ? 
-       WHERE id = ?`,
+       WHERE id = ? AND owner_id = ?`,
       [
         finalName,
         finalLocation,
         finalStatus,
         finalSchedulesEnabled,
         finalTemplateId,
-        Number(req.params.id)
+        deviceId,
+        req.user.id
       ]
     );
     res.json({ ok: true });
@@ -518,7 +548,8 @@ app.delete(
   "/api/devices/:id",
   auth(),
   asyncH(async (req, res) => {
-    await pool.query("DELETE FROM devices WHERE id = ?", [Number(req.params.id)]);
+    const [result] = await pool.query("DELETE FROM devices WHERE id = ? AND owner_id = ?", [Number(req.params.id), req.user.id]);
+    if (result.affectedRows === 0) return res.status(403).json({ error: "Access denied" });
     res.json({ ok: true });
   }),
 );
@@ -580,9 +611,9 @@ app.get(
       FROM responses r
       LEFT JOIN templates t ON t.id = r.template_id
       LEFT JOIN devices d ON d.id = r.device_id
-      WHERE 1=1
+      WHERE (d.owner_id = ? OR t.owner_id = ?)
     `;
-    const params = [];
+    const params = [req.user.id, req.user.id];
     if (device_id && device_id !== "all") {
       query += " AND r.device_id = ?";
       params.push(Number(device_id));
@@ -845,8 +876,12 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const deviceId = req.query.device_id ? Number(req.query.device_id) : null;
-    const where = deviceId ? "WHERE s.device_id = ?" : "";
-    const params = deviceId ? [deviceId] : [];
+    if (deviceId) {
+      const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [deviceId, req.user.id]);
+      if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
+    }
+    const where = deviceId ? "WHERE s.device_id = ?" : "WHERE s.owner_id = ?";
+    const params = deviceId ? [deviceId] : [req.user.id];
     const [rows] = await pool.query(
       `SELECT s.id, s.device_id, s.template_id, t.name AS template_name,
               TIME_FORMAT(s.start_time,'%H:%i') AS start_time,
@@ -870,6 +905,8 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const deviceId = Number(req.params.deviceId);
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [deviceId, req.user.id]);
+    if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
     
     // Get schedules
     const [schedules] = await pool.query(
@@ -922,6 +959,14 @@ app.post(
     if (!device_id || !template_id || !start_time || !end_time || !start_date) {
       return res.status(400).json({ error: "Missing required fields" });
     }
+
+    // Check device ownership
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [Number(device_id), req.user.id]);
+    if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
+
+    // Check template ownership
+    const [tpl] = await pool.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [Number(template_id), req.user.id]);
+    if (tpl.length === 0) return res.status(403).json({ error: "Access denied" });
 
     const formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
     const formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
@@ -1025,12 +1070,20 @@ app.put(
     try {
       await conn.beginTransaction();
 
-      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? LIMIT 1", [scheduleId]);
+      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [scheduleId, req.user.id]);
       if (curr.length === 0) {
         await conn.rollback();
-        return res.status(404).json({ error: "Schedule not found" });
+        return res.status(403).json({ error: "Access denied" });
       }
       const s = curr[0];
+
+      if (template_id !== undefined) {
+        const [tpl] = await conn.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [Number(template_id), req.user.id]);
+        if (tpl.length === 0) {
+          await conn.rollback();
+          return res.status(403).json({ error: "Access denied" });
+        }
+      }
 
       const deviceId = s.device_id;
       const tid = template_id !== undefined ? Number(template_id) : s.template_id;
@@ -1096,8 +1149,8 @@ app.put(
       // Update schedule metadata
       await conn.query(
         `UPDATE schedules SET template_id = ?, start_time = ?, end_time = ?, start_date = ?
-         WHERE id = ?`,
-        [tid, formattedStartTime, formattedEndTime, sd, scheduleId]
+         WHERE id = ? AND owner_id = ?`,
+        [tid, formattedStartTime, formattedEndTime, sd, scheduleId, req.user.id]
       );
 
       // Update recurrence config
@@ -1160,10 +1213,10 @@ app.post(
     try {
       await conn.beginTransaction();
 
-      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? LIMIT 1", [schedule_id]);
+      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [schedule_id, req.user.id]);
       if (curr.length === 0) {
         await conn.rollback();
-        return res.status(404).json({ error: "Schedule not found" });
+        return res.status(403).json({ error: "Access denied" });
       }
       const s = curr[0];
 
@@ -1263,6 +1316,9 @@ app.delete(
     const id = Number(req.params.id);
     const { date } = req.query || {};
 
+    const [curr] = await pool.query("SELECT id FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [id, req.user.id]);
+    if (curr.length === 0) return res.status(403).json({ error: "Access denied" });
+
     if (date) {
       // Delete only the single date occurrence instance
       await pool.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [id, date]);
@@ -1283,6 +1339,9 @@ app.post(
     if (!device_id || !date) {
       return res.status(400).json({ error: "device_id and date required" });
     }
+
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [Number(device_id), req.user.id]);
+    if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
 
     // Find all schedule instances for this device on this date
     const [instances] = await pool.query(
@@ -1317,10 +1376,10 @@ app.post(
     try {
       await conn.beginTransaction();
 
-      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? LIMIT 1", [schedule_id]);
+      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [schedule_id, req.user.id]);
       if (curr.length === 0) {
         await conn.rollback();
-        return res.status(404).json({ error: "Schedule not found" });
+        return res.status(403).json({ error: "Access denied" });
       }
       const s = curr[0];
 
@@ -1334,7 +1393,7 @@ app.post(
           await conn.rollback();
           return res.status(400).json({ error: "End time must be after start time" });
         }
-        await conn.query("UPDATE schedules SET start_time = ?, end_time = ? WHERE id = ?", [st, et, schedule_id]);
+        await conn.query("UPDATE schedules SET start_time = ?, end_time = ? WHERE id = ? AND owner_id = ?", [st, et, schedule_id, req.user.id]);
       }
 
       // Validate date is not in the past
@@ -1381,8 +1440,8 @@ app.post(
         await conn.query(
           `DELETE s FROM schedules s
            LEFT JOIN schedule_instances i ON i.schedule_id = s.id
-           WHERE s.device_id = ? AND i.id IS NULL`,
-          [s.device_id]
+           WHERE s.device_id = ? AND i.id IS NULL AND s.owner_id = ?`,
+          [s.device_id, req.user.id]
         );
       }
 
@@ -1443,6 +1502,9 @@ app.post(
     const { device_id, source_date, target_dates = [], overwrite = false } = req.body || {};
     if (!device_id || !source_date || !Array.isArray(target_dates) || target_dates.length === 0)
       return res.status(400).json({ error: "device_id, source_date, target_dates[] required" });
+
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [Number(device_id), req.user.id]);
+    if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
 
     // Find all instances running on the source date
     const [src] = await pool.query(
