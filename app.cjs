@@ -738,6 +738,7 @@ app.put(
   }),
 );
 
+/*
 // ---------------- notification preferences ----------------
 app.get(
   "/api/notifications/prefs",
@@ -771,6 +772,7 @@ app.put(
     res.json({ ok: true });
   }),
 );
+*/
 
 // ---------------- device pairing codes (6-digit) ----------------
 app.post(

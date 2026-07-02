@@ -36,11 +36,13 @@ function SettingsPage() {
     queryFn: () => Profile.get(),
     enabled: !!auth,
   });
+  /*
   const prefsQ = useQuery({
     queryKey: ["notif-prefs"],
     queryFn: () => Notifications.get(),
     enabled: !!auth,
   });
+  */
 
   const [profile, setProfile] = React.useState({
     name: "",
@@ -100,7 +102,7 @@ function SettingsPage() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <GlassCard className="lg:col-span-2">
+        <GlassCard className="lg:col-span-3">
           <h3 className="font-semibold mb-4">Profile</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field
@@ -129,6 +131,7 @@ function SettingsPage() {
           </Button>
         </GlassCard>
 
+        {/*
         <GlassCard>
           <h3 className="font-semibold mb-1">Notifications</h3>
           <p className="text-xs text-muted-foreground mb-4">
@@ -147,6 +150,7 @@ function SettingsPage() {
             ))}
           </div>
         </GlassCard>
+        */}
 
         <GlassCard className="lg:col-span-3">
           <h3 className="font-semibold mb-1">Security</h3>

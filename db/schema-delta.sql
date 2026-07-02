@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   CONSTRAINT fk_profile_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+/*
 -- ---------------- notification preferences ----------------
 -- One row per (user, key) so we can add new toggles without migrations.
 CREATE TABLE IF NOT EXISTS notification_prefs (
@@ -40,6 +41,7 @@ INSERT IGNORE INTO notification_prefs (user_id, pref_key, enabled) VALUES
   (1, 'weekly_summary', 1),
   (1, 'billing',        1),
   (1, 'security',       1);
+*/
 
 -- ---------------- device pairing codes ----------------
 CREATE TABLE IF NOT EXISTS device_pairing_codes (
