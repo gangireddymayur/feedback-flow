@@ -163,6 +163,17 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    console.log(
+      `[http] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms) | device: ${JSON.stringify(req.device || null)} | user: ${JSON.stringify(req.user || null)}`
+    );
+  });
+  next();
+});
+
 const signToken = (user) =>
   jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
 
