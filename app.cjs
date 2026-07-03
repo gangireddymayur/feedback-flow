@@ -1823,23 +1823,34 @@ app.post(
     }
 
     // Parse base64 and write to uploads/
-    const buffer = Buffer.from(base64Data, "base64");
-    const uploadsDir = path.join(__dirname, "uploads");
     const fs = require("node:fs");
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir);
-    }
-
+    const uploadsDir = path.join(__dirname, "uploads");
     const uniqueFilename = `${Date.now()}_${filename.replace(/\s+/g, "_")}`;
     const filePath = path.join(uploadsDir, uniqueFilename);
-    fs.writeFileSync(filePath, buffer);
-
     const fileUrl = `/uploads/${uniqueFilename}`;
 
-    const [result] = await pool.query(
-      "INSERT INTO screensavers (owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, 0, 300)",
-      [req.user.id, name, fileUrl, type]
-    );
+    try {
+      const buffer = Buffer.from(base64Data, "base64");
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      fs.writeFileSync(filePath, buffer);
+    } catch (fsErr) {
+      console.error("[upload error] Failed to write file:", fsErr);
+      return res.status(500).json({ error: `File system write error: ${fsErr.message}` });
+    }
+
+    let result;
+    try {
+      const [dbResult] = await pool.query(
+        "INSERT INTO screensavers (owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, 0, 300)",
+        [req.user.id, name, fileUrl, type]
+      );
+      result = dbResult;
+    } catch (dbErr) {
+      console.error("[upload error] Database query failed:", dbErr);
+      return res.status(500).json({ error: `Database error: ${dbErr.message}` });
+    }
 
     res.json({
       ok: true,
