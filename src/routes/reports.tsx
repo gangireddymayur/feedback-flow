@@ -420,24 +420,10 @@ function ReportsPage() {
   return (
     <DashboardLayout>
       {/* Styles to place printable summary offscreen under normal state and display on print */}
+      {/* Styles to cleanly hide sidebar and top menu headers during reports print */}
       <style dangerouslySetInnerHTML={{ __html: `
-        .offscreen-print-container {
-          position: absolute;
-          left: -9999px;
-          top: -9999px;
-          width: 1024px;
-          background: #ffffff;
-          color: #000000;
-        }
         @media print {
-          html, body {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            width: 100% !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-          aside, header, footer, nav, .no-print {
+          aside, header, footer, nav {
             display: none !important;
           }
           main {
@@ -445,23 +431,12 @@ function ReportsPage() {
             margin: 0 !important;
             width: 100% !important;
             max-width: 100% !important;
-            background: transparent !important;
-          }
-          .offscreen-print-container {
-            position: static !important;
-            left: auto !important;
-            top: auto !important;
-            width: 100% !important;
-            display: block !important;
-          }
-          svg {
-            filter: grayscale(100%) !important;
           }
         }
       `}} />
 
       {/* Reports Control Center Screen Header */}
-      <div className="no-print">
+      <div className="print:hidden">
         <PageHeader
           title="Reports Control Center"
           description="Download feedback answers as clean CSV spreadsheets, or build visual summary PDF reports."
@@ -717,7 +692,7 @@ function ReportsPage() {
       {/* ======================================================== */}
       {/* OFF-SCREEN PRINT CONTAINER                               */}
       {/* ======================================================== */}
-      <div className="offscreen-print-container p-8 space-y-6">
+      <div className="absolute opacity-0 pointer-events-none print:relative print:opacity-100 print:pointer-events-auto print:block bg-white text-black p-8 space-y-6 w-[1024px] print:w-full">
           <div className="flex items-center justify-between pb-4 border-b border-gray-300">
             <div>
               <h1 className="text-2xl font-bold text-black uppercase tracking-tight">ReviewOS Performance Summary</h1>
