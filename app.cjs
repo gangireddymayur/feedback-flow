@@ -369,10 +369,30 @@ app.get(
     }
     
     if (profile.show_brand_header) {
+      let logoBase64 = null;
+      if (profile.avatar_url) {
+        try {
+          const fs = require("node:fs");
+          const filename = profile.avatar_url.replace("/uploads/", "");
+          const filePath = path.join(__dirname, "uploads", filename);
+          if (fs.existsSync(filePath)) {
+            const buffer = fs.readFileSync(filePath);
+            const ext = path.extname(filename).replace(".", "");
+            logoBase64 = `data:image/${ext};base64,${buffer.toString("base64")}`;
+          } else {
+            // Fallback if not found on disk
+            logoBase64 = profile.avatar_url;
+          }
+        } catch (err) {
+          console.error("Failed to base64-encode logo file for tablet:", err);
+          logoBase64 = profile.avatar_url;
+        }
+      }
+
       brandingObj = {
         enabled: true,
         companyName: profile.organization || brandingObj.companyName || "ReviewOS",
-        logoUrl: profile.avatar_url || brandingObj.logoUrl || null,
+        logoUrl: logoBase64 || brandingObj.logoUrl || null,
         show_brand_header: true,
         position: brandingObj.position || "top_right",
         size: brandingObj.size || 100,
