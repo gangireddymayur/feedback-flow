@@ -407,7 +407,7 @@ function ReportsPage() {
         const answer = r.answers?.[q.id];
         if (answer === undefined || answer === null || answer === "") return;
 
-        if (q.type === "multiple_choice" || q.type === "emoji" || q.type === "nps") {
+        if (q.type === "multiple_choice" || q.type === "emoji" || q.type === "nps" || q.type === "rating" || q.type === "star_rating") {
           const ansKey = String(answer);
           questionsMap[qLabel].answers[ansKey] = (questionsMap[qLabel].answers[ansKey] || 0) + 1;
         } else if (q.type === "long_text" || q.type === "short_text") {
@@ -830,9 +830,9 @@ function ReportsPage() {
 
             <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
               <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Unified Survey Questions Split</h3>
-              <div className="space-y-4 max-h-[220px] overflow-y-auto pr-2">
+              <div className="grid grid-cols-2 gap-4 print:grid-cols-1">
                 {parsedQuestions.filter((q) => Object.keys(q.answers).length > 0).length === 0 ? (
-                  <div className="text-xs text-gray-400 italic text-center py-8">
+                  <div className="col-span-2 text-xs text-gray-400 italic text-center py-8">
                     No question distributions.
                   </div>
                 ) : (
@@ -844,15 +844,20 @@ function ReportsPage() {
                         count,
                       }));
                       return (
-                        <div key={idx} className="space-y-1.5 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
-                          <span className="text-[10px] font-bold text-gray-700">Q: {q.label} ({q.type})</span>
-                          <div className="h-20 w-full">
+                        <div key={idx} className="p-3 bg-gray-50 border border-gray-100 rounded-lg space-y-1.5 break-inside-avoid">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-gray-700">Q: {q.label}</span>
+                            <span className="text-[8px] uppercase px-1.5 py-0.5 rounded bg-gray-200/60 font-semibold text-gray-500">
+                              {q.type.replace("_", " ")}
+                            </span>
+                          </div>
+                          <div className="h-24 w-full font-sans">
                             <ResponsiveContainer width="100%" height="100%">
-                              <BarChart layout="yaml" data={chartData} margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                                <XAxis type="number" stroke="#94a3b8" fontSize={8} tickLine={false} />
+                              <BarChart layout="vertical" data={chartData} margin={{ top: 0, right: 10, left: 10, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis type="number" stroke="#94a3b8" fontSize={8} tickLine={false} allowDecimals={false} />
                                 <YAxis dataKey="option" type="category" stroke="#94a3b8" fontSize={8} tickLine={false} width={80} />
-                                <Bar dataKey="count" fill="#0284c7" radius={[0, 2, 2, 0]} isAnimationActive={false} />
+                                <Bar dataKey="count" fill="#3b82f6" radius={[0, 2, 2, 0]} isAnimationActive={false} />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
