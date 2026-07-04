@@ -1828,6 +1828,15 @@ app.get("/api/screensavers/debug", async (req, res) => {
   }
 });
 
+app.get("/api/templates/debug", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM templates");
+    res.json({ count: rows.length, rows: rows.map(r => ({ ...r, questions: parseJson(r.questions, []) })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/screensavers
 app.get(
   "/api/screensavers",
