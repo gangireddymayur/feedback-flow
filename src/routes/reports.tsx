@@ -39,7 +39,10 @@ import {
   BarChart3,
   PieChart as PieIcon,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  Download,
+  Info
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -92,42 +95,65 @@ function ReportsPage() {
 
   const devices = devicesQ.data?.devices ?? [];
 
-  // Filters state
-  const [filterDevice, setFilterDevice] = React.useState("all");
-  const [filterFromDate, setFilterFromDate] = React.useState("");
-  const [filterToDate, setFilterToDate] = React.useState("");
-
-  // Export CSV options
-  const [downloadModalOpen, setDownloadModalOpen] = React.useState(false);
+  // CSV Export configuration state
+  const [csvModalOpen, setCsvModalOpen] = React.useState(false);
+  const [csvDevice, setCsvDevice] = React.useState("all");
+  const [csvFromDate, setCsvFromDate] = React.useState("");
+  const [csvToDate, setCsvToDate] = React.useState("");
   const [csvFormat, setCsvFormat] = React.useState<"format1" | "format2">("format1");
-  const [downloading, setDownloading] = React.useState(false);
+  const [csvDownloading, setCsvDownloading] = React.useState(false);
 
-  // Live Query for Analytics Data
-  const reportQ = useQuery({
-    queryKey: ["reports-list", filterDevice, filterFromDate, filterToDate],
-    queryFn: () =>
-      Responses.reportList({
-        device_id: filterDevice,
-        from_date: filterFromDate || undefined,
-        to_date: filterToDate || undefined,
-      }),
-  });
+  // PDF Export configuration state
+  const [pdfModalOpen, setPdfModalOpen] = React.useState(false);
+  const [pdfDevice, setPdfDevice] = React.useState("all");
+  const [pdfFromDate, setPdfFromDate] = React.useState("");
+  const [pdfToDate, setPdfToDate] = React.useState("");
+  const [pdfCompiling, setPdfCompiling] = React.useState(false);
+  const [pdfData, setPdfData] = React.useState<any[]>([]);
 
-  const list = reportQ.data?.responses ?? [];
-  const isLoading = reportQ.isLoading;
+  // Trigger PDF print session
+  const handleBuildPDFReport = async () => {
+    setPdfCompiling(true);
+    try {
+      const data = await Responses.reportList({
+        device_id: pdfDevice,
+        from_date: pdfFromDate || undefined,
+        to_date: pdfToDate || undefined,
+      });
+      const list = data.responses || [];
+      if (list.length === 0) {
+        toast.error("No response data found matching your PDF filters.");
+        setPdfCompiling(false);
+        return;
+      }
+      setPdfData(list);
 
-  // Print PDF Trigger
-  const handlePrintPDF = () => {
-    window.print();
+      // Delay briefly to allow Recharts to layout in the offscreen container
+      setTimeout(() => {
+        window.print();
+        setPdfCompiling(false);
+        setPdfModalOpen(false);
+      }, 800);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to compile visual PDF report.");
+      setPdfCompiling(false);
+    }
   };
 
-  // Build CSV logic
-  const handleBuildResponsesReport = async () => {
-    setDownloading(true);
+  // Trigger CSV compilation
+  const handleBuildCSVReport = async () => {
+    setCsvDownloading(true);
     try {
+      const data = await Responses.reportList({
+        device_id: csvDevice,
+        from_date: csvFromDate || undefined,
+        to_date: csvToDate || undefined,
+      });
+
+      const list = data.responses || [];
       if (list.length === 0) {
-        toast.error("No responses found for the selected filter combination.");
-        setDownloading(false);
+        toast.error("No responses found for the selected CSV parameters.");
+        setCsvDownloading(false);
         return;
       }
 
@@ -153,8 +179,8 @@ function ReportsPage() {
         const csvRows = [
           ["Feedback Responses Report (Aligned columns)"],
           ["Generated At", new Date().toLocaleString()],
-          ["Filter Device ID", filterDevice],
-          ["Filter Date Range", `${filterFromDate || "Start"} to ${filterToDate || "End"}`],
+          ["Filter Device ID", csvDevice],
+          ["Filter Date Range", `${csvFromDate || "Start"} to ${csvToDate || "End"}`],
           [],
           headers
         ];
@@ -192,7 +218,7 @@ function ReportsPage() {
         const csvRows: string[][] = [
           ["Feedback Responses Report (Device grouped)"],
           ["Generated At", new Date().toLocaleString()],
-          ["Filter Date Range", `${filterFromDate || "Start"} to ${filterToDate || "End"}`],
+          ["Filter Date Range", `${csvFromDate || "Start"} to ${csvToDate || "End"}`],
           [],
         ];
 
@@ -245,33 +271,30 @@ function ReportsPage() {
       }
 
       toast.success("CSV report downloaded successfully!");
-      setDownloadModalOpen(false);
+      setCsvModalOpen(false);
     } catch (err: any) {
       toast.error(err.message || "Failed to download responses report.");
     } finally {
-      setDownloading(false);
+      setCsvDownloading(false);
     }
   };
 
-  // KPIs Calculations
-  const totalCount = list.length;
-  
-  const ratedResponses = list.filter((r) => r.rating !== null);
+  // Print Calculations (Compiled dynamically for PDF document output)
+  const totalCount = pdfData.length;
+  const ratedResponses = pdfData.filter((r) => r.rating !== null);
   const avgStars =
     ratedResponses.length > 0
       ? (ratedResponses.reduce((sum, r) => sum + (r.rating || 0), 0) / ratedResponses.length).toFixed(1)
       : "0.0";
-
   const avgDuration =
-    list.length > 0
-      ? Math.round(list.reduce((sum, r) => sum + (r.duration_seconds || 0), 0) / list.length)
+    pdfData.length > 0
+      ? Math.round(pdfData.reduce((sum, r) => sum + (r.duration_seconds || 0), 0) / pdfData.length)
       : 0;
 
-  // NPS computations
   let promoters = 0;
   let passives = 0;
   let detractors = 0;
-  list.forEach((r) => {
+  pdfData.forEach((r) => {
     (r.template_questions || []).forEach((q: any) => {
       if (q.type === "nps") {
         const val = Number(r.answers?.[q.id]);
@@ -286,10 +309,9 @@ function ReportsPage() {
   const totalNps = promoters + passives + detractors;
   const npsScore = totalNps > 0 ? Math.round(((promoters - detractors) / totalNps) * 100) : null;
 
-  // Trend Grouping (By Date)
   const trendData = React.useMemo(() => {
     const counts: Record<string, number> = {};
-    list.forEach((r) => {
+    pdfData.forEach((r) => {
       if (!r.submitted_at) return;
       const d = new Date(r.submitted_at);
       const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
@@ -297,12 +319,11 @@ function ReportsPage() {
     });
     return Object.entries(counts)
       .map(([date, count]) => ({ date, count }))
-      .reverse(); // Order from oldest to newest
-  }, [list]);
+      .reverse();
+  }, [pdfData]);
 
-  // Stars Distribution Data
   const starsData = React.useMemo(() => {
-    const starCounts = [0, 0, 0, 0, 0]; // 1, 2, 3, 4, 5 Stars
+    const starCounts = [0, 0, 0, 0, 0];
     ratedResponses.forEach((r) => {
       const val = Math.min(5, Math.max(1, r.rating || 0));
       starCounts[val - 1]++;
@@ -316,21 +337,19 @@ function ReportsPage() {
     ];
   }, [ratedResponses]);
 
-  // NPS Split Data for Pie
   const npsPieData = [
-    { name: "Promoters (9-10)", value: promoters, color: "#10b981" },
-    { name: "Passives (7-8)", value: passives, color: "#f59e0b" },
-    { name: "Detractors (0-6)", value: detractors, color: "#ef4444" },
+    { name: "Promoters", value: promoters, color: "#10b981" },
+    { name: "Passives", value: passives, color: "#f59e0b" },
+    { name: "Detractors", value: detractors, color: "#ef4444" },
   ].filter((d) => d.value > 0);
 
-  // Parse questions for charts and commentary text answers
   const parsedQuestions = React.useMemo(() => {
     const questionsMap: Record<
       string,
       { label: string; type: string; answers: Record<string, number>; textAnswers: string[] }
     > = {};
 
-    list.forEach((r) => {
+    pdfData.forEach((r) => {
       (r.template_questions || []).forEach((q: any) => {
         if (!q.label) return;
         const qLabel = q.label.trim();
@@ -356,12 +375,20 @@ function ReportsPage() {
     });
 
     return Object.values(questionsMap);
-  }, [list]);
+  }, [pdfData]);
 
   return (
     <DashboardLayout>
-      {/* Dynamic styles injected specifically for print layouts */}
+      {/* Styles to place printable summary offscreen under normal state and display on print */}
       <style dangerouslySetInnerHTML={{ __html: `
+        .offscreen-print-container {
+          position: absolute;
+          left: -9999px;
+          top: -9999px;
+          width: 1024px;
+          background: #ffffff;
+          color: #000000;
+        }
         @media print {
           body {
             background-color: #ffffff !important;
@@ -370,438 +397,143 @@ function ReportsPage() {
           .no-print {
             display: none !important;
           }
-          .print-full {
+          .offscreen-print-container {
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
             width: 100% !important;
-            max-width: 100% !important;
-            grid-template-columns: 1fr !important;
-            margin: 0 !important;
-            padding: 0 !important;
-          }
-          .print-card {
-            background: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
-            box-shadow: none !important;
-            color: #000000 !important;
-            border-radius: 8px !important;
-          }
-          .print-text {
-            color: #000000 !important;
-          }
-          .recharts-responsive-container {
-            width: 100% !important;
-            height: 280px !important;
+            display: block !important;
           }
           svg {
-            filter: grayscale(100%) !important; /* Premium classic high contrast print styling */
+            filter: grayscale(100%) !important;
           }
         }
       `}} />
 
-      {/* Header section (hidden on print) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/5 no-print">
+      {/* Reports Control Center Screen Header */}
+      <div className="no-print">
         <PageHeader
           title="Reports Control Center"
-          description="Build visual charts, download PDF reports, or export structured CSV spreadsheets of responses."
+          description="Download feedback answers as clean CSV spreadsheets, or build visual summary PDF reports."
         />
-        <div className="flex items-center gap-2 self-start md:self-center">
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-white/10 text-xs h-9 text-muted-foreground hover:text-foreground"
-            onClick={() => setDownloadModalOpen(true)}
-          >
-            <FileSpreadsheet className="size-4 mr-1.5 text-emerald-500" />
-            Export CSV
-          </Button>
-          <Button
-            size="sm"
-            className="bg-primary hover:bg-primary/95 text-primary-foreground text-xs h-9 font-semibold shadow-lg"
-            onClick={handlePrintPDF}
-          >
-            <Printer className="size-4 mr-1.5" />
-            Download PDF Report
-          </Button>
-        </div>
-      </div>
 
-      {/* Printable Heading Block (Visible ONLY during print) */}
-      <div className="hidden print:block mb-8">
-        <h1 className="text-3xl font-extrabold text-black">ReviewOS — Performance Report</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Generated At: {new Date().toLocaleString()} | Filter Device: {filterDevice === "all" ? "All Connected" : filterDevice}
-        </p>
-        <hr className="mt-4 border-gray-300" />
-      </div>
-
-      {/* Filters Toolbar (hidden on print) */}
-      <GlassCard className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 mt-6 no-print border-white/5">
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Device Selector */}
-          <div className="space-y-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Device Select</span>
-            <select
-              value={filterDevice}
-              onChange={(e) => setFilterDevice(e.target.value)}
-              className="w-48 bg-white/5 border border-white/10 rounded-lg h-9 px-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
-            >
-              <option value="all" className="bg-[#0d0f12]">All Connected Devices</option>
-              {devices.map((d) => (
-                <option key={d.id} value={d.id} className="bg-[#0d0f12]">
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date range filters */}
-          <div className="space-y-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">From Date</span>
-            <Input
-              type="date"
-              value={filterFromDate}
-              onChange={(e) => setFilterFromDate(e.target.value)}
-              className="bg-white/5 border-white/10 text-xs h-9 w-36 text-foreground"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">To Date</span>
-            <Input
-              type="date"
-              value={filterToDate}
-              onChange={(e) => setFilterToDate(e.target.value)}
-              className="bg-white/5 border-white/10 text-xs h-9 w-36 text-foreground"
-            />
-          </div>
-        </div>
-
-        {totalCount > 0 && (
-          <div className="text-[11px] text-muted-foreground bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 self-end md:self-center">
-            Found <strong className="text-foreground">{totalCount}</strong> responses matching filters
-          </div>
-        )}
-      </GlassCard>
-
-      {/* Main Analytics Cards & Charts Panel */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <span className="text-xs text-muted-foreground">Gathering reporting records...</span>
-        </div>
-      ) : totalCount === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-          <div className="size-12 rounded-full bg-white/5 grid place-items-center mb-4 border border-white/10">
-            <AlertCircle className="size-6 text-muted-foreground" />
-          </div>
-          <h3 className="text-sm font-semibold text-foreground">No Response Data Captured</h3>
-          <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-            Try adjusting your device selection, selecting a broader date filter, or verify your tablet is synced.
-          </p>
-        </div>
-      ) : (
-        <div className="print-full mt-6 space-y-6">
-          {/* KPI CARDS GRID */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 print-full">
-            {/* Card 1: Total Feedbacks */}
-            <GlassCard className="p-5 border-white/5 print-card">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium print-text">Total Responses</span>
-                <span className="p-1.5 rounded-lg bg-primary/10 text-primary border border-primary/10">
-                  <BarChart3 className="size-4" />
+        {/* 2-Column reports selector panel */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 max-w-3xl">
+          {/* Card 1: CSV Export */}
+          <GlassCard className="flex flex-col justify-between border border-white/5 relative group p-5">
+            <div>
+              <div className="size-10 rounded-xl bg-emerald-500/10 grid place-items-center mb-4 border border-emerald-500/20">
+                <FileSpreadsheet className="size-5 text-emerald-500" />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                Feedback CSV Spreadsheets
+                <span className="text-[9px] text-muted-foreground bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
+                  CSV Log
                 </span>
-              </div>
-              <div className="mt-3">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground print-text">{totalCount}</h3>
-                <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
-                  <TrendingUp className="size-3 text-emerald-500" /> Active feedback collections
-                </p>
-              </div>
-            </GlassCard>
-
-            {/* Card 2: Average Rating */}
-            <GlassCard className="p-5 border-white/5 print-card">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium print-text">Avg Rating</span>
-                <span className="p-1.5 rounded-lg bg-yellow-500/10 text-yellow-500 border border-yellow-500/10">
-                  <Star className="size-4" />
-                </span>
-              </div>
-              <div className="mt-3">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground print-text flex items-center gap-1">
-                  {avgStars} <span className="text-sm font-normal text-muted-foreground">/ 5</span>
-                </h3>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Based on {ratedResponses.length} rated answers
-                </p>
-              </div>
-            </GlassCard>
-
-            {/* Card 3: Net Promoter Score */}
-            <GlassCard className="p-5 border-white/5 print-card">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium print-text">NPS Index</span>
-                <span className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/10">
-                  <Award className="size-4" />
-                </span>
-              </div>
-              <div className="mt-3">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground print-text">
-                  {npsScore !== null ? `${npsScore > 0 ? "+" : ""}${npsScore}` : "N/A"}
-                </h3>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  {totalNps > 0 ? `${promoters} Promoters, ${detractors} Detractors` : "No NPS question active"}
-                </p>
-              </div>
-            </GlassCard>
-
-            {/* Card 4: Avg Session Duration */}
-            <GlassCard className="p-5 border-white/5 print-card">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium print-text">Avg Duration</span>
-                <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500 border border-indigo-500/10">
-                  <Clock className="size-4" />
-                </span>
-              </div>
-              <div className="mt-3">
-                <h3 className="text-2xl font-bold tracking-tight text-foreground print-text">
-                  {avgDuration} <span className="text-xs text-muted-foreground font-normal">sec</span>
-                </h3>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Per customer survey completion
-                </p>
-              </div>
-            </GlassCard>
-          </div>
-
-          {/* MAIN CHARTS SECTION */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print-full">
-            {/* Chart 1: Daily Response Volumes */}
-            <GlassCard className="p-5 border-white/5 col-span-1 lg:col-span-2 print-card">
-              <h3 className="text-sm font-semibold text-foreground print-text mb-4">Response Volume Trend</h3>
-              <div className="h-72 w-full print-chart">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#00f2fe" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#00f2fe" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis dataKey="date" stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} />
-                    <YAxis stroke="rgba(255,255,255,0.4)" fontSize={10} tickLine={false} />
-                    <Tooltip
-                      contentStyle={{
-                        background: "#0d0f12",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: "8px",
-                      }}
-                      labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "11px" }}
-                      itemStyle={{ color: "#fff", fontSize: "12px" }}
-                    />
-                    <Area type="monotone" dataKey="count" name="Feedbacks" stroke="#00f2fe" strokeWidth={2} fillOpacity={1} fill="url(#colorCount)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </GlassCard>
-
-            {/* Chart 2: Net Promoter Score Split */}
-            <GlassCard className="p-5 border-white/5 print-card">
-              <h3 className="text-sm font-semibold text-foreground print-text mb-4">Sentiment Distribution</h3>
-              <div className="h-72 w-full flex flex-col justify-between print-chart">
-                {totalNps === 0 ? (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
-                    <PieIcon className="size-8 text-muted-foreground mb-2" />
-                    <span className="text-xs text-muted-foreground">No NPS scores registered in this date range.</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex-1">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={npsPieData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={55}
-                            outerRadius={75}
-                            paddingAngle={5}
-                            dataKey="value"
-                          >
-                            {npsPieData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{
-                              background: "#0d0f12",
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              borderRadius: "8px",
-                            }}
-                            itemStyle={{ fontSize: "12px" }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    {/* NPS legend */}
-                    <div className="space-y-1.5 pt-2 border-t border-white/5 no-print">
-                      {npsPieData.map((d, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-2 text-muted-foreground">
-                            <span className="size-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                            {d.name}
-                          </span>
-                          <span className="font-semibold text-foreground">{d.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </GlassCard>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print-full">
-            {/* Chart 3: Stars Rating Breakdown */}
-            <GlassCard className="p-5 border-white/5 print-card">
-              <h3 className="text-sm font-semibold text-foreground print-text mb-4">Stars Distribution</h3>
-              <div className="h-72 w-full print-chart">
-                {ratedResponses.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                    <Star className="size-8 text-muted-foreground mb-2" />
-                    <span className="text-xs text-muted-foreground">No star reviews submitted.</span>
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={starsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                      <XAxis dataKey="stars" stroke="rgba(255,255,255,0.4)" fontSize={11} tickLine={false} />
-                      <YAxis stroke="rgba(255,255,255,0.4)" fontSize={11} tickLine={false} allowDecimals={false} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "#0d0f12",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: "8px",
-                        }}
-                        labelStyle={{ color: "rgba(255,255,255,0.6)", fontSize: "11px" }}
-                        itemStyle={{ color: "#f59e0b", fontSize: "12px" }}
-                      />
-                      <Bar dataKey="count" name="Feedbacks" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </GlassCard>
-
-            {/* Visual breakdown for each question answers (Aligning all active questions) */}
-            <div className="col-span-1 lg:col-span-2 space-y-6 print-full">
-              <GlassCard className="p-5 border-white/5 print-card">
-                <h3 className="text-sm font-semibold text-foreground print-text mb-4">Question Answers Distribution</h3>
-                <div className="space-y-6 max-h-[310px] overflow-y-auto pr-2">
-                  {parsedQuestions.filter((q) => Object.keys(q.answers).length > 0).length === 0 ? (
-                    <div className="flex flex-col items-center justify-center text-center py-10">
-                      <Sparkles className="size-8 text-muted-foreground mb-2" />
-                      <span className="text-xs text-muted-foreground">No multiple-choice questions answers yet.</span>
-                    </div>
-                  ) : (
-                    parsedQuestions
-                      .filter((q) => Object.keys(q.answers).length > 0)
-                      .map((q, idx) => {
-                        const chartData = Object.entries(q.answers).map(([option, count]) => ({
-                          option: option.length > 20 ? option.slice(0, 18) + ".." : option,
-                          count,
-                        }));
-                        return (
-                          <div key={idx} className="space-y-2 pb-4 border-b border-white/5 last:border-b-0">
-                            <h4 className="text-xs font-semibold text-foreground print-text flex items-center justify-between">
-                              <span>Q: {q.label}</span>
-                              <span className="text-[9px] uppercase tracking-wider text-muted-foreground px-1.5 py-0.5 bg-white/5 rounded">
-                                {q.type.replace("_", " ")}
-                              </span>
-                            </h4>
-                            <div className="h-32 w-full print-chart">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <BarChart layout="yaml" data={chartData} margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
-                                  <XAxis type="number" stroke="rgba(255,255,255,0.3)" fontSize={9} tickLine={false} />
-                                  <YAxis dataKey="option" type="category" stroke="rgba(255,255,255,0.4)" fontSize={9} tickLine={false} width={80} />
-                                  <Tooltip
-                                    contentStyle={{
-                                      background: "#0d0f12",
-                                      border: "1px solid rgba(255,255,255,0.1)",
-                                      borderRadius: "8px",
-                                    }}
-                                    itemStyle={{ fontSize: "11px" }}
-                                  />
-                                  <Bar dataKey="count" fill="#10b981" radius={[0, 3, 3, 0]} />
-                                </BarChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </div>
-                        );
-                      })
-                  )}
-                </div>
-              </GlassCard>
+              </h2>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                Download a clean raw dataset of user feedback. Supports aligned unified columns for multi-tablet comparisons, or device-grouped vertical tables.
+              </p>
             </div>
-          </div>
-
-          {/* CUSTOMER WRITTEN FEEDBACK LOG COMMENTS */}
-          <GlassCard className="p-5 border-white/5 print-card">
-            <div className="flex items-center gap-1.5 mb-4">
-              <MessageSquare className="size-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground print-text">Written Customer Comments</h3>
+            <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Info className="size-3.5" /> Aligned columns or device sections
+              </span>
+              <Button
+                size="sm"
+                className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                onClick={() => setCsvModalOpen(true)}
+              >
+                <Download className="size-3.5 mr-1" /> Configure CSV
+              </Button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-2">
-              {parsedQuestions
-                .filter((q) => q.type === "long_text" || q.type === "short_text")
-                .flatMap((q) => q.textAnswers)
-                .length === 0 ? (
-                <div className="col-span-2 py-8 flex flex-col items-center justify-center text-center text-muted-foreground">
-                  <span className="text-xs">No written text feedback submitted in this window.</span>
-                </div>
-              ) : (
-                parsedQuestions
-                  .filter((q) => q.type === "long_text" || q.type === "short_text")
-                  .flatMap((q) =>
-                    q.textAnswers.map((txt, textIdx) => (
-                      <div
-                        key={textIdx}
-                        className="p-3 bg-white/5 rounded-xl border border-white/5 flex flex-col gap-2 print-card"
-                      >
-                        <p className="text-xs text-foreground italic leading-relaxed print-text">
-                          "{txt}"
-                        </p>
-                        <span className="text-[9px] text-muted-foreground uppercase font-semibold">
-                          Question ID / Label context: {q.label}
-                        </span>
-                      </div>
-                    ))
-                  )
-              )}
+          </GlassCard>
+
+          {/* Card 2: PDF Export */}
+          <GlassCard className="flex flex-col justify-between border border-white/5 relative group p-5">
+            <div>
+              <div className="size-10 rounded-xl bg-primary/10 grid place-items-center mb-4 border border-primary/20">
+                <FileText className="size-5 text-primary" />
+              </div>
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                Visual Executive PDF Summary
+                <span className="text-[9px] text-muted-foreground bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full font-medium">
+                  PDF Report
+                </span>
+              </h2>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                Build an elegant graphical executive overview. Includes response trends, NPS index distributions, star breakdown charts, and text comment logs.
+              </p>
+            </div>
+            <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Sparkles className="size-3.5 text-primary" /> Visual charts & trend graphics
+              </span>
+              <Button
+                size="sm"
+                className="text-xs h-8 bg-primary hover:bg-primary/95 text-primary-foreground font-semibold"
+                onClick={() => setPdfModalOpen(true)}
+              >
+                <Printer className="size-3.5 mr-1" /> Download Visual PDF
+              </Button>
             </div>
           </GlassCard>
         </div>
-      )}
+      </div>
 
       {/* ======================================================== */}
-      {/* DIALOG: Build Responses CSV Options                      */}
+      {/* DIALOG: Configure CSV Export Option                      */}
       {/* ======================================================== */}
-      <Dialog open={downloadModalOpen} onOpenChange={setDownloadModalOpen}>
-        <DialogContent className="max-w-md border border-white/10 bg-[#0d0f12]/95 backdrop-blur-md">
+      <Dialog open={csvModalOpen} onOpenChange={setCsvModalOpen}>
+        <DialogContent className="max-w-md border border-white/10 bg-[#0d0f12]/95 backdrop-blur-md no-print">
           <DialogHeader>
-            <DialogTitle>Configure Export Options</DialogTitle>
+            <DialogTitle>Configure CSV Export</DialogTitle>
             <DialogDescription>
-              Select formats to generate your CSV feedback log.
+              Select devices, date filters, and formats to build your CSV feedback log.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 pt-2">
-            {/* Format Selection Layout */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground font-semibold">Device Filter</Label>
+              <select
+                value={csvDevice}
+                onChange={(e) => setCsvDevice(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
+              >
+                <option value="all" className="bg-[#0d0f12]">All Connected Devices</option>
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id} className="bg-[#0d0f12]">
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground font-semibold">From Date</Label>
+                <Input
+                  type="date"
+                  value={csvFromDate}
+                  onChange={(e) => setCsvFromDate(e.target.value)}
+                  className="bg-white/5 border-white/10 text-xs h-9 text-foreground focus-visible:ring-primary/40"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground font-semibold">To Date</Label>
+                <Input
+                  type="date"
+                  value={csvToDate}
+                  onChange={(e) => setCsvToDate(e.target.value)}
+                  className="bg-white/5 border-white/10 text-xs h-9 text-foreground focus-visible:ring-primary/40"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label className="text-xs text-muted-foreground font-semibold">Report Columns Format</Label>
               <div className="grid grid-cols-1 gap-2.5">
-                {/* Format 1 Button */}
                 <button
                   type="button"
                   onClick={() => setCsvFormat("format1")}
@@ -820,7 +552,6 @@ function ReportsPage() {
                   </span>
                 </button>
 
-                {/* Format 2 Button */}
                 <button
                   type="button"
                   onClick={() => setCsvFormat("format2")}
@@ -846,21 +577,277 @@ function ReportsPage() {
             <Button
               variant="outline"
               className="border-white/10 text-xs h-9"
-              onClick={() => setDownloadModalOpen(false)}
-              disabled={downloading}
+              onClick={() => setCsvModalOpen(false)}
+              disabled={csvDownloading}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="text-xs h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              onClick={handleBuildCSVReport}
+              disabled={csvDownloading}
+            >
+              {csvDownloading ? "Compiling..." : "Generate and Download"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Configure PDF Report Export                      */}
+      {/* ======================================================== */}
+      <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
+        <DialogContent className="max-w-md border border-white/10 bg-[#0d0f12]/95 backdrop-blur-md no-print">
+          <DialogHeader>
+            <DialogTitle>Configure Visual PDF Report</DialogTitle>
+            <DialogDescription>
+              Select devices and date ranges to build your graphical report document.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground font-semibold">Device Filter</Label>
+              <select
+                value={pdfDevice}
+                onChange={(e) => setPdfDevice(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
+              >
+                <option value="all" className="bg-[#0d0f12]">All Connected Devices</option>
+                {devices.map((d) => (
+                  <option key={d.id} value={d.id} className="bg-[#0d0f12]">
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground font-semibold">From Date</Label>
+                <Input
+                  type="date"
+                  value={pdfFromDate}
+                  onChange={(e) => setPdfFromDate(e.target.value)}
+                  className="bg-white/5 border-white/10 text-xs h-9 text-foreground focus-visible:ring-primary/40"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground font-semibold">To Date</Label>
+                <Input
+                  type="date"
+                  value={pdfToDate}
+                  onChange={(e) => setPdfToDate(e.target.value)}
+                  className="bg-white/5 border-white/10 text-xs h-9 text-foreground focus-visible:ring-primary/40"
+                />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-6 gap-2">
+            <Button
+              variant="outline"
+              className="border-white/10 text-xs h-9"
+              onClick={() => setPdfModalOpen(false)}
+              disabled={pdfCompiling}
             >
               Cancel
             </Button>
             <Button
               className="text-xs h-9 bg-primary text-primary-foreground font-semibold"
-              onClick={handleBuildResponsesReport}
-              disabled={downloading}
+              onClick={handleBuildPDFReport}
+              disabled={pdfCompiling}
             >
-              {downloading ? "Compiling..." : "Generate and Download"}
+              {pdfCompiling ? "Compiling..." : "Generate and Print PDF"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ======================================================== */}
+      {/* OFF-SCREEN PRINT CONTAINER                               */}
+      {/* ======================================================== */}
+      {pdfData.length > 0 && (
+        <div className="offscreen-print-container p-8 space-y-6">
+          <div className="flex items-center justify-between pb-4 border-b border-gray-300">
+            <div>
+              <h1 className="text-2xl font-bold text-black uppercase tracking-tight">ReviewOS Performance Summary</h1>
+              <p className="text-xs text-gray-500 mt-1">
+                Report generated on: {new Date().toLocaleString()} | Device: {pdfDevice === "all" ? "All Connected" : pdfDevice}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2.5 py-1 rounded">
+                Executive Report
+              </span>
+            </div>
+          </div>
+
+          {/* KPI summaries row */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <span className="text-[10px] uppercase font-bold text-gray-400">Total Feedbacks</span>
+              <h2 className="text-xl font-bold text-black mt-1">{totalCount}</h2>
+            </div>
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <span className="text-[10px] uppercase font-bold text-gray-400">Avg Rating Stars</span>
+              <h2 className="text-xl font-bold text-black mt-1">{avgStars} / 5</h2>
+            </div>
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <span className="text-[10px] uppercase font-bold text-gray-400">NPS Score Index</span>
+              <h2 className="text-xl font-bold text-black mt-1">
+                {npsScore !== null ? `${npsScore > 0 ? "+" : ""}${npsScore}` : "N/A"}
+              </h2>
+            </div>
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <span className="text-[10px] uppercase font-bold text-gray-400">Avg Session Duration</span>
+              <h2 className="text-xl font-bold text-black mt-1">{avgDuration} sec</h2>
+            </div>
+          </div>
+
+          {/* Core Analytics Visual Trends */}
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
+              <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Response Volumes Trend</h3>
+              <div className="h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} />
+                    <Area type="monotone" dataKey="count" stroke="#000000" strokeWidth={1.5} fill="#f1f5f9" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between">
+              <h3 className="text-xs font-bold text-gray-600 uppercase mb-2">Sentiment Split</h3>
+              {totalNps === 0 ? (
+                <div className="flex-1 flex items-center justify-center text-xs text-gray-400 italic">
+                  No NPS scores.
+                </div>
+              ) : (
+                <>
+                  <div className="flex-1 min-h-[140px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={npsPieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={40}
+                          outerRadius={55}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {npsPieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-1 border-t border-gray-200 pt-2 text-[10px]">
+                    {npsPieData.map((d, idx) => (
+                      <div key={idx} className="flex items-center justify-between">
+                        <span className="text-gray-400 flex items-center gap-1.5">
+                          <span className="size-2 rounded-full" style={{ backgroundColor: d.color }} />
+                          {d.name}
+                        </span>
+                        <span className="font-bold text-black">{d.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-6">
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Stars Split</h3>
+              <div className="h-56 w-full">
+                {ratedResponses.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-xs text-gray-400 italic">
+                    No stars rating.
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={starsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis dataKey="stars" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                      <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} allowDecimals={false} />
+                      <Bar dataKey="count" fill="#475569" radius={[2, 2, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
+              <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Unified Survey Questions Split</h3>
+              <div className="space-y-4 max-h-[220px] overflow-y-auto pr-2">
+                {parsedQuestions.filter((q) => Object.keys(q.answers).length > 0).length === 0 ? (
+                  <div className="text-xs text-gray-400 italic text-center py-8">
+                    No question distributions.
+                  </div>
+                ) : (
+                  parsedQuestions
+                    .filter((q) => Object.keys(q.answers).length > 0)
+                    .map((q, idx) => {
+                      const chartData = Object.entries(q.answers).map(([option, count]) => ({
+                        option: option.length > 20 ? option.slice(0, 18) + ".." : option,
+                        count,
+                      }));
+                      return (
+                        <div key={idx} className="space-y-1.5 pb-2 border-b border-gray-100 last:border-0 last:pb-0">
+                          <span className="text-[10px] font-bold text-gray-700">Q: {q.label} ({q.type})</span>
+                          <div className="h-20 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart layout="yaml" data={chartData} margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                <XAxis type="number" stroke="#94a3b8" fontSize={8} tickLine={false} />
+                                <YAxis dataKey="option" type="category" stroke="#94a3b8" fontSize={8} tickLine={false} width={80} />
+                                <Bar dataKey="count" fill="#0284c7" radius={[0, 2, 2, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Text feedback lists */}
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Customer Written Comments</h3>
+            <div className="grid grid-cols-2 gap-4 max-h-[180px] overflow-y-auto pr-1">
+              {parsedQuestions
+                .filter((q) => q.type === "long_text" || q.type === "short_text")
+                .flatMap((q) => q.textAnswers)
+                .length === 0 ? (
+                <div className="col-span-2 text-xs text-gray-400 italic">No written feedback.</div>
+              ) : (
+                parsedQuestions
+                  .filter((q) => q.type === "long_text" || q.type === "short_text")
+                  .flatMap((q) =>
+                    q.textAnswers.map((txt, idx) => (
+                      <div key={idx} className="p-2.5 bg-gray-50 rounded border border-gray-100 text-[10px] text-gray-700 italic">
+                        "{txt}"
+                        <span className="block mt-1.5 not-italic text-[8px] font-semibold text-gray-400 uppercase">
+                          Source Context: {q.label}
+                        </span>
+                      </div>
+                    ))
+                  )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
