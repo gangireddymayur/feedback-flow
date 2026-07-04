@@ -172,12 +172,14 @@ function ReportsPage() {
       return;
     }
     setPdfCompiling(true);
-    // Delay slightly to ensure browser focus
+    // 1. Close the modal first to unmount the portal elements from DOM
+    setPdfModalOpen(false);
+    
+    // 2. Wait for modal unmount transition to complete, then print
     setTimeout(() => {
       window.print();
       setPdfCompiling(false);
-      setPdfModalOpen(false);
-    }, 400);
+    }, 600);
   };
 
   // Trigger CSV compilation
