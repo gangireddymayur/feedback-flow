@@ -23,7 +23,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Responses, Devices } from "@/lib/api";
+import { Responses, Devices, Templates } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +95,36 @@ function ReportsPage() {
 
   const devices = devicesQ.data?.devices ?? [];
 
+  const templatesQ = useQuery({
+    queryKey: ["templates"],
+    queryFn: () => Templates.list(),
+  });
+
+  // Calculate oldest template creation date and today's date
+  const oldestTemplateDate = React.useMemo(() => {
+    const tList = templatesQ.data?.templates ?? [];
+    if (tList.length === 0) return "";
+    let oldest = new Date();
+    tList.forEach((t) => {
+      if (t.created_at) {
+        const d = new Date(t.created_at);
+        if (d < oldest) oldest = d;
+      }
+    });
+    const yyyy = oldest.getFullYear();
+    const mm = String(oldest.getMonth() + 1).padStart(2, "0");
+    const dd = String(oldest.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, [templatesQ.data?.templates]);
+
+  const currentDate = React.useMemo(() => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
+
   // CSV Export configuration state
   const [csvModalOpen, setCsvModalOpen] = React.useState(false);
   const [csvDevice, setCsvDevice] = React.useState("all");
@@ -110,6 +140,19 @@ function ReportsPage() {
   const [pdfToDate, setPdfToDate] = React.useState("");
   const [pdfCompiling, setPdfCompiling] = React.useState(false);
   const [pdfData, setPdfData] = React.useState<any[]>([]);
+
+  // Apply default dates automatically
+  React.useEffect(() => {
+    if (oldestTemplateDate) {
+      if (!csvFromDate) setCsvFromDate(oldestTemplateDate);
+      if (!pdfFromDate) setPdfFromDate(oldestTemplateDate);
+    }
+  }, [oldestTemplateDate]);
+
+  React.useEffect(() => {
+    if (!csvToDate) setCsvToDate(currentDate);
+    if (!pdfToDate) setPdfToDate(currentDate);
+  }, [currentDate]);
 
   // Trigger PDF print session
   const handleBuildPDFReport = async () => {
@@ -715,7 +758,7 @@ function ReportsPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                     <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} />
                     <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} />
-                    <Area type="monotone" dataKey="count" stroke="#000000" strokeWidth={1.5} fill="#f1f5f9" />
+                    <Area type="monotone" dataKey="count" stroke="#000000" strokeWidth={1.5} fill="#f1f5f9" isAnimationActive={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -740,6 +783,7 @@ function ReportsPage() {
                           outerRadius={55}
                           paddingAngle={3}
                           dataKey="value"
+                          isAnimationActive={false}
                         >
                           {npsPieData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
@@ -778,7 +822,7 @@ function ReportsPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis dataKey="stars" stroke="#94a3b8" fontSize={9} tickLine={false} />
                       <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} allowDecimals={false} />
-                      <Bar dataKey="count" fill="#475569" radius={[2, 2, 0, 0]} />
+                      <Bar dataKey="count" fill="#475569" radius={[2, 2, 0, 0]} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 )}
@@ -809,7 +853,7 @@ function ReportsPage() {
                                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                                 <XAxis type="number" stroke="#94a3b8" fontSize={8} tickLine={false} />
                                 <YAxis dataKey="option" type="category" stroke="#94a3b8" fontSize={8} tickLine={false} width={80} />
-                                <Bar dataKey="count" fill="#0284c7" radius={[0, 2, 2, 0]} />
+                                <Bar dataKey="count" fill="#0284c7" radius={[0, 2, 2, 0]} isAnimationActive={false} />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
