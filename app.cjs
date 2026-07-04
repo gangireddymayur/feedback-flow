@@ -1837,6 +1837,15 @@ app.get("/api/templates/debug", async (req, res) => {
   }
 });
 
+app.get("/api/devices/debug", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT id, name, location, status, template_id, schedules_enabled, last_sync FROM devices");
+    res.json({ count: rows.length, rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/screensavers
 app.get(
   "/api/screensavers",
