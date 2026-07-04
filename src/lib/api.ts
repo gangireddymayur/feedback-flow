@@ -451,26 +451,11 @@ export const Screensavers = {
   list: async () => {
     return await http<{ screensavers: ApiScreensaver[] }>("/screensavers");
   },
-  upload: async (file: File, name: string, type: "image" | "video") => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("name", name);
-    formData.append("type", type);
-
-    const token = getToken();
-    const headers = new Headers();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-
-    const res = await fetch("/api/screensavers/upload", {
+  upload: async (body: { name: string; filename: string; base64Data: string; type: "image" | "video" }) => {
+    return await http<{ ok: boolean; screensaver: ApiScreensaver }>("/screensavers/upload", {
       method: "POST",
-      headers,
-      body: formData,
+      body: JSON.stringify(body),
     });
-
-    const text = await res.text();
-    const body = text ? safeJson(text) : null;
-    if (!res.ok) throw new ApiError(body?.error || res.statusText, res.status, body);
-    return body as { ok: boolean; screensaver: ApiScreensaver };
   },
   activate: async (body: { id: number; timeout_seconds: number }) => {
     return await http<{ ok: boolean }>("/screensavers/activate", {
