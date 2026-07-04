@@ -733,37 +733,7 @@ function Canvas({
         </div>
       )}
 
-      {branding.enabled && branding.showBrandHeader !== true && (
-        <div
-          className={cn(
-            "absolute pointer-events-none z-10 flex flex-col items-center bg-black/50 backdrop-blur-sm border border-white/10 p-2 rounded-lg text-center shadow-xl",
-            branding.position === "top_left" && "top-3 left-3",
-            branding.position === "top_right" && "top-3 right-3",
-            branding.position === "bottom_left" && "bottom-3 left-3",
-            branding.position === "bottom_right" && "bottom-3 right-3"
-          )}
-          style={{
-            marginTop: branding.position.startsWith("top") ? `${branding.offsetY}px` : undefined,
-            marginBottom: branding.position.startsWith("bottom") ? `${branding.offsetY}px` : undefined,
-            marginLeft: branding.position.endsWith("left") ? `${branding.offsetX}px` : undefined,
-            marginRight: branding.position.endsWith("right") ? `${branding.offsetX}px` : undefined,
-          }}
-        >
-          {branding.logoUrl && (
-            <img
-              src={branding.logoUrl}
-              alt="Watermark Logo"
-              style={{ width: `${branding.size}px`, height: "auto" }}
-              className="object-contain max-h-40"
-            />
-          )}
-          {branding.companyName && (
-            <span className="text-[10px] font-bold text-white/95 mt-1 block select-none">
-              {branding.companyName}
-            </span>
-          )}
-        </div>
-      )}
+
     </div>
   );
 }
