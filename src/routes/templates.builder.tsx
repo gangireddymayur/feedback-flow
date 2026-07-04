@@ -733,7 +733,7 @@ function Canvas({
         </div>
       )}
 
-      {branding.enabled && (
+      {branding.enabled && branding.showBrandHeader !== true && (
         <div
           className={cn(
             "absolute pointer-events-none z-10 flex flex-col items-center bg-black/50 backdrop-blur-sm border border-white/10 p-2 rounded-lg text-center shadow-xl",
