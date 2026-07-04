@@ -106,37 +106,22 @@ function ScreensaverPage() {
     }
 
     setUploading(true);
-    const reader = new FileReader();
+    try {
+      await Screensavers.upload(
+        file,
+        uploadName.trim() || file.name.split(".")[0],
+        type
+      );
 
-    reader.onload = async () => {
-      try {
-        const rawResult = reader.result as string;
-        const base64Data = rawResult.split(",")[1];
-
-        await Screensavers.upload({
-          name: uploadName.trim() || file.name.split(".")[0],
-          filename: file.name,
-          base64Data,
-          type,
-        });
-
-        toast.success("Screensaver uploaded successfully!");
-        setUploadName("");
-        qc.invalidateQueries({ queryKey: ["screensavers"] });
-      } catch (err: any) {
-        toast.error(err.message || "Failed to upload screensaver media.");
-      } finally {
-        setUploading(false);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      }
-    };
-
-    reader.onerror = () => {
-      toast.error("Error reading file.");
+      toast.success("Screensaver uploaded successfully!");
+      setUploadName("");
+      qc.invalidateQueries({ queryKey: ["screensavers"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to upload screensaver media.");
+    } finally {
       setUploading(false);
-    };
-
-    reader.readAsDataURL(file);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
 
   const handleTimeoutChange = (seconds: number) => {

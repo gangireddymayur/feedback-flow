@@ -12,6 +12,23 @@ const path = require("node:path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mysql = require("mysql2/promise");
+const multer = require("multer");
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadsDir = path.join(__dirname, "uploads");
+    const fs = require("node:fs");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+    cb(null, uploadsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueFilename = `${Date.now()}_${file.originalname.replace(/\s+/g, "_")}`;
+    cb(null, uniqueFilename);
+  },
+});
+const upload = multer({ storage });
 
 const {
   DB_HOST = "localhost",
@@ -1816,35 +1833,22 @@ app.get(
 app.post(
   "/api/screensavers/upload",
   auth(),
+  upload.single("file"),
   asyncH(async (req, res) => {
-    const { name, filename, base64Data, type = "image" } = req.body || {};
-    if (!name || !filename || !base64Data) {
-      return res.status(400).json({ error: "name, filename, and base64Data required" });
+    const { name, type = "image" } = req.body || {};
+    if (!req.file) {
+      return res.status(400).json({ error: "file field required" });
     }
 
-    // Parse base64 and write to uploads/
-    const fs = require("node:fs");
-    const uploadsDir = path.join(__dirname, "uploads");
-    const uniqueFilename = `${Date.now()}_${filename.replace(/\s+/g, "_")}`;
-    const filePath = path.join(uploadsDir, uniqueFilename);
+    const uniqueFilename = req.file.filename;
     const fileUrl = `/uploads/${uniqueFilename}`;
-
-    try {
-      const buffer = Buffer.from(base64Data, "base64");
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-      fs.writeFileSync(filePath, buffer);
-    } catch (fsErr) {
-      console.error("[upload error] Failed to write file:", fsErr);
-      return res.status(500).json({ error: `File system write error: ${fsErr.message}` });
-    }
+    const finalName = name || uniqueFilename.split(".")[0];
 
     let result;
     try {
       const [dbResult] = await pool.query(
         "INSERT INTO screensavers (owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, 0, 300)",
-        [req.user.id, name, fileUrl, type]
+        [req.user.id, finalName, fileUrl, type]
       );
       result = dbResult;
     } catch (dbErr) {
@@ -1856,7 +1860,7 @@ app.post(
       ok: true,
       screensaver: {
         id: result.insertId,
-        name,
+        name: finalName,
         url: fileUrl,
         type,
         is_active: 0,
