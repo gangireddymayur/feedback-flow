@@ -423,7 +423,7 @@ function ReportsPage() {
       {/* Styles to cleanly hide sidebar and top menu headers during reports print */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          aside, header, footer, nav {
+          aside, header, footer, nav, [data-radix-portal], [role="dialog"], .no-print {
             display: none !important;
           }
           main {
