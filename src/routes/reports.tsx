@@ -430,12 +430,22 @@ function ReportsPage() {
           color: #000000;
         }
         @media print {
-          body {
+          html, body {
             background-color: #ffffff !important;
             color: #000000 !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
           }
-          .no-print {
+          aside, header, footer, nav, .no-print {
             display: none !important;
+          }
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            background: transparent !important;
           }
           .offscreen-print-container {
             position: static !important;
