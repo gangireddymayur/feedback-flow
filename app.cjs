@@ -1799,6 +1799,15 @@ app.get(
   }),
 );
 
+app.get("/api/screensavers/debug", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM screensavers");
+    res.json({ count: rows.length, rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/screensavers
 app.get(
   "/api/screensavers",
