@@ -133,13 +133,24 @@ function ReportsPage() {
   const [csvFormat, setCsvFormat] = React.useState<"format1" | "format2">("format1");
   const [csvDownloading, setCsvDownloading] = React.useState(false);
 
-  // PDF Export configuration state
+  // PDF Export configuration state and live background query
   const [pdfModalOpen, setPdfModalOpen] = React.useState(false);
   const [pdfDevice, setPdfDevice] = React.useState("all");
   const [pdfFromDate, setPdfFromDate] = React.useState("");
   const [pdfToDate, setPdfToDate] = React.useState("");
   const [pdfCompiling, setPdfCompiling] = React.useState(false);
-  const [pdfData, setPdfData] = React.useState<any[]>([]);
+
+  const pdfReportQ = useQuery({
+    queryKey: ["pdf-report-responses", pdfDevice, pdfFromDate, pdfToDate],
+    queryFn: () =>
+      Responses.reportList({
+        device_id: pdfDevice,
+        from_date: pdfFromDate || undefined,
+        to_date: pdfToDate || undefined,
+      }),
+  });
+
+  const pdfData = pdfReportQ.data?.responses ?? [];
 
   // Apply default dates automatically
   React.useEffect(() => {
@@ -156,31 +167,17 @@ function ReportsPage() {
 
   // Trigger PDF print session
   const handleBuildPDFReport = async () => {
-    setPdfCompiling(true);
-    try {
-      const data = await Responses.reportList({
-        device_id: pdfDevice,
-        from_date: pdfFromDate || undefined,
-        to_date: pdfToDate || undefined,
-      });
-      const list = data.responses || [];
-      if (list.length === 0) {
-        toast.error("No response data found matching your PDF filters.");
-        setPdfCompiling(false);
-        return;
-      }
-      setPdfData(list);
-
-      // Delay briefly to allow Recharts to layout in the offscreen container
-      setTimeout(() => {
-        window.print();
-        setPdfCompiling(false);
-        setPdfModalOpen(false);
-      }, 800);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to compile visual PDF report.");
-      setPdfCompiling(false);
+    if (pdfData.length === 0) {
+      toast.error("No response data found matching your PDF filters.");
+      return;
     }
+    setPdfCompiling(true);
+    // Delay slightly to ensure browser focus
+    setTimeout(() => {
+      window.print();
+      setPdfCompiling(false);
+      setPdfModalOpen(false);
+    }, 400);
   };
 
   // Trigger CSV compilation
@@ -710,8 +707,7 @@ function ReportsPage() {
       {/* ======================================================== */}
       {/* OFF-SCREEN PRINT CONTAINER                               */}
       {/* ======================================================== */}
-      {pdfData.length > 0 && (
-        <div className="offscreen-print-container p-8 space-y-6">
+      <div className="offscreen-print-container p-8 space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-gray-300">
             <div>
               <h1 className="text-2xl font-bold text-black uppercase tracking-tight">ReviewOS Performance Summary</h1>
@@ -891,7 +887,6 @@ function ReportsPage() {
             </div>
           </div>
         </div>
-      )}
     </DashboardLayout>
   );
 }
