@@ -596,7 +596,32 @@ function SchedulePage() {
     const y = e.clientY - rect.top;
     const droppedMins = Math.max(0, Math.min(24 * 60 - 60, Math.floor(y / PX_PER_MIN)));
     const startMins = Math.round(droppedMins / 15) * 15;
-    const endMins = Math.min(24 * 60, startMins + 8 * 60); // 8 Hours default
+
+    // Find all schedule instances on this date
+    const dayInstances = instances.filter((inst) => inst.date === dateStr);
+
+    // Find the next scheduled instance that starts after our drop time
+    const nextInstances = dayInstances
+      .map((inst) => ({
+        start: parseHHMM(inst.start_time),
+        end: parseHHMM(inst.end_time),
+      }))
+      .filter((inst) => inst.start > startMins)
+      .sort((a, b) => a.start - b.start);
+
+    const nextStartMins = nextInstances.length > 0 ? nextInstances[0].start : null;
+
+    // Default to 8 hours, but clamp to start of next schedule if it would overlap
+    let endMins = startMins + 8 * 60;
+    if (nextStartMins !== null && endMins > nextStartMins) {
+      endMins = nextStartMins;
+    }
+
+    // Ensure a minimum duration of 15 minutes and don't go past end of day
+    if (endMins - startMins < 15) {
+      endMins = startMins + 15;
+    }
+    endMins = Math.min(24 * 60, endMins);
 
     createMut.mutate({
       device_id: selectedDeviceId!,
