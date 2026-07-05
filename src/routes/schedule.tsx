@@ -78,7 +78,7 @@ function parseHHMM(s: string) {
 
 // Helper: Convert minutes of day to time string "HH:MM"
 function toHHMM(mins: number) {
-  const m = Math.max(0, Math.min(24 * 60, mins));
+  const m = Math.max(0, Math.min(24 * 60 - 1, mins)); // Maximum is 23:59
   const h = Math.floor(m / 60);
   const r = m % 60;
   return `${String(h).padStart(2, "0")}:${String(r).padStart(2, "0")}`;

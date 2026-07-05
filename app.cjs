@@ -930,6 +930,15 @@ app.post(
 // Helper to generate instances for a schedule
 function generateInstances(scheduleId, deviceId, templateId, startTime, endTime, startDate, repeatMode, repeatInterval = 1, daysCount = 1) {
   const instances = [];
+
+  let normStart = startTime;
+  if (normStart && (normStart.startsWith("24:00") || normStart.startsWith("24:00:00"))) {
+    normStart = "23:59:00";
+  }
+  let normEnd = endTime;
+  if (normEnd && (normEnd.startsWith("24:00") || normEnd.startsWith("24:00:00"))) {
+    normEnd = "23:59:00";
+  }
   
   // Normalize startDate to YYYY-MM-DD string (handles string or JS Date object)
   let dateStrInput = "";
@@ -961,16 +970,16 @@ function generateInstances(scheduleId, deviceId, templateId, startTime, endTime,
     const m = String(curDate.getMonth() + 1).padStart(2, "0");
     const d = String(curDate.getDate()).padStart(2, "0");
     const dateStr = `${y}-${m}-${d}`;
-    const startDatetimeStr = `${dateStr} ${startTime}`;
-    const endDatetimeStr = `${dateStr} ${endTime}`;
+    const startDatetimeStr = `${dateStr} ${normStart}`;
+    const endDatetimeStr = `${dateStr} ${normEnd}`;
 
     instances.push({
       schedule_id: scheduleId,
       device_id: deviceId,
       template_id: templateId,
       date: dateStr,
-      start_time: startTime,
-      end_time: endTime,
+      start_time: normStart,
+      end_time: normEnd,
       start_datetime: startDatetimeStr,
       end_datetime: endDatetimeStr
     });
@@ -1112,8 +1121,11 @@ app.post(
     const [tpl] = await pool.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [Number(template_id), req.user.id]);
     if (tpl.length === 0) return res.status(403).json({ error: "Access denied" });
 
-    const formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
-    const formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
+    let formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
+    let formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
+
+    if (formattedStartTime.startsWith("24:00")) formattedStartTime = "23:59:00";
+    if (formattedEndTime.startsWith("24:00")) formattedEndTime = "23:59:00";
 
     const todayStr = new Date().toISOString().slice(0, 10);
     if (start_date < todayStr) {
@@ -1235,8 +1247,11 @@ app.put(
       const et = end_time !== undefined ? end_time : s.end_time;
       const sd = start_date !== undefined ? start_date : s.start_date;
 
-      const formattedStartTime = st.length === 5 ? `${st}:00` : st;
-      const formattedEndTime = et.length === 5 ? `${et}:00` : et;
+      let formattedStartTime = st.length === 5 ? `${st}:00` : st;
+      let formattedEndTime = et.length === 5 ? `${et}:00` : et;
+
+      if (formattedStartTime.startsWith("24:00")) formattedStartTime = "23:59:00";
+      if (formattedEndTime.startsWith("24:00")) formattedEndTime = "23:59:00";
 
       if (formattedStartTime >= formattedEndTime) {
         await conn.rollback();
@@ -1346,8 +1361,11 @@ app.post(
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
-    const formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
+    let formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
+    let formattedEndTime = end_time.length === 5 ? `${end_time}:00` : end_time;
+
+    if (formattedStartTime.startsWith("24:00")) formattedStartTime = "23:59:00";
+    if (formattedEndTime.startsWith("24:00")) formattedEndTime = "23:59:00";
 
     if (formattedStartTime >= formattedEndTime) {
       return res.status(400).json({ error: "End time must be after start time" });
