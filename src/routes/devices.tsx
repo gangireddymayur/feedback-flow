@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MapPin, Smartphone, Trash2, Edit2, Pause, Play, Calendar } from "lucide-react";
+import { Plus, MapPin, Smartphone, Trash2, Pause, Play, Calendar, Settings } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -263,51 +263,15 @@ function DevicesPage() {
                         </td>
                         <td className="px-3 py-4 text-right font-semibold">{d.responses_today}</td>
                         <td className="px-3 py-4">
-                          <div className="flex items-center justify-end gap-1">
-                            {/* Pause / Play button */}
+                          <div className="flex items-center justify-end">
                             <Button
                               size="icon"
                               variant="ghost"
-                              className={cn(
-                                "size-7",
-                                d.status === "paused"
-                                  ? "text-emerald-300 hover:text-emerald-200"
-                                  : "text-amber-300 hover:text-amber-200",
-                              )}
-                              onClick={() => handleTogglePause(d)}
-                              title={
-                                d.status === "paused"
-                                  ? "Resume survey sessions"
-                                  : "Temporarily pause tablet survey"
-                              }
-                            >
-                              {d.status === "paused" ? (
-                                <Play className="size-3.5" />
-                              ) : (
-                                <Pause className="size-3.5" />
-                              )}
-                            </Button>
-
-                            {/* Edit Config button */}
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7 text-primary hover:text-primary/80"
+                              className="size-7 hover:bg-white/5"
                               onClick={() => handleEditClick(d)}
-                              title="Edit Device Details"
+                              title="Device Settings"
                             >
-                              <Edit2 className="size-3.5" />
-                            </Button>
-
-                            {/* Delete/Logout button */}
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="size-7 text-rose-300 hover:text-rose-200"
-                              onClick={() => setDeleteConfirmId(d.id)}
-                              title="Unpair & delete device record"
-                            >
-                              <Trash2 className="size-3.5" />
+                              <Settings className="size-3.5 text-muted-foreground" />
                             </Button>
                           </div>
                         </td>
@@ -319,51 +283,103 @@ function DevicesPage() {
             </div>
           </GlassCard>
 
-          {/* Edit Device Dialog */}
+          {/* Device Settings Dialog */}
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
             <DialogContent className="glass-strong border-white/10 sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Edit Tablet Details</DialogTitle>
+                <DialogTitle>Device Settings</DialogTitle>
                 <DialogDescription>
-                  Modify the client-facing tablet details below.
+                  Modify configurations, pause surveys, or unpair this tablet device.
                 </DialogDescription>
               </DialogHeader>
-              <div className="space-y-3 pt-2">
-                <Label htmlFor="edit-dname">Device name</Label>
-                <Input
-                  id="edit-dname"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                  placeholder="Lobby Tablet"
-                />
-                <Label htmlFor="edit-dloc">Location</Label>
-                <Input
-                  id="edit-dloc"
-                  value={editLocation}
-                  onChange={(e) => setEditLocation(e.target.value)}
-                  className="bg-white/5 border-white/10"
-                  placeholder="Downtown Branch"
-                />
-              </div>
-              <DialogFooter>
-                <Button
-                  className="w-full"
-                  onClick={handleEditSave}
-                  disabled={updateMut.isPending || !editName}
-                >
-                  {updateMut.isPending ? "Saving…" : "Save changes"}
-                </Button>
-              </DialogFooter>
+              {editDevice && (
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-dname" className="text-xs font-semibold text-muted-foreground">Device Name</Label>
+                    <Input
+                      id="edit-dname"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="bg-white/5 border-white/10 text-xs h-9"
+                      placeholder="Lobby Tablet"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-dloc" className="text-xs font-semibold text-muted-foreground">Location</Label>
+                    <Input
+                      id="edit-dloc"
+                      value={editLocation}
+                      onChange={(e) => setEditLocation(e.target.value)}
+                      className="bg-white/5 border-white/10 text-xs h-9"
+                      placeholder="Downtown Branch"
+                    />
+                  </div>
+
+                  <div className="border-t border-white/5 pt-4 flex flex-col gap-2">
+                    <Button
+                      onClick={handleEditSave}
+                      className="w-full text-xs h-9 font-semibold bg-primary hover:bg-primary/90"
+                      disabled={updateMut.isPending || !editName}
+                    >
+                      {updateMut.isPending ? "Saving..." : "Save Settings"}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant={editDevice.status === "paused" ? "default" : "outline"}
+                      className={cn(
+                        "w-full text-xs h-9 font-semibold",
+                        editDevice.status !== "paused" && "text-amber-300 hover:text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                      )}
+                      onClick={() => {
+                        const newStatus = editDevice.status === "paused" ? "online" : "paused";
+                        updateMut.mutate({
+                          id: editDevice.id,
+                          name: editName,
+                          location: editLocation || null,
+                          status: newStatus,
+                        }, {
+                          onSuccess: () => {
+                            setEditOpen(false);
+                          }
+                        });
+                      }}
+                      disabled={updateMut.isPending}
+                    >
+                      {editDevice.status === "paused" ? (
+                        <>
+                          <Play className="size-3.5 mr-1.5" /> Resume Playback
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="size-3.5 mr-1.5" /> Pause Playback
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="w-full text-xs h-9 font-semibold"
+                      onClick={() => {
+                        if (confirm(`WARNING: Deleting device ${editDevice.name} will unpair it and clear all its schedules. This cannot be undone. Do you want to proceed?`)) {
+                          del.mutate(editDevice.id, {
+                            onSuccess: () => {
+                              setEditOpen(false);
+                            }
+                          });
+                        }
+                      }}
+                      disabled={del.isPending}
+                    >
+                      <Trash2 className="size-3.5 mr-1.5" /> Delete Screen / Logout
+                    </Button>
+                  </div>
+                </div>
+              )}
             </DialogContent>
           </Dialog>
-
-          <ConfirmUnpairDialog
-            open={deleteConfirmId !== null}
-            onOpenChange={(open) => !open && setDeleteConfirmId(null)}
-            onConfirm={() => deleteConfirmId && del.mutate(deleteConfirmId)}
-            disabled={del.isPending}
-          />
         </>
       )}
     </DashboardLayout>
@@ -411,47 +427,4 @@ function StatusPill({ status }: { status: ApiDevice["status"] }) {
   );
 }
 
-{/* ======================================================== */}
-{/* DIALOG: Confirm Device Unpair/Delete                      */}
-{/* ======================================================== */}
-export function ConfirmUnpairDialog({
-  open,
-  onOpenChange,
-  onConfirm,
-  disabled
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onConfirm: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm glass-strong border-white/10">
-        <DialogHeader>
-          <DialogTitle>Unpair Device?</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to unpair and delete this device? This will immediately log out the tablet application and permanently delete all associated schedules.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-2 pt-2">
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={disabled}
-            className="w-full text-xs font-semibold"
-          >
-            Unpair & Delete Device
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="w-full text-xs border-white/10"
-          >
-            Cancel
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
+// ConfirmUnpairDialog deleted
