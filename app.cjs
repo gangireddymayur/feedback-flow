@@ -65,6 +65,11 @@ const pool = mysql.createPool({
         await pool.query("ALTER TABLE user_profiles ADD COLUMN show_brand_header TINYINT(1) DEFAULT 0");
         console.log("[db] Added show_brand_header column to user_profiles table.");
       }
+      const [placementCols] = await pool.query("SHOW COLUMNS FROM user_profiles LIKE 'brand_header_placement'");
+      if (placementCols.length === 0) {
+        await pool.query("ALTER TABLE user_profiles ADD COLUMN brand_header_placement VARCHAR(10) DEFAULT 'top'");
+        console.log("[db] Added brand_header_placement column to user_profiles table.");
+      }
     }
 
     const [devCols] = await pool.query("SHOW COLUMNS FROM devices LIKE 'schedules_enabled'");
@@ -359,7 +364,7 @@ app.get(
 
     // Load owner profile settings to override branding if show_brand_header is enabled
     const [profileRows] = await pool.query(
-      "SELECT organization, avatar_url, show_brand_header FROM user_profiles WHERE user_id = ? LIMIT 1",
+      "SELECT organization, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
       [ownerId]
     );
     const profile = profileRows[0] || {};
@@ -394,6 +399,7 @@ app.get(
         companyName: profile.organization || brandingObj.companyName || "ReviewOS",
         logoUrl: logoBase64 || brandingObj.logoUrl || null,
         show_brand_header: true,
+        brand_header_placement: profile.brand_header_placement || "top",
         position: brandingObj.position || "top_right",
         size: brandingObj.size || 100,
         offsetX: brandingObj.offsetX || 16,
@@ -813,10 +819,10 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
-      "SELECT organization, timezone, avatar_url, show_brand_header FROM user_profiles WHERE user_id = ? LIMIT 1",
+      "SELECT organization, timezone, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
       [req.user.id],
     );
-    res.json({ profile: rows[0] || { organization: null, timezone: "UTC", avatar_url: null, show_brand_header: 0 } });
+    res.json({ profile: rows[0] || { organization: null, timezone: "UTC", avatar_url: null, show_brand_header: 0, brand_header_placement: "top" } });
   }),
 );
 
@@ -824,12 +830,12 @@ app.put(
   "/api/profile",
   auth(),
   asyncH(async (req, res) => {
-    const { organization = null, timezone = "UTC", avatar_url = null, show_brand_header = 0 } = req.body || {};
+    const { organization = null, timezone = "UTC", avatar_url = null, show_brand_header = 0, brand_header_placement = "top" } = req.body || {};
     await pool.query(
-      `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url), show_brand_header=VALUES(show_brand_header)`,
-      [req.user.id, organization, timezone, avatar_url, show_brand_header],
+      `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url), show_brand_header=VALUES(show_brand_header), brand_header_placement=VALUES(brand_header_placement)`,
+      [req.user.id, organization, timezone, avatar_url, show_brand_header, brand_header_placement],
     );
     res.json({ ok: true });
   }),
@@ -2134,7 +2140,7 @@ app.get(
     const userId = req.user.id;
 
     const [profile] = await pool.query(
-      "SELECT organization, timezone, avatar_url, show_brand_header FROM user_profiles WHERE user_id = ? LIMIT 1",
+      "SELECT organization, timezone, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
       [userId]
     );
 
@@ -2222,10 +2228,10 @@ app.post(
       // 1. Restore Profile
       if (profile) {
         await conn.query(
-          `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header)
-           VALUES (?, ?, ?, ?, ?)
-           ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url), show_brand_header=VALUES(show_brand_header)`,
-          [userId, profile.organization, profile.timezone || "IST", profile.avatar_url, profile.show_brand_header || 0]
+          `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url), show_brand_header=VALUES(show_brand_header), brand_header_placement=VALUES(brand_header_placement)`,
+          [userId, profile.organization, profile.timezone || "IST", profile.avatar_url, profile.show_brand_header || 0, profile.brand_header_placement || "top"]
         );
       }
 

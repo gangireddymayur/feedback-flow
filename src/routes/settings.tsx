@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth, logout } from "@/lib/auth-store";
 import { Auth, Profile, Upload, Backup } from "@/lib/api";
 import { toast } from "sonner";
-import { LogOut, Edit2, X, Save, Image as ImageIcon, Loader2 } from "lucide-react";
+import { LogOut, Edit2, X, Save, Image as ImageIcon, Loader2, SlidersHorizontal } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -41,8 +42,10 @@ function SettingsPage() {
     timezone: "IST",
     avatar_url: "",
     show_brand_header: 0,
+    brand_header_placement: "top",
   });
 
+  const [showPlacementSettings, setShowPlacementSettings] = React.useState(false);
   const [pw, setPw] = React.useState({ current: "", next: "", confirm: "" });
 
   React.useEffect(() => {
@@ -53,6 +56,7 @@ function SettingsPage() {
       timezone: "IST",
       avatar_url: profileQ.data?.profile.avatar_url ?? "",
       show_brand_header: profileQ.data?.profile.show_brand_header ?? 0,
+      brand_header_placement: profileQ.data?.profile.brand_header_placement ?? "top",
     });
   }, [auth, profileQ.data]);
 
@@ -63,6 +67,7 @@ function SettingsPage() {
       timezone: "IST",
       avatar_url: profileQ.data.profile.avatar_url ?? "",
       show_brand_header: profileQ.data.profile.show_brand_header ?? 0,
+      brand_header_placement: profileQ.data.profile.brand_header_placement ?? "top",
     };
   }, [profileQ.data]);
 
@@ -71,7 +76,8 @@ function SettingsPage() {
     return (
       formState.organization !== originalState.organization ||
       formState.avatar_url !== originalState.avatar_url ||
-      formState.show_brand_header !== originalState.show_brand_header
+      formState.show_brand_header !== originalState.show_brand_header ||
+      formState.brand_header_placement !== originalState.brand_header_placement
     );
   }, [formState, originalState]);
 
@@ -82,6 +88,7 @@ function SettingsPage() {
         timezone: "IST",
         avatar_url: formState.avatar_url || null,
         show_brand_header: formState.show_brand_header,
+        brand_header_placement: formState.brand_header_placement,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
@@ -216,7 +223,9 @@ function SettingsPage() {
                       timezone: "IST",
                       avatar_url: originalState.avatar_url,
                       show_brand_header: originalState.show_brand_header,
+                      brand_header_placement: originalState.brand_header_placement,
                     }));
+                    setShowPlacementSettings(false);
                   }
                 }} className="h-8 text-xs text-muted-foreground">
                   <X className="size-3.5 mr-1.5" /> Cancel
@@ -299,16 +308,60 @@ function SettingsPage() {
           </div>
 
           {/* Brand Header Toggle */}
-          <div className="flex items-center justify-between border-t border-white/5 pt-4">
-            <div>
-              <Label className="text-sm font-semibold text-foreground">Show Brand Header on Devices</Label>
-              <p className="text-xs text-muted-foreground mt-0.5">Display logo, organization name, and local clock on tablet screens.</p>
+          <div className="space-y-3 border-t border-white/5 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-semibold text-foreground">Show Brand Header on Devices</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Display logo, organization name, and local clock on tablet screens.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {formState.show_brand_header === 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    disabled={!isEditing}
+                    onClick={() => setShowPlacementSettings(!showPlacementSettings)}
+                    className={cn(
+                      "h-8 w-8 rounded-full border border-white/5 transition-colors",
+                      showPlacementSettings ? "bg-white/10 text-primary" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </Button>
+                )}
+                <Switch
+                  disabled={!isEditing}
+                  checked={formState.show_brand_header === 1}
+                  onCheckedChange={(checked) => {
+                    setFormState((prev) => ({ ...prev, show_brand_header: checked ? 1 : 0 }));
+                    if (!checked) setShowPlacementSettings(false);
+                  }}
+                />
+              </div>
             </div>
-            <Switch
-              disabled={!isEditing}
-              checked={formState.show_brand_header === 1}
-              onCheckedChange={(checked) => setFormState((prev) => ({ ...prev, show_brand_header: checked ? 1 : 0 }))}
-            />
+
+            {formState.show_brand_header === 1 && showPlacementSettings && (
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">Header Placement</Label>
+                  <select
+                    disabled={!isEditing}
+                    value={formState.brand_header_placement}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, brand_header_placement: e.target.value }))}
+                    className="w-full bg-background border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
+                  >
+                    <option value="top">Top (Default)</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left Sidebar</option>
+                    <option value="right">Right Sidebar</option>
+                  </select>
+                  <p className="text-[10px] text-muted-foreground leading-normal">
+                    Adjusts the position of the branding bar on all active tablet displays.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </GlassCard>
 

@@ -140,6 +140,7 @@ export type ApiProfile = {
   timezone: string | null;
   avatar_url: string | null;
   show_brand_header?: number;
+  brand_header_placement?: string;
 };
 
 // =================================================================
