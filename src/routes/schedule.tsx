@@ -1142,7 +1142,7 @@ function SchedulePage() {
                           <div
                             key={inst.id}
                             draggable="false"
-                            onClick={() => !isPastDay && handleBlockClick(inst.schedule_id)}
+                            onDoubleClick={() => !isPastDay && handleBlockClick(inst.schedule_id)}
                             className={cn(
                               "absolute left-1 right-1 rounded-xl p-2 text-[10px] overflow-hidden group shadow-md transition-shadow hover:shadow-lg border-l-4",
                               isPastDay 
