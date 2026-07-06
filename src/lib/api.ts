@@ -388,6 +388,12 @@ export const Schedules = {
       body: JSON.stringify(body),
     });
   },
+  copyDevice: async (body: { target_device_id: number; source_device_id: number; overwrite?: boolean }) => {
+    return await http<{ ok: boolean; has_existing?: boolean; created?: number }>("/schedules/copy-device", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
 };
 
 // =================================================================

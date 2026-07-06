@@ -173,6 +173,11 @@ function SchedulePage() {
   const [bulkOverwriteDates, setBulkOverwriteDates] = React.useState<string[] | null>(null);
   const [repeatOverwritePayload, setRepeatOverwritePayload] = React.useState<Parameters<typeof Schedules.repeat>[0] | null>(null);
 
+  // Copy device schedule states
+  const [copySourceDeviceId, setCopySourceDeviceId] = React.useState<string>("");
+  const [copyConfirmOpen, setCopyConfirmOpen] = React.useState(false);
+  const [copyOverlapOpen, setCopyOverlapOpen] = React.useState(false);
+
   const getBulkRecurrenceRangeText = () => {
     if (!bulkRepeatDate) return "";
     const start = parseISODate(bulkRepeatDate);
@@ -379,6 +384,28 @@ function SchedulePage() {
       setPendingUpdate(null);
       setEditPopupOpen(false);
       qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const copyDeviceMut = useMutation({
+    mutationFn: async ({ sourceDeviceId, overwrite }: { sourceDeviceId: string; overwrite: boolean }) => {
+      return Schedules.copyDevice({
+        target_device_id: selectedDeviceId!,
+        source_device_id: Number(sourceDeviceId),
+        overwrite,
+      });
+    },
+    onSuccess: (data) => {
+      if (data && data.has_existing) {
+        setCopyOverlapOpen(true);
+      } else {
+        toast.success("Schedule duplicated successfully");
+        setCopyConfirmOpen(false);
+        setCopyOverlapOpen(false);
+        setCopySourceDeviceId("");
+        qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
+      }
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -864,6 +891,47 @@ function SchedulePage() {
                   </select>
                 </div>
               )}
+            </GlassCard>
+          )}
+
+          {selectedDevice && (
+            <GlassCard className="p-4 flex flex-col gap-3 mt-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
+                Duplicate Schedule
+              </h2>
+              <p className="text-[10px] text-muted-foreground leading-normal">
+                Copy all schedule configurations from another screen. Past historical logs will not be affected.
+              </p>
+              
+              <div className="space-y-1.5 pt-1">
+                <Label className="text-[10px] text-muted-foreground font-semibold">Copy From Screen</Label>
+                <select
+                  value={copySourceDeviceId}
+                  onChange={(e) => setCopySourceDeviceId(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl h-8 px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
+                >
+                  <option value="" className="bg-[#0d0f12] text-muted-foreground">Select screen...</option>
+                  {devices
+                    .filter((d) => d.id !== selectedDeviceId)
+                    .map((d) => (
+                      <option key={d.id} value={d.id} className="bg-[#0d0f12] text-foreground">
+                        {d.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs h-8 border-primary/20 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl"
+                disabled={!copySourceDeviceId || copyDeviceMut.isPending}
+                onClick={() => {
+                  copyDeviceMut.mutate({ sourceDeviceId: copySourceDeviceId, overwrite: false });
+                }}
+              >
+                {copyDeviceMut.isPending ? "Copying..." : "Copy Schedule"}
+              </Button>
             </GlassCard>
           )}
         </div>
@@ -1803,6 +1871,39 @@ function SchedulePage() {
             <Button
               variant="outline"
               onClick={() => setRepeatOverwritePayload(null)}
+              className="w-full text-xs border-white/10"
+            >
+              No, Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Overwrite Alert for Device Copy                 */}
+      {/* ======================================================== */}
+      <Dialog open={copyOverlapOpen} onOpenChange={(open) => !open && setCopyOverlapOpen(false)}>
+        <DialogContent className="max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
+            <DialogDescription>
+              This screen already has active schedules assigned to it in the future. Copying schedule configurations will permanently delete and overwrite them. Past historical records will remain untouched.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                copyDeviceMut.mutate({ sourceDeviceId: copySourceDeviceId, overwrite: true });
+              }}
+              disabled={copyDeviceMut.isPending}
+              className="w-full text-xs font-semibold"
+            >
+              {copyDeviceMut.isPending ? "Overwriting..." : "Yes, Overwrite & Copy"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setCopyOverlapOpen(false)}
               className="w-full text-xs border-white/10"
             >
               No, Cancel

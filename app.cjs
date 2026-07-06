@@ -1760,6 +1760,143 @@ app.post(
   })
 );
 
+// POST /api/schedules/copy-device
+app.post(
+  "/api/schedules/copy-device",
+  auth(),
+  asyncH(async (req, res) => {
+    const { target_device_id, source_device_id, overwrite = false } = req.body || {};
+    if (!target_device_id || !source_device_id) {
+      return res.status(400).json({ error: "target_device_id and source_device_id required" });
+    }
+
+    // 1. Scope / Security checks: Ensure both devices belong to the user
+    const [targetDevices] = await pool.query(
+      'SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1',
+      [Number(target_device_id), req.user.id]
+    );
+    const [sourceDevices] = await pool.query(
+      'SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1',
+      [Number(source_device_id), req.user.id]
+    );
+
+    if (targetDevices.length === 0 || sourceDevices.length === 0) {
+      return res.status(404).json({ error: "One or both devices not found or access denied" });
+    }
+
+    // Force Indian timezone
+    const now = new Date();
+    const today = now.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // "YYYY-MM-DD"
+
+    // 2. Overwrite check: If overwrite is false, check if target has future instances
+    if (!overwrite) {
+      const [existing] = await pool.query(
+        `SELECT id FROM schedule_instances 
+         WHERE device_id = ? AND date >= ? 
+         LIMIT 1`,
+        [Number(target_device_id), today]
+      );
+      if (existing.length > 0) {
+        return res.json({ ok: false, has_existing: true });
+      }
+    }
+
+    // 3. Perform copy in a database transaction
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // Delete only future schedule instances of target device
+      await conn.query(
+        `DELETE FROM schedule_instances WHERE device_id = ? AND date >= ?`,
+        [Number(target_device_id), today]
+      );
+
+      // Clean up target device parent schedules that no longer have any instances (completely in future)
+      await conn.query(
+        `DELETE FROM schedules 
+         WHERE device_id = ? 
+           AND id NOT IN (SELECT DISTINCT schedule_id FROM schedule_instances WHERE device_id = ?)`,
+        [Number(target_device_id), Number(target_device_id)]
+      );
+
+      // Fetch all schedules and recurrences of source device
+      const [srcSchedules] = await conn.query(
+        `SELECT s.id, s.template_id, s.start_time, s.end_time, DATE_FORMAT(s.start_date,'%Y-%m-%d') as start_date, 
+                r.repeat_mode, r.repeat_interval, r.days_count
+         FROM schedules s
+         LEFT JOIN schedule_recurrences r ON r.schedule_id = s.id
+         WHERE s.device_id = ? AND s.owner_id = ?`,
+        [Number(source_device_id), req.user.id]
+      );
+
+      let createdSchedules = 0;
+      for (const row of srcSchedules) {
+        // Generate instances for this source schedule
+        const allInstances = generateInstances(
+          row.id,
+          Number(target_device_id),
+          row.template_id,
+          row.start_time,
+          row.end_time,
+          row.start_date,
+          row.repeat_mode || 'none',
+          row.repeat_interval || 1,
+          row.days_count || 1
+        );
+
+        // Keep only future instances
+        const futureInstances = allInstances.filter(inst => inst.date >= today);
+
+        if (futureInstances.length > 0) {
+          // Create parent schedule for target
+          const [scheduleRes] = await conn.query(
+            `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [Number(target_device_id), row.template_id, req.user.id, row.start_time, row.end_time, row.start_date]
+          );
+          const newScheduleId = scheduleRes.insertId;
+
+          // Insert recurrence
+          await conn.query(
+            `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
+             VALUES (?, ?, ?, ?)`,
+            [newScheduleId, row.repeat_mode || 'none', row.repeat_interval || 1, row.days_count || 1]
+          );
+
+          // Update instances with new schedule ID and convert to nested array for bulk insert
+          const instanceValues = futureInstances.map(inst => [
+            newScheduleId,
+            Number(target_device_id),
+            inst.template_id,
+            inst.date,
+            inst.start_time,
+            inst.end_time,
+            inst.start_datetime,
+            inst.end_datetime
+          ]);
+
+          await conn.query(
+            `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
+             VALUES ?`,
+            [instanceValues]
+          );
+
+          createdSchedules++;
+        }
+      }
+
+      await conn.commit();
+      res.json({ ok: true, created: createdSchedules });
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
+  })
+);
+
 // Tablet polling: returns the template the device should display right now
 app.get(
   "/api/devices/me/active-template",
