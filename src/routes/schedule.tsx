@@ -178,6 +178,11 @@ function SchedulePage() {
   const [copyConfirmOpen, setCopyConfirmOpen] = React.useState(false);
   const [copyOverlapOpen, setCopyOverlapOpen] = React.useState(false);
 
+  // Day selection and bulk deletion states
+  const [selectedDates, setSelectedDates] = React.useState<string[]>([]);
+  const [selectionAnchorDate, setSelectionAnchorDate] = React.useState<string | null>(null);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = React.useState(false);
+
   const getBulkRecurrenceRangeText = () => {
     if (!bulkRepeatDate) return "";
     const start = parseISODate(bulkRepeatDate);
@@ -225,6 +230,66 @@ function SchedulePage() {
       setSelectedDeviceId(devices[0].id);
     }
   }, [devices, selectedDeviceId]);
+
+  // Keyboard event listener for column selection (Shift + Arrows, Escape, Delete)
+  React.useEffect(() => {
+    if (selectedDates.length === 0 || !selectionAnchorDate) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedDates([]);
+        setSelectionAnchorDate(null);
+        return;
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        setBulkDeleteConfirmOpen(true);
+        return;
+      }
+
+      if (e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+        e.preventDefault();
+        const anchorIdx = weekDates.findIndex(d => toISO(d) === selectionAnchorDate);
+        if (anchorIdx === -1) return;
+
+        const indices = selectedDates
+          .map(d => weekDates.findIndex(w => toISO(w) === d))
+          .filter(idx => idx !== -1);
+        
+        if (indices.length === 0) return;
+
+        const minIdx = Math.min(...indices);
+        const maxIdx = Math.max(...indices);
+
+        let newMin = minIdx;
+        let newMax = maxIdx;
+
+        if (e.key === "ArrowRight") {
+          if (selectionAnchorDate === toISO(weekDates[minIdx])) {
+            newMax = Math.min(6, maxIdx + 1);
+          } else {
+            newMin = Math.min(maxIdx, minIdx + 1);
+          }
+        } else if (e.key === "ArrowLeft") {
+          if (selectionAnchorDate === toISO(weekDates[maxIdx])) {
+            newMin = Math.max(0, minIdx - 1);
+          } else {
+            newMax = Math.max(minIdx, maxIdx - 1);
+          }
+        }
+
+        const newSelection: string[] = [];
+        for (let i = newMin; i <= newMax; i++) {
+          newSelection.push(toISO(weekDates[i]));
+        }
+        setSelectedDates(newSelection);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedDates, selectionAnchorDate, weekDates]);
 
   // Load schedules and instances for the selected device
   const schedulesQ = useQuery({
@@ -406,6 +471,22 @@ function SchedulePage() {
         setCopySourceDeviceId("");
         qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
       }
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const deleteSelectedDays = useMutation({
+    mutationFn: async () => {
+      for (const date of selectedDates) {
+        await Schedules.clearDay({ device_id: selectedDeviceId!, date });
+      }
+    },
+    onSuccess: () => {
+      toast.success("Schedules cleared for selected days");
+      setSelectedDates([]);
+      setSelectionAnchorDate(null);
+      setBulkDeleteConfirmOpen(false);
+      qc.invalidateQueries({ queryKey: ["schedules", selectedDeviceId] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -968,9 +1049,37 @@ function SchedulePage() {
                 })}
               </span>
             </div>
-            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <Info className="size-3.5" /> Drag templates here
-            </span>
+            {selectedDates.length > 0 ? (
+              <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150">
+                <span className="text-xs font-semibold text-rose-500 bg-rose-500/10 px-2.5 py-1 rounded-full border border-rose-500/20">
+                  {selectedDates.length} Day{selectedDates.length > 1 ? "s" : ""} Selected
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-7 text-[10px] px-2.5 rounded-full font-semibold shadow-md flex items-center gap-1 animate-pulse"
+                  onClick={() => setBulkDeleteConfirmOpen(true)}
+                  disabled={deleteSelectedDays.isPending}
+                >
+                  <Trash2 className="size-3" /> Clear Days
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-[10px] px-2.5 rounded-full border border-white/10 hover:bg-white/5 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setSelectedDates([]);
+                    setSelectionAnchorDate(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Info className="size-3.5" /> Drag templates here
+              </span>
+            )}
           </div>
 
           {/* Week Calendar Board */}
@@ -1010,13 +1119,26 @@ function SchedulePage() {
                           toast.info("No templates scheduled on this day to repeat.");
                         }
                       }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (!schedulesEnabled) return;
+                        if (selectedDates.includes(dateIso)) {
+                          setSelectedDates(prev => prev.filter(d => d !== dateIso));
+                          if (selectionAnchorDate === dateIso) setSelectionAnchorDate(null);
+                        } else {
+                          setSelectedDates([dateIso]);
+                          setSelectionAnchorDate(dateIso);
+                          toast.info("Column selected. Hold Shift + Left/Right arrow keys to expand selection.", { duration: 4000 });
+                        }
+                      }}
                       className={cn(
                         "flex flex-col items-center justify-center text-center py-1 transition-colors",
                         !schedulesEnabled
                           ? "opacity-40 cursor-not-allowed pointer-events-none"
                           : "cursor-pointer hover:bg-white/5",
                         isSelected && "bg-emerald-500/5",
-                        isCurrent && "bg-primary/5"
+                        isCurrent && "bg-primary/5",
+                        selectedDates.includes(dateIso) && "bg-rose-500/15 border-x border-rose-500/40"
                       )}
                     >
                       <span
@@ -1110,7 +1232,8 @@ function SchedulePage() {
                       key={idx}
                       className={cn(
                         "day-column relative h-full select-none cursor-copy transition-colors duration-200 hover:bg-white/[0.01]",
-                        isCurrent && "bg-primary/[0.01]"
+                        isCurrent && "bg-primary/[0.01]",
+                        selectedDates.includes(dateIso) && "bg-rose-500/[0.02] border-x border-rose-500/[0.08]"
                       )}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleGridDrop(e, dateIso)}
@@ -1904,6 +2027,40 @@ function SchedulePage() {
             <Button
               variant="outline"
               onClick={() => setCopyOverlapOpen(false)}
+              className="w-full text-xs border-white/10"
+            >
+              No, Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ======================================================== */}
+      {/* DIALOG: Bulk Delete Selected Days Confirm Dialog        */}
+      {/* ======================================================== */}
+      <Dialog open={bulkDeleteConfirmOpen} onOpenChange={(open) => !open && setBulkDeleteConfirmOpen(false)}>
+        <DialogContent className="max-w-md bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Clear Schedules for Selected Days?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete and clear all schedule windows for the selected **{selectedDates.length} days**? 
+              This action only clears future schedules; past historical logs remain untouched.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deleteSelectedDays.mutate();
+              }}
+              disabled={deleteSelectedDays.isPending}
+              className="w-full text-xs font-semibold"
+            >
+              {deleteSelectedDays.isPending ? "Clearing..." : "Yes, Clear Schedules"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setBulkDeleteConfirmOpen(false)}
               className="w-full text-xs border-white/10"
             >
               No, Cancel
