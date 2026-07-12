@@ -52,7 +52,7 @@ const {
   NODE_ENV,
 } = process.env;
 
-const CLOUD_URL = process.env.CLOUD_URL || "https://reviewos.app";
+const CLOUD_URL = process.env.CLOUD_URL || "https://exciting-greider.103-69-196-157.plesk.page";
 
 if (NODE_ENV === "production" && JWT_SECRET === "change-me-in-plesk-env") {
   console.error("FATAL ERROR: Environment variable JWT_SECRET is unset or insecure in production mode!");
