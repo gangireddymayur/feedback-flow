@@ -61,6 +61,8 @@ export type Me = {
   email: string;
   role: "super" | "sub";
   status?: string;
+  local_mode?: "none" | "solo" | "network";
+  max_devices?: number;
 };
 
 export type ApiTemplate = {

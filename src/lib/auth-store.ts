@@ -2,7 +2,7 @@ import * as React from "react";
 import { Auth, getToken, setToken, type Me } from "./api";
 
 export type Role = "super" | "sub";
-export type AuthState = { role: Role; name: string; email: string; id: number };
+export type AuthState = { role: Role; name: string; email: string; id: number; local_mode?: "none" | "solo" | "network"; max_devices?: number };
 
 const USER_KEY = "rms_user";
 
@@ -25,7 +25,7 @@ function persist(a: AuthState | null) {
 }
 
 function toState(u: Me): AuthState {
-  return { id: u.id, name: u.name, email: u.email, role: u.role };
+  return { id: u.id, name: u.name, email: u.email, role: u.role, local_mode: u.local_mode, max_devices: u.max_devices };
 }
 
 export async function loginWithApi(email: string, password: string) {

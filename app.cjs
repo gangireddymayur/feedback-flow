@@ -516,7 +516,7 @@ app.post(
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
     const [rows] = await pool.query(
-      "SELECT id, name, email, password_hash, role, status FROM users WHERE email = ? LIMIT 1",
+      "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE email = ? LIMIT 1",
       [email.trim().toLowerCase()],
     );
     const u = rows[0];
@@ -524,7 +524,7 @@ app.post(
       return res.status(401).json({ error: "Invalid credentials" });
     const ok = await bcrypt.compare(password, u.password_hash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-    const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, password_hash: u.password_hash };
+    const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, local_mode: u.local_mode, max_devices: u.max_devices, password_hash: u.password_hash };
     res.json({ token: signToken(user), user });
   }),
 );
@@ -534,7 +534,7 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
-      "SELECT id, name, email, role, status FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, name, email, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
       [req.user.id],
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });

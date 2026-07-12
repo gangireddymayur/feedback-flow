@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Devices, Templates, ApiDevice } from "@/lib/api";
+import { useAuth } from "@/lib/auth-store";
 import { LoadingState, ErrorState } from "@/routes/templates";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -104,80 +105,85 @@ function DevicesPage() {
     });
   };
 
+  const auth = useAuth();
+  const isSoloMode = auth?.local_mode === "solo";
+
   return (
     <DashboardLayout>
       <PageHeader
         title="Devices"
         description="Pair Android-based review devices, monitor health, push templates instantly."
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="size-4 mr-2" /> Pair Device
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass-strong border-white/10 sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Pair Review OS Device</DialogTitle>
-                <DialogDescription>
-                  Enter the 6-digit pairing code shown on the tablet, and give this device a friendly name.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="pair-code">Pairing Code</Label>
-                  <Input
-                    id="pair-code"
-                    placeholder="123 456"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    className="bg-white/5 border-white/10 text-center text-lg font-semibold tracking-widest uppercase"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="device-name">Device Name</Label>
-                  <Input
-                    id="device-name"
-                    placeholder="Front Desk Tablet"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="device-loc">Location / Department</Label>
-                  <Input
-                    id="device-loc"
-                    placeholder="Lobby / Reception"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="bg-white/5 border-white/10"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  className="w-full"
-                  onClick={async () => {
-                    if (!code || !name) return toast.error("Code and Name are required");
-                    try {
-                      await Devices.pair(code, name, location);
-                      toast.success("Device paired successfully!");
-                      qc.invalidateQueries({ queryKey: ["devices"] });
-                      setCode("");
-                      setName("");
-                      setLocation("");
-                      setOpen(false);
-                    } catch (e) {
-                      toast.error((e as Error).message);
-                    }
-                  }}
-                >
-                  Pair Device
+          isSoloMode ? null : (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="size-4 mr-2" /> Pair Device
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="glass-strong border-white/10 sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Pair Review OS Device</DialogTitle>
+                  <DialogDescription>
+                    Enter the 6-digit pairing code shown on the tablet, and give this device a friendly name.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="pair-code">Pairing Code</Label>
+                    <Input
+                      id="pair-code"
+                      placeholder="123 456"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      className="bg-white/5 border-white/10 text-center text-lg font-semibold tracking-widest uppercase"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="device-name">Device Name</Label>
+                    <Input
+                      id="device-name"
+                      placeholder="Front Desk Tablet"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="device-loc">Location / Department</Label>
+                    <Input
+                      id="device-loc"
+                      placeholder="Lobby / Reception"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      className="bg-white/5 border-white/10"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    className="w-full"
+                    onClick={async () => {
+                      if (!code || !name) return toast.error("Code and Name are required");
+                      try {
+                        await Devices.pair(code, name, location);
+                        toast.success("Device paired successfully!");
+                        qc.invalidateQueries({ queryKey: ["devices"] });
+                        setCode("");
+                        setName("");
+                        setLocation("");
+                        setOpen(false);
+                      } catch (e) {
+                        toast.error((e as Error).message);
+                      }
+                    }}
+                  >
+                    Pair Device
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )
         }
       />
 
