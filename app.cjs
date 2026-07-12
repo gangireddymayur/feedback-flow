@@ -315,42 +315,51 @@ if (process.pkg && process.platform === "win32") {
       fs.copyFileSync(currentExe, targetExe);
       console.log("[install] Copied files to installation directory.");
       
-      // 3. Create desktop and start menu shortcuts
+      // 3. Create desktop and start menu shortcuts using temporary VBScript (extremely robust)
       const desktopPath = path.join(process.env.USERPROFILE || "", "Desktop", "ReviewOS Local Server.lnk");
       const startMenuDir = path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs");
       const startMenuPath = path.join(startMenuDir, "ReviewOS Local Server.lnk");
       
-      const createShortcutsScript = `
-        $WshShell = New-Object -ComObject WScript.Shell;
-        $Shortcut1 = $WshShell.CreateShortcut('${desktopPath.replace(/'/g, "''")}');
-        $Shortcut1.TargetPath = '${targetExe.replace(/'/g, "''")}';
-        $Shortcut1.WorkingDirectory = '${installDir.replace(/'/g, "''")}';
-        $Shortcut1.Description = 'ReviewOS Local Server';
-        $Shortcut1.Save();
+      const vbsPath = path.join(installDir, "shortcut.vbs");
+      const vbsContent = `
+        Set WshShell = CreateObject("WScript.Shell")
         
-        $Shortcut2 = $WshShell.CreateShortcut('${startMenuPath.replace(/'/g, "''")}');
-        $Shortcut2.TargetPath = '${targetExe.replace(/'/g, "''")}';
-        $Shortcut2.WorkingDirectory = '${installDir.replace(/'/g, "''")}';
-        $Shortcut2.Description = 'ReviewOS Local Server';
-        $Shortcut2.Save();
+        Set Shortcut1 = WshShell.CreateShortcut("${desktopPath}")
+        Shortcut1.TargetPath = "${targetExe}"
+        Shortcut1.WorkingDirectory = "${installDir}"
+        Shortcut1.Description = "ReviewOS Local Server"
+        Shortcut1.Save
+        
+        Set Shortcut2 = WshShell.CreateShortcut("${startMenuPath}")
+        Shortcut2.TargetPath = "${targetExe}"
+        Shortcut2.WorkingDirectory = "${installDir}"
+        Shortcut2.Description = "ReviewOS Local Server"
+        Shortcut2.Save
       `;
+      
+      fs.writeFileSync(vbsPath, vbsContent, "utf8");
       
       const { execSync } = require("child_process");
       try {
-        execSync(`powershell -Command "${createShortcutsScript.replace(/\n/g, ' ')}"`);
+        execSync(`cscript.exe //NoLogo "${vbsPath}"`);
         console.log("[install] Shortcuts created successfully on Desktop and Start Menu!");
       } catch (err) {
-        console.error("[install] Failed to create shortcuts:", err.message);
+        console.error("[install] Failed to create shortcuts via VBScript:", err.message);
+      } finally {
+        try {
+          fs.unlinkSync(vbsPath);
+        } catch (e) {}
       }
       
       console.log("Installation complete! Starting server...");
       
-      // 4. Spawn installed server detached in background
+      // 4. Spawn installed server detached in background with parent environment variables (crucial for DLL loading on Windows)
       const { spawn } = require("child_process");
       const child = spawn(targetExe, [], {
         detached: true,
         stdio: "ignore",
-        cwd: installDir
+        cwd: installDir,
+        env: process.env
       });
       child.unref();
       
