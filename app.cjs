@@ -808,8 +808,20 @@ app.post(
       
     // Local server login restrictions: Only local sub-admins (local_mode !== 'none') can log in.
     if (useSqlite) {
-      if (u.role !== "sub" || u.local_mode === "none") {
-        return res.status(403).json({ error: "Only local sub-admins are permitted to log in on the local server." });
+      const [localSubs] = await pool.query(
+        "SELECT id FROM users WHERE role = 'sub' AND local_mode != 'none' LIMIT 1"
+      );
+      const hasLocalSubs = localSubs.length > 0;
+      
+      if (hasLocalSubs) {
+        if (u.role !== "sub" || u.local_mode === "none") {
+          return res.status(403).json({ error: "Only local sub-admins are permitted to log in on the local server." });
+        }
+      } else {
+        // Fresh local install: only allow super admin to log in and restore backup
+        if (u.role !== "super") {
+          return res.status(403).json({ error: "Initial setup required. Please log in as the default Super Admin to restore the database backup." });
+        }
       }
     }
 
