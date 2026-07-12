@@ -290,6 +290,78 @@ const useSqlite = process.env.USE_SQLITE === "true" || !DB_USER || !DB_PASSWORD 
 
 const baseDir = process.pkg ? path.dirname(process.execPath) : __dirname;
 
+// One-Click Self-Installer for Windows Executable
+if (process.pkg && process.platform === "win32") {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    
+    const installDir = path.join(process.env.LOCALAPPDATA || "", "Programs", "ReviewOS Local Server");
+    const targetExe = path.join(installDir, "local-server.exe");
+    const currentExe = process.execPath;
+    
+    if (path.resolve(currentExe).toLowerCase() !== path.resolve(targetExe).toLowerCase()) {
+      console.log("===================================================");
+      console.log("          ReviewOS Local Server Installer          ");
+      console.log("===================================================");
+      console.log("Installing ReviewOS Local Server to your computer...");
+      
+      // 1. Create install directory
+      if (!fs.existsSync(installDir)) {
+        fs.mkdirSync(installDir, { recursive: true });
+      }
+      
+      // 2. Copy executable to target location
+      fs.copyFileSync(currentExe, targetExe);
+      console.log("[install] Copied files to installation directory.");
+      
+      // 3. Create desktop and start menu shortcuts
+      const desktopPath = path.join(process.env.USERPROFILE || "", "Desktop", "ReviewOS Local Server.lnk");
+      const startMenuDir = path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs");
+      const startMenuPath = path.join(startMenuDir, "ReviewOS Local Server.lnk");
+      
+      const createShortcutsScript = `
+        $WshShell = New-Object -ComObject WScript.Shell;
+        $Shortcut1 = $WshShell.CreateShortcut('${desktopPath.replace(/'/g, "''")}');
+        $Shortcut1.TargetPath = '${targetExe.replace(/'/g, "''")}';
+        $Shortcut1.WorkingDirectory = '${installDir.replace(/'/g, "''")}';
+        $Shortcut1.Description = 'ReviewOS Local Server';
+        $Shortcut1.Save();
+        
+        $Shortcut2 = $WshShell.CreateShortcut('${startMenuPath.replace(/'/g, "''")}');
+        $Shortcut2.TargetPath = '${targetExe.replace(/'/g, "''")}';
+        $Shortcut2.WorkingDirectory = '${installDir.replace(/'/g, "''")}';
+        $Shortcut2.Description = 'ReviewOS Local Server';
+        $Shortcut2.Save();
+      `;
+      
+      const { execSync } = require("child_process");
+      try {
+        execSync(`powershell -Command "${createShortcutsScript.replace(/\n/g, ' ')}"`);
+        console.log("[install] Shortcuts created successfully on Desktop and Start Menu!");
+      } catch (err) {
+        console.error("[install] Failed to create shortcuts:", err.message);
+      }
+      
+      console.log("Installation complete! Starting server...");
+      
+      // 4. Spawn installed server detached in background
+      const { spawn } = require("child_process");
+      const child = spawn(targetExe, [], {
+        detached: true,
+        stdio: "ignore",
+        cwd: installDir
+      });
+      child.unref();
+      
+      // 5. Terminate the installer window
+      process.exit(0);
+    }
+  } catch (shErr) {
+    console.error("Installer failure:", shErr.message);
+  }
+}
+
 if (useSqlite) {
   console.log("[startup] Using local SQLite database file configuration...");
   const fs = require("node:fs");
