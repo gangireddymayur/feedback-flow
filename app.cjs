@@ -292,33 +292,51 @@ const baseDir = process.pkg ? path.dirname(process.execPath) : __dirname;
 
 // One-Click Self-Installer for Windows Executable
 if (process.pkg && process.platform === "win32") {
+  const fs = require("fs");
+  const path = require("path");
+  const logPath = path.join(process.env.USERPROFILE || "", "Desktop", "reviewos-install-log.txt");
+  
+  const log = (msg) => {
+    try {
+      fs.appendFileSync(logPath, `${new Date().toISOString()} - ${msg}\n`, "utf8");
+    } catch(e) {}
+  };
+
   try {
-    const fs = require("fs");
-    const path = require("path");
-    
+    log("Installer started");
     const installDir = path.join(process.env.LOCALAPPDATA || "", "Programs", "ReviewOS Local Server");
     const targetExe = path.join(installDir, "local-server.exe");
     const currentExe = process.execPath;
     
+    log(`currentExe: ${currentExe}`);
+    log(`targetExe: ${targetExe}`);
+    
     if (path.resolve(currentExe).toLowerCase() !== path.resolve(targetExe).toLowerCase()) {
-      console.log("===================================================");
-      console.log("          ReviewOS Local Server Installer          ");
-      console.log("===================================================");
-      console.log("Installing ReviewOS Local Server to your computer...");
+      log("Path mismatch detected, starting install process...");
       
       // 1. Create install directory
       if (!fs.existsSync(installDir)) {
+        log("Creating install directory...");
         fs.mkdirSync(installDir, { recursive: true });
       }
       
-      // 2. Copy executable to target location
-      fs.copyFileSync(currentExe, targetExe);
-      console.log("[install] Copied files to installation directory.");
+      // 2. Copy executable
+      log("Copying executable...");
+      try {
+        fs.copyFileSync(currentExe, targetExe);
+        log("Copy successful.");
+      } catch (copyErr) {
+        log(`Copy failed: ${copyErr.message}`);
+        // If it's already running, we might not be able to overwrite, which is fine!
+      }
       
-      // 3. Create desktop and start menu shortcuts using temporary VBScript (extremely robust)
+      // 3. Create shortcuts
       const desktopPath = path.join(process.env.USERPROFILE || "", "Desktop", "ReviewOS Local Server.lnk");
       const startMenuDir = path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs");
       const startMenuPath = path.join(startMenuDir, "ReviewOS Local Server.lnk");
+      
+      log(`desktopPath: ${desktopPath}`);
+      log(`startMenuPath: ${startMenuPath}`);
       
       const vbsPath = path.join(installDir, "shortcut.vbs");
       const vbsContent = `
@@ -337,23 +355,24 @@ if (process.pkg && process.platform === "win32") {
         Shortcut2.Save
       `;
       
+      log("Writing VBScript shortcut creator...");
       fs.writeFileSync(vbsPath, vbsContent, "utf8");
       
       const { execSync } = require("child_process");
       try {
+        log("Executing VBScript shortcut creator...");
         execSync(`cscript.exe //NoLogo "${vbsPath}"`);
-        console.log("[install] Shortcuts created successfully on Desktop and Start Menu!");
+        log("Shortcuts created successfully.");
       } catch (err) {
-        console.error("[install] Failed to create shortcuts via VBScript:", err.message);
+        log(`Shortcut creation failed: ${err.message}`);
       } finally {
         try {
           fs.unlinkSync(vbsPath);
         } catch (e) {}
       }
       
-      console.log("Installation complete! Starting server...");
-      
-      // 4. Spawn installed server detached in background with parent environment variables (crucial for DLL loading on Windows)
+      // 4. Launch targetExe
+      log("Spawning target executable in background...");
       const { spawn } = require("child_process");
       const child = spawn(targetExe, [], {
         detached: true,
@@ -362,12 +381,14 @@ if (process.pkg && process.platform === "win32") {
         env: process.env
       });
       child.unref();
+      log("Spawn completed. Exiting installer.");
       
-      // 5. Terminate the installer window
       process.exit(0);
+    } else {
+      log("Running from target installation path. Normal boot.");
     }
   } catch (shErr) {
-    console.error("Installer failure:", shErr.message);
+    log(`Installer crashed: ${shErr.message}`);
   }
 }
 
