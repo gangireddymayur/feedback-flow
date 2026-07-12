@@ -441,12 +441,6 @@ export const Admins = {
       body: JSON.stringify({ status }),
     });
   },
-  updatePassword: async (id: number, password: string) => {
-    return await http<{ ok: true }>(`/admins/${id}/password`, {
-      method: "POST",
-      body: JSON.stringify({ password }),
-    });
-  },
 };
 
 // =================================================================

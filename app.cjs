@@ -80,6 +80,7 @@ class SqlitePool {
     this.dbPath = dbPath;
     this.SQL = null;
     this.db = null;
+    this.isSqlite = true;
     this.initPromise = this.init();
   }
 
@@ -256,7 +257,8 @@ class SqlitePool {
       beginTransaction: async () => this.query("BEGIN TRANSACTION"),
       commit: async () => this.query("COMMIT"),
       rollback: async () => this.query("ROLLBACK"),
-      release: () => {}
+      release: () => {},
+      isSqlite: true
     };
   }
 }
@@ -286,12 +288,13 @@ function decryptBackup(encryptedData) {
 }
 
 async function restoreBackupPayload(payload, dbPool) {
-  const tables = [
-    "users", "user_profiles", "templates", "devices", 
-    "screensavers", "schedules", "schedule_recurrences", 
-    "schedule_instances", "responses"
-  ];
-  for (const table of tables) {
+  const isSqliteDb = dbPool.isSqlite || useSqlite;
+  
+  const tablesToClear = isSqliteDb
+    ? ["templates", "schedules", "schedule_recurrences", "schedule_instances", "screensavers", "user_profiles"]
+    : ["users", "user_profiles", "templates", "devices", "screensavers", "schedules", "schedule_recurrences", "schedule_instances", "responses"];
+
+  for (const table of tablesToClear) {
     try {
       await dbPool.query(`DELETE FROM ${table}`);
     } catch (e) {}
