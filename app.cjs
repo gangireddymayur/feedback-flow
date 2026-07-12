@@ -12,7 +12,6 @@ const path = require("node:path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mysql = require("mysql2/promise");
-const sqlite3 = require("sqlite3");
 
 const {
   DB_HOST = "localhost",
@@ -41,6 +40,7 @@ function translateSqlQuery(sql) {
 
 class SqlitePool {
   constructor(dbPath) {
+    const sqlite3 = require("sqlite3");
     this.db = new sqlite3.Database(dbPath);
     this.db.run("PRAGMA journal_mode=WAL;");
     this.db.run("PRAGMA foreign_keys=ON;");
