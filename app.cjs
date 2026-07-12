@@ -778,19 +778,23 @@ app.get(
       const [mm, dd, yyyy] = dateStr.split("/");
       const today = `${yyyy}-${mm}-${dd}`;
 
-      const hhmm = new Intl.DateTimeFormat("en-US", {
-        ...formatOpt,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit"
-      }).format(new Date());
+
+      // Build a reliable HH:MM:SS string in the target timezone that exactly
+      // matches how times are stored in schedule_instances (e.g. "10:15:00").
+      // Intl.DateTimeFormat can return locale-specific strings on some Node versions.
+      const nowInTz = new Date(new Date().toLocaleString("en-US", { timeZone: targetTz }));
+      const hh = String(nowInTz.getHours()).padStart(2, "0");
+      const min = String(nowInTz.getMinutes()).padStart(2, "0");
+      const sec = String(nowInTz.getSeconds()).padStart(2, "0");
+      const hhmmss = `${hh}:${min}:${sec}`;
 
       const [activeRows] = await pool.query(
         `SELECT template_id FROM schedule_instances
          WHERE device_id = ? AND date = ? AND start_time <= ? AND end_time > ?
          LIMIT 1`,
-        [req.device.id, today, hhmm, hhmm]
+        [req.device.id, today, hhmmss, hhmmss]
       );
+
       if (activeRows[0]) {
         activeTemplateId = activeRows[0].template_id;
       }
@@ -2346,18 +2350,17 @@ app.get(
     const [mm, dd, yyyy] = dateStr.split("/");
     const today = `${yyyy}-${mm}-${dd}`;
 
-    const hhmm = new Intl.DateTimeFormat("en-US", {
-      ...formatOpt,
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    }).format(new Date());
+    const nowInTz = new Date(new Date().toLocaleString("en-US", { timeZone: targetTz }));
+    const hh = String(nowInTz.getHours()).padStart(2, "0");
+    const min = String(nowInTz.getMinutes()).padStart(2, "0");
+    const sec = String(nowInTz.getSeconds()).padStart(2, "0");
+    const hhmmss = `${hh}:${min}:${sec}`;
 
     const [activeRows] = await pool.query(
       `SELECT template_id FROM schedule_instances
        WHERE device_id = ? AND date = ? AND start_time <= ? AND end_time > ?
        LIMIT 1`,
-      [req.device.id, today, hhmm, hhmm]
+      [req.device.id, today, hhmmss, hhmmss]
     );
 
     const active = activeRows[0];
