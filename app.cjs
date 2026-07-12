@@ -397,15 +397,17 @@ if (process.pkg && process.platform === "win32") {
         execSync(`powershell -NoProfile -Command "${finishScript.replace(/\n/g, ' ')}"`);
       } catch (e) {}
 
-      // 6. Launch installed target detached in background
-      const { spawn } = require("child_process");
-      const child = spawn(targetExe, [], {
-        detached: true,
-        stdio: "ignore",
-        cwd: installDir,
-        env: process.env
-      });
-      child.unref();
+      // 6. Launch installed target in the current console window (inheriting stdio)
+      const { spawnSync } = require("child_process");
+      try {
+        spawnSync(targetExe, [], {
+          stdio: "inherit",
+          cwd: installDir,
+          env: process.env
+        });
+      } catch (spawnErr) {
+        console.error("[install] Failed to launch server:", spawnErr.message);
+      }
       
       process.exit(0);
     }
