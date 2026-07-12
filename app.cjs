@@ -75,13 +75,59 @@ function translateSqlQuery(sql) {
 
 class SqlitePool {
   constructor(dbPath) {
-    const sqlite3 = require("sqlite3");
-    this.db = new sqlite3.Database(dbPath);
-    this.db.run("PRAGMA journal_mode=WAL;");
-    this.db.run("PRAGMA foreign_keys=ON;");
+    this.dbPath = dbPath;
+    this.SQL = null;
+    this.db = null;
+    this.initPromise = this.init();
+  }
+
+  async init() {
+    const initSqlJs = require("sql.js");
+    const fs = require("node:fs");
+    const path = require("node:path");
+    
+    // Load WebAssembly binary from node_modules inside package snapshot
+    const wasmPath = path.join(__dirname, "node_modules", "sql.js", "dist", "sql-wasm.wasm");
+    let wasmBinary;
+    try {
+      wasmBinary = fs.readFileSync(wasmPath);
+    } catch (err) {
+      wasmBinary = fs.readFileSync(path.join(process.cwd(), "node_modules", "sql.js", "dist", "sql-wasm.wasm"));
+    }
+
+    this.SQL = await initSqlJs({ wasmBinary: wasmBinary });
+    
+    if (fs.existsSync(this.dbPath)) {
+      const filebuffer = fs.readFileSync(this.dbPath);
+      this.db = new this.SQL.Database(filebuffer);
+    } else {
+      const dbDir = path.dirname(this.dbPath);
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      this.db = new this.SQL.Database();
+      this.saveToDisk();
+    }
+    
+    // Enable PRAGMAs
+    try {
+      this.db.run("PRAGMA foreign_keys=ON;");
+    } catch (e) {}
+  }
+
+  saveToDisk() {
+    const fs = require("node:fs");
+    const data = this.db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(this.dbPath, buffer);
+  }
+
+  async execute(sql, params = []) {
+    return this.query(sql, params);
   }
 
   async query(sql, params = []) {
+    await this.initPromise;
     const originalSql = sql.trim();
     
     // Intercept "SHOW COLUMNS FROM <table> LIKE '<col>'"
@@ -89,31 +135,43 @@ class SqlitePool {
     if (showColumnsMatch) {
       const table = showColumnsMatch[1];
       const col = showColumnsMatch[2];
-      return new Promise((resolve, reject) => {
-        this.db.all(`PRAGMA table_info(${table})`, [], (err, rows) => {
-          if (err) return reject(err);
-          const found = rows.some(r => r.name.toLowerCase() === col.toLowerCase());
-          resolve([found ? [{ Field: col }] : [], null]);
-        });
-      });
+      try {
+        const stmt = this.db.prepare(`PRAGMA table_info(${table})`);
+        const rows = [];
+        while (stmt.step()) {
+          const rowVal = stmt.get();
+          rows.push({ name: rowVal[1] });
+        }
+        stmt.free();
+        const found = rows.some(r => r.name.toLowerCase() === col.toLowerCase());
+        return [found ? [{ Field: col }] : [], null];
+      } catch (err) {
+        throw err;
+      }
     }
 
     // Intercept "SHOW TABLES LIKE '<name>'"
     const showTablesMatch = originalSql.match(/SHOW TABLES LIKE\s+'(\w+)'/i);
     if (showTablesMatch) {
       const table = showTablesMatch[1];
-      return new Promise((resolve, reject) => {
-        this.db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table], (err, rows) => {
-          if (err) return reject(err);
-          resolve([rows.length > 0 ? [{ [`Tables_in_${table}`]: table }] : [], null]);
-        });
-      });
+      try {
+        const stmt = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`);
+        stmt.bind([table]);
+        const rows = [];
+        while (stmt.step()) {
+          const rowVal = stmt.get();
+          rows.push({ name: rowVal[0] });
+        }
+        stmt.free();
+        return [rows.length > 0 ? [{ [`Tables_in_${table}`]: table }] : [], null];
+      } catch (err) {
+        throw err;
+      }
     }
 
     const translatedSql = translateSqlQuery(sql);
 
     // Handle MySQL-style bulk INSERT: "INSERT INTO t (...) VALUES ?" with params=[[[row1],[row2],...]]
-    // SQLite doesn't support this syntax, so we expand into individual inserts.
     if (
       Array.isArray(params) &&
       params.length === 1 &&
@@ -122,48 +180,73 @@ class SqlitePool {
       Array.isArray(params[0][0])
     ) {
       const rows = params[0];
-      // Build single-row template: replace trailing "VALUES ?" with "VALUES (?,?,?,...)"
       const colCount = rows[0].length;
       const placeholder = `(${Array(colCount).fill("?").join(",")})`;
       const singleRowSql = translatedSql.replace(/VALUES\s+\?/i, `VALUES ${placeholder}`);
-      return new Promise((resolve, reject) => {
-        let lastId = 0;
-        let changes = 0;
-        const run = (i) => {
-          if (i >= rows.length) return resolve([{ insertId: lastId, affectedRows: changes }, null]);
-          this.db.run(singleRowSql, rows[i], function (err) {
-            if (err) return reject(err);
-            lastId = this.lastID || lastId;
-            changes += this.changes || 0;
-            run(i + 1);
-          });
-        };
-        run(0);
-      });
+      
+      let lastId = 0;
+      let changes = 0;
+      
+      for (const row of rows) {
+        try {
+          const stmt = this.db.prepare(singleRowSql);
+          stmt.run(row);
+          stmt.free();
+          
+          const res = this.db.exec("SELECT last_insert_rowid(), changes()");
+          if (res && res.length > 0) {
+            lastId = res[0].values[0][0];
+            changes += res[0].values[0][1];
+          }
+        } catch (err) {
+          throw err;
+        }
+      }
+      
+      this.saveToDisk();
+      return [{ insertId: lastId, affectedRows: changes }, null];
     }
 
-    return new Promise((resolve, reject) => {
-      const isSelect = translatedSql.trim().toLowerCase().startsWith("select") || 
-                       translatedSql.trim().toLowerCase().startsWith("pragma");
+    // Regular query
+    try {
+      let rows = [];
+      const stmt = this.db.prepare(translatedSql);
+      stmt.bind(params);
       
-      if (isSelect) {
-        this.db.all(translatedSql, params, (err, rows) => {
-          if (err) return reject(err);
-          resolve([rows, null]);
+      const columns = stmt.getColumnNames();
+      while (stmt.step()) {
+        const rowVal = stmt.get();
+        const rowObj = {};
+        columns.forEach((col, idx) => {
+          rowObj[col] = rowVal[idx];
         });
-      } else {
-        this.db.run(translatedSql, params, function(err) {
-          if (err) return reject(err);
-          resolve([{ insertId: this.lastID, affectedRows: this.changes }, null]);
-        });
+        rows.push(rowObj);
       }
-    });
+      stmt.free();
+      
+      const isWrite = /^\s*(insert|update|delete|create|drop|alter|replace)/i.test(translatedSql);
+      if (isWrite) {
+        let lastId = 0;
+        let changes = 0;
+        const res = this.db.exec("SELECT last_insert_rowid(), changes()");
+        if (res && res.length > 0) {
+          lastId = res[0].values[0][0];
+          changes = res[0].values[0][1];
+        }
+        this.saveToDisk();
+        return [{ insertId: lastId, affectedRows: changes }, null];
+      }
+      
+      return [rows, null];
+    } catch (err) {
+      throw err;
+    }
   }
-
 
   async getConnection() {
     return {
       query: (sql, params) => this.query(sql, params),
+      execute: (sql, params) => this.execute(sql, params),
       beginTransaction: async () => this.query("BEGIN TRANSACTION"),
       commit: async () => this.query("COMMIT"),
       rollback: async () => this.query("ROLLBACK"),
