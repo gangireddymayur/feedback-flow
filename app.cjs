@@ -11,7 +11,6 @@ const cors = require("cors");
 const path = require("node:path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const mysql = require("mysql2/promise");
 
 const {
   DB_HOST = "localhost",
@@ -299,6 +298,7 @@ if (useSqlite) {
   const dbPath = path.join(dbDir, "feedback.sqlite");
   pool = new SqlitePool(dbPath);
 } else {
+  const mysql = require("mysql2/promise");
   pool = mysql.createPool({
     host: DB_HOST,
     port: Number(DB_PORT),
