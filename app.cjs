@@ -2604,10 +2604,15 @@ app.get(
     );
     const userMeta = userMetaRows[0] || { local_mode: "none", max_devices: 1 };
 
+    const [allUsers] = await pool.query(
+      "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users"
+    );
+
     res.json({
       version: 1,
       profile: profile[0] || null,
       user_meta: userMeta,
+      users: allUsers,
       templates,
       devices,
       screensavers,
