@@ -2760,6 +2760,42 @@ function parseJson(v, fallback) {
 
 app.listen(PORT, () => {
   console.log(`[ReviewOS] listening on :${PORT}`);
+
+  // Broadcast UDP server presence on local subnet for tablet auto-discovery
+  try {
+    const dgram = require("node:dgram");
+    const os = require("node:os");
+    const server = dgram.createSocket("udp4");
+    
+    server.bind(() => {
+      server.setBroadcast(true);
+      setInterval(() => {
+        try {
+          const interfaces = os.networkInterfaces();
+          const ips = [];
+          for (const name of Object.keys(interfaces)) {
+            for (const net of interfaces[name]) {
+              if (net.family === "IPv4" && !net.internal) {
+                ips.push(net.address);
+              }
+            }
+          }
+          for (const ip of ips) {
+            const payload = JSON.stringify({
+              server: `http://${ip}:${PORT}`,
+              type: "reviewos-server"
+            });
+            const buffer = Buffer.from(payload, "utf8");
+            server.send(buffer, 0, buffer.length, 9999, "255.255.255.255");
+          }
+        } catch (e) {
+          // ignore loop errors
+        }
+      }, 4000);
+    });
+  } catch (err) {
+    console.error("[discovery] failed to init UDP broadcast:", err.message);
+  }
 });
 
 module.exports = app;
