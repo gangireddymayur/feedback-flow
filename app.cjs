@@ -6,6 +6,35 @@
  */
 require("dotenv/config");
 
+// Global Crash Logger to Desktop for Packaged Executable
+if (process.pkg) {
+  const fs = require("fs");
+  const path = require("path");
+  const crashLogPath = path.join(process.env.USERPROFILE || "", "Desktop", "reviewos-crash-log.txt");
+
+  process.on("uncaughtException", (err) => {
+    try {
+      fs.writeFileSync(
+        crashLogPath,
+        `UNCAUGHT EXCEPTION\nDate: ${new Date().toISOString()}\nError: ${err.message}\nStack:\n${err.stack}\n`,
+        "utf8"
+      );
+    } catch (e) {}
+    process.exit(1);
+  });
+
+  process.on("unhandledRejection", (reason, promise) => {
+    try {
+      fs.writeFileSync(
+        crashLogPath,
+        `UNHANDLED REJECTION\nDate: ${new Date().toISOString()}\nReason: ${reason}\n`,
+        "utf8"
+      );
+    } catch (e) {}
+    process.exit(1);
+  });
+}
+
 const express = require("express");
 const cors = require("cors");
 const path = require("node:path");
