@@ -1125,6 +1125,98 @@ app.put(
   }),
 );
 
+// Helper to compute CRC-32 checksums for ZIP headers
+function computeCrc32(buf) {
+  const table = [];
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) {
+      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    table[i] = c;
+  }
+  let crc = 0 ^ (-1);
+  for (let i = 0; i < buf.length; i++) {
+    crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xFF];
+  }
+  return (crc ^ (-1)) >>> 0;
+}
+
+// Pure JS ZIP generator (Store-only, uncompressed)
+function makeZip(files) {
+  const localHeaders = [];
+  const localDatas = [];
+  const centralHeaders = [];
+  let currentOffset = 0;
+
+  for (const file of files) {
+    const nameBuf = Buffer.from(file.name, "utf8");
+    const dataBuf = Buffer.isBuffer(file.content) ? file.content : Buffer.from(file.content, "utf8");
+    const crc = computeCrc32(dataBuf);
+    const size = dataBuf.length;
+
+    // Fixed DOS date/time (12:00:00, 2026-07-12)
+    const time = 0x6000;
+    const date = 0x5CEF;
+
+    // 1. Local File Header
+    const lfh = Buffer.alloc(30);
+    lfh.writeUInt32LE(0x04034b50, 0);
+    lfh.writeUInt16LE(10, 4);
+    lfh.writeUInt16LE(0, 6);
+    lfh.writeUInt16LE(0, 8); // compression method (0 = store)
+    lfh.writeUInt16LE(time, 10);
+    lfh.writeUInt16LE(date, 12);
+    lfh.writeUInt32LE(crc, 14);
+    lfh.writeUInt32LE(size, 18);
+    lfh.writeUInt32LE(size, 22);
+    lfh.writeUInt16LE(nameBuf.length, 26);
+    lfh.writeUInt16LE(0, 28);
+
+    localHeaders.push(Buffer.concat([lfh, nameBuf]));
+    localDatas.push(dataBuf);
+
+    // 2. Central Directory File Header
+    const cdh = Buffer.alloc(46);
+    cdh.writeUInt32LE(0x02014b50, 0);
+    cdh.writeUInt16LE(20, 4);
+    cdh.writeUInt16LE(10, 6);
+    cdh.writeUInt16LE(0, 8);
+    cdh.writeUInt16LE(0, 10);
+    cdh.writeUInt16LE(time, 12);
+    cdh.writeUInt16LE(date, 14);
+    cdh.writeUInt32LE(crc, 16);
+    cdh.writeUInt32LE(size, 20);
+    cdh.writeUInt32LE(size, 24);
+    cdh.writeUInt16LE(nameBuf.length, 28);
+    cdh.writeUInt16LE(0, 30);
+    cdh.writeUInt16LE(0, 32);
+    cdh.writeUInt16LE(0, 34);
+    cdh.writeUInt16LE(0, 36);
+    cdh.writeUInt32LE(0, 38);
+    cdh.writeUInt32LE(currentOffset, 42);
+
+    centralHeaders.push(Buffer.concat([cdh, nameBuf]));
+    currentOffset += 30 + nameBuf.length + size;
+  }
+
+  const localPart = Buffer.concat(localHeaders.flatMap((h, i) => [h, localDatas[i]]));
+  const centralPart = Buffer.concat(centralHeaders);
+
+  // 3. End of Central Directory Record
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(files.length, 8);
+  eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(centralPart.length, 12);
+  eocd.writeUInt32LE(localPart.length, 16);
+  eocd.writeUInt16LE(0, 20);
+
+  return Buffer.concat([localPart, centralPart, eocd]);
+}
+
 app.get(
   "/api/downloads/local-server-pkg",
   auth(),
@@ -1135,17 +1227,35 @@ app.get(
       const path = require("path");
       const exePath = path.join(__dirname, "local-server.exe");
       if (fs.existsSync(exePath)) {
+        const exeBuffer = fs.readFileSync(exePath);
+        const readmeContent = `ReviewOS Feedback-Flow Local Server Package
+=========================================================
+
+This package contains the standalone local server executable for Windows.
+
+Running instructions:
+---------------------
+1. Extract "local-server.exe" and place it in a dedicated folder on your computer.
+2. Double-click "local-server.exe" to start the server.
+3. The server will run offline utilizing an internal SQLite database in the same folder.
+4. Navigate to http://localhost:3000/reviewos in your browser to access the local admin dashboard console.
+`;
+        const zipBuffer = makeZip([
+          { name: "local-server.exe", content: exeBuffer },
+          { name: "README.txt", content: readmeContent }
+        ]);
+
         res.status(200);
-        res.setHeader("Content-Type", "application/octet-stream");
-        res.setHeader("Content-Disposition", "attachment; filename=local-server.exe");
-        fs.createReadStream(exePath).pipe(res);
+        res.setHeader("Content-Type", "application/zip");
+        res.setHeader("Content-Disposition", "attachment; filename=local-server.zip");
+        res.send(zipBuffer);
       } else {
         res.status(200).json({ error: "local-server.exe file not found on server root" });
       }
     } catch (err) {
-      console.error("[local-server-pkg] download failed:", err);
+      console.error("[local-server-pkg] zip failed:", err);
       res.status(200).json({
-        error: "Failed to download local server package",
+        error: "Failed to compile ZIP package",
         message: err.message,
         stack: err.stack
       });
