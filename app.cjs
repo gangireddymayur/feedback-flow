@@ -66,6 +66,7 @@ function translateSqlQuery(sql) {
   s = s.replace(/CURDATE\(\)/gi, "date('now')");
   s = s.replace(/NOW\(\)/gi, "datetime('now')");
   s = s.replace(/ON DUPLICATE KEY UPDATE/gi, "ON CONFLICT DO UPDATE SET");
+  s = s.replace(/VALUES\((\w+)\)/gi, "excluded.$1");
   // MySQL → SQLite date/time formatting functions
   // DATE_FORMAT(col, '%Y-%m-%d %H:%i:%s') → strftime('%Y-%m-%d %H:%M:%S', col)
   s = s.replace(/DATE_FORMAT\(([^,]+),\s*'%Y-%m-%d %H:%i:%s'\)/gi, "strftime('%Y-%m-%d %H:%M:%S', $1)");
@@ -81,6 +82,7 @@ class SqlitePool {
     this.dbPath = dbPath;
     this.SQL = null;
     this.db = null;
+    this.inTransaction = false;
     this.isSqlite = true;
     this.initPromise = this.init();
   }
@@ -114,7 +116,7 @@ class SqlitePool {
         fs.mkdirSync(dbDir, { recursive: true });
       }
       this.db = new this.SQL.Database();
-      this.saveToDisk();
+      if (!this.inTransaction) this.saveToDisk();
     }
     
     // Enable PRAGMAs
@@ -211,7 +213,7 @@ class SqlitePool {
         }
       }
       
-      this.saveToDisk();
+      if (!this.inTransaction) this.saveToDisk();
       return [{ insertId: lastId, affectedRows: changes }, null];
     }
 
@@ -241,7 +243,7 @@ class SqlitePool {
           lastId = res[0].values[0][0];
           changes = res[0].values[0][1];
         }
-        this.saveToDisk();
+        if (!this.inTransaction) this.saveToDisk();
         return [{ insertId: lastId, affectedRows: changes }, null];
       }
       
@@ -255,9 +257,22 @@ class SqlitePool {
     return {
       query: (sql, params) => this.query(sql, params),
       execute: (sql, params) => this.execute(sql, params),
-      beginTransaction: async () => this.query("BEGIN TRANSACTION"),
-      commit: async () => this.query("COMMIT"),
-      rollback: async () => this.query("ROLLBACK"),
+      beginTransaction: async () => {
+        await this.initPromise;
+        this.db.run("BEGIN TRANSACTION");
+        this.inTransaction = true;
+      },
+      commit: async () => {
+        if (!this.inTransaction) return;
+        this.db.run("COMMIT");
+        this.inTransaction = false;
+        this.saveToDisk();
+      },
+      rollback: async () => {
+        if (!this.inTransaction) return;
+        this.db.run("ROLLBACK");
+        this.inTransaction = false;
+      },
       release: () => {},
       isSqlite: true
     };
@@ -534,6 +549,7 @@ async function initializeSqliteDb(sqlitePool) {
       id                      INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id                 INTEGER NOT NULL UNIQUE,
       organization            TEXT,
+      timezone                TEXT DEFAULT 'UTC',
       avatar_url              TEXT,
       show_brand_header       INTEGER DEFAULT 0,
       brand_header_placement  TEXT DEFAULT 'top',
@@ -545,6 +561,20 @@ async function initializeSqliteDb(sqlitePool) {
   for (const sql of tables) {
     await sqlitePool.query(sql);
   }
+
+  // Older local databases were created without this profile field.
+  try {
+    await sqlitePool.execute("ALTER TABLE user_profiles ADD COLUMN timezone TEXT DEFAULT 'UTC'");
+  } catch (e) {}
+
+  // Repair orphaned schedule data left by older builds whose SQLite
+  // transaction wrapper persisted partial writes before rolling back.
+  await sqlitePool.execute(
+    "DELETE FROM schedule_instances WHERE schedule_id NOT IN (SELECT id FROM schedules)"
+  );
+  await sqlitePool.execute(
+    "DELETE FROM schedule_recurrences WHERE schedule_id NOT IN (SELECT id FROM schedules)"
+  );
 
   const [users] = await sqlitePool.query("SELECT id FROM users LIMIT 1");
   if (users.length === 0) {
@@ -922,6 +952,13 @@ async function createPairingCode(ownerId = null) {
 }
 
 // ---------------- public tablet pairing ----------------
+app.get("/api/public/discovery", (req, res) => {
+  res.json({
+    type: "reviewos-server",
+    server: `${req.protocol}://${req.get("host")}`,
+  });
+});
+
 app.all(
   "/api/public/devices/request-code",
   asyncH(async (_req, res) => {
@@ -3476,6 +3513,18 @@ app.listen(PORT, () => {
             });
             const buffer = Buffer.from(payload, "utf8");
             server.send(buffer, 0, buffer.length, 9999, "255.255.255.255");
+
+            // Also send to the interface's directed broadcast address. Many
+            // routers and Android devices drop the global broadcast above.
+            for (const name of Object.keys(interfaces)) {
+              for (const net of interfaces[name]) {
+                if (net.family !== "IPv4" || net.internal || net.address !== ip || !net.netmask) continue;
+                const address = ip.split(".").map(Number);
+                const mask = net.netmask.split(".").map(Number);
+                const broadcast = address.map((part, index) => (part & mask[index]) | (~mask[index] & 255)).join(".");
+                server.send(buffer, 0, buffer.length, 9999, broadcast);
+              }
+            }
           }
         } catch (e) {
           // ignore loop errors
