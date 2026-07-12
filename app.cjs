@@ -2598,9 +2598,16 @@ app.get(
       responses = respRows;
     }
 
+    const [userMetaRows] = await pool.query(
+      "SELECT local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+      [userId]
+    );
+    const userMeta = userMetaRows[0] || { local_mode: "none", max_devices: 1 };
+
     res.json({
       version: 1,
       profile: profile[0] || null,
+      user_meta: userMeta,
       templates,
       devices,
       screensavers,
