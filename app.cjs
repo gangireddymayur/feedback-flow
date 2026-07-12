@@ -472,7 +472,10 @@ const signDeviceToken = (device) =>
 function auth(required = true) {
   return (req, res, next) => {
     const h = req.headers.authorization || "";
-    const token = h.startsWith("Bearer ") ? h.slice(7) : null;
+    let token = h.startsWith("Bearer ") ? h.slice(7) : null;
+    if (!token && req.query.token) {
+      token = req.query.token;
+    }
     if (!token) return required ? res.status(401).json({ error: "No token" }) : next();
     try {
       const payload = jwt.verify(token, JWT_SECRET);

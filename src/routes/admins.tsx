@@ -20,7 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Admins } from "@/lib/api";
+import { Admins, getToken } from "@/lib/api";
 import { LoadingState, ErrorState } from "@/routes/templates";
 import { toast } from "sonner";
 
@@ -78,7 +78,10 @@ function AdminsPage() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => window.open("/api/downloads/local-server-pkg", "_blank")}
+              onClick={() => {
+                const token = getToken();
+                window.open(`/api/downloads/local-server-pkg?token=${encodeURIComponent(token || "")}`, "_blank");
+              }}
             >
               Download Local Server Package
             </Button>
