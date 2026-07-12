@@ -12,6 +12,7 @@ const path = require("node:path");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const mysql = require("mysql2/promise");
+const sqlite3 = require("sqlite3");
 
 const {
   DB_HOST = "localhost",
@@ -29,24 +30,246 @@ if (NODE_ENV === "production" && JWT_SECRET === "change-me-in-plesk-env") {
   process.exit(1);
 }
 
-if (!DB_USER || !DB_PASSWORD || !DB_NAME) {
-  console.warn("[startup] DB env vars missing; API will return 500s until DB_* are set in Plesk.");
+function translateSqlQuery(sql) {
+  let s = sql;
+  s = s.replace(/DATE_ADD\(NOW\(\),\s*INTERVAL\s*10\s*MINUTE\)/gi, "datetime('now', '+10 minutes')");
+  s = s.replace(/TIMESTAMPDIFF\(SECOND,\s*d\.last_sync,\s*NOW\(\)\)/gi, "CAST((julianday('now') - julianday(d.last_sync)) * 86400 AS INTEGER)");
+  s = s.replace(/NOW\(\)/gi, "datetime('now')");
+  s = s.replace(/ON DUPLICATE KEY UPDATE/gi, "ON CONFLICT DO UPDATE SET");
+  return s;
 }
 
-const pool = mysql.createPool({
-  host: DB_HOST,
-  port: Number(DB_PORT),
-  user: DB_USER,
-  password: DB_PASSWORD,
-  database: DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  dateStrings: false,
-});
+class SqlitePool {
+  constructor(dbPath) {
+    this.db = new sqlite3.Database(dbPath);
+    this.db.run("PRAGMA journal_mode=WAL;");
+    this.db.run("PRAGMA foreign_keys=ON;");
+  }
+
+  async query(sql, params = []) {
+    const originalSql = sql.trim();
+    
+    // Intercept "SHOW COLUMNS FROM <table> LIKE '<col>'"
+    const showColumnsMatch = originalSql.match(/SHOW COLUMNS FROM\s+(\w+)\s+LIKE\s+'(\w+)'/i);
+    if (showColumnsMatch) {
+      const table = showColumnsMatch[1];
+      const col = showColumnsMatch[2];
+      return new Promise((resolve, reject) => {
+        this.db.all(`PRAGMA table_info(${table})`, [], (err, rows) => {
+          if (err) return reject(err);
+          const found = rows.some(r => r.name.toLowerCase() === col.toLowerCase());
+          resolve([found ? [{ Field: col }] : [], null]);
+        });
+      });
+    }
+
+    // Intercept "SHOW TABLES LIKE '<name>'"
+    const showTablesMatch = originalSql.match(/SHOW TABLES LIKE\s+'(\w+)'/i);
+    if (showTablesMatch) {
+      const table = showTablesMatch[1];
+      return new Promise((resolve, reject) => {
+        this.db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, [table], (err, rows) => {
+          if (err) return reject(err);
+          resolve([rows.length > 0 ? [{ [`Tables_in_${table}`]: table }] : [], null]);
+        });
+      });
+    }
+
+    const translatedSql = translateSqlQuery(sql);
+
+    return new Promise((resolve, reject) => {
+      const isSelect = translatedSql.trim().toLowerCase().startsWith("select") || 
+                       translatedSql.trim().toLowerCase().startsWith("pragma");
+      
+      if (isSelect) {
+        this.db.all(translatedSql, params, (err, rows) => {
+          if (err) return reject(err);
+          resolve([rows, null]);
+        });
+      } else {
+        this.db.run(translatedSql, params, function(err) {
+          if (err) return reject(err);
+          resolve([{ insertId: this.lastID, affectedRows: this.changes }, null]);
+        });
+      }
+    });
+  }
+
+  async getConnection() {
+    return {
+      query: (sql, params) => this.query(sql, params),
+      beginTransaction: async () => this.query("BEGIN TRANSACTION"),
+      commit: async () => this.query("COMMIT"),
+      rollback: async () => this.query("ROLLBACK"),
+      release: () => {}
+    };
+  }
+}
+
+async function initializeSqliteDb(sqlitePool) {
+  const tables = [
+    `CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      name          TEXT NOT NULL,
+      email         TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role          TEXT NOT NULL DEFAULT 'sub',
+      status        TEXT NOT NULL DEFAULT 'active',
+      created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS templates (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id    INTEGER NULL,
+      name        TEXT NOT NULL,
+      description TEXT,
+      category    TEXT DEFAULT 'General',
+      status      TEXT NOT NULL DEFAULT 'draft',
+      questions   TEXT NOT NULL,
+      display_mode TEXT DEFAULT 'multi_page',
+      branding    TEXT NULL,
+      created_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS devices (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id        INTEGER NULL,
+      name            TEXT NOT NULL,
+      location        TEXT,
+      status          TEXT NOT NULL DEFAULT 'offline',
+      android_version TEXT,
+      last_sync       TEXT NULL,
+      template_id     INTEGER NULL,
+      schedules_enabled INTEGER DEFAULT 1,
+      created_at      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL,
+      FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS device_pairing_codes (
+      code       TEXT PRIMARY KEY,
+      owner_id   INTEGER NULL,
+      device_id  INTEGER NULL,
+      expires_at TEXT NOT NULL,
+      used_at    TEXT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS responses (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      template_id      INTEGER NULL,
+      device_id        INTEGER NULL,
+      rating           INTEGER NULL,
+      answers          TEXT,
+      duration_seconds INTEGER DEFAULT 0,
+      submitted_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL,
+      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS schedules (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      device_id   INTEGER NOT NULL,
+      template_id INTEGER NOT NULL,
+      owner_id    INTEGER NOT NULL,
+      start_time  TEXT NOT NULL,
+      end_time    TEXT NOT NULL,
+      start_date  TEXT NOT NULL,
+      created_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at  TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+      FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS schedule_recurrences (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      schedule_id     INTEGER NOT NULL UNIQUE,
+      repeat_mode     TEXT NOT NULL DEFAULT 'none',
+      repeat_interval INTEGER DEFAULT 1,
+      days_count      INTEGER DEFAULT 1,
+      FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS schedule_instances (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      schedule_id     INTEGER NOT NULL,
+      device_id       INTEGER NOT NULL,
+      template_id     INTEGER NOT NULL,
+      date            TEXT NOT NULL,
+      start_time      TEXT NOT NULL,
+      end_time        TEXT NOT NULL,
+      start_datetime  TEXT NOT NULL,
+      end_datetime    TEXT NOT NULL,
+      FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+      FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS screensavers (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id        INTEGER NOT NULL,
+      name            TEXT NOT NULL,
+      url             TEXT NOT NULL,
+      type            TEXT NOT NULL DEFAULT 'image',
+      is_active       INTEGER DEFAULT 0,
+      timeout_seconds INTEGER DEFAULT 300,
+      created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+    )`,
+    `CREATE TABLE IF NOT EXISTS user_profiles (
+      id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id                 INTEGER NOT NULL UNIQUE,
+      organization            TEXT,
+      avatar_url              TEXT,
+      show_brand_header       INTEGER DEFAULT 0,
+      brand_header_placement  TEXT DEFAULT 'top',
+      created_at              TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )`
+  ];
+
+  for (const sql of tables) {
+    await sqlitePool.query(sql);
+  }
+
+  const [users] = await sqlitePool.query("SELECT id FROM users LIMIT 1");
+  if (users.length === 0) {
+    console.log("[sqlite] Seeding default super admin account: admin@reviewos.local / admin123");
+    await sqlitePool.query(
+      "INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
+      ["Admin", "admin@reviewos.local", "$2b$10$alt8uoHymwrSMN4fPJFw0uUFGeKLIpAm9L3B8PCOn1Li8YXj2Dzeu", "super", "active"]
+    );
+  }
+}
+
+let pool;
+const useSqlite = process.env.USE_SQLITE === "true" || !DB_USER || !DB_PASSWORD || !DB_NAME;
+
+if (useSqlite) {
+  console.log("[startup] Using local SQLite database file configuration...");
+  const fs = require("node:fs");
+  const dbDir = path.join(__dirname, "db");
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+  const dbPath = path.join(dbDir, "feedback.sqlite");
+  pool = new SqlitePool(dbPath);
+} else {
+  pool = mysql.createPool({
+    host: DB_HOST,
+    port: Number(DB_PORT),
+    user: DB_USER,
+    password: DB_PASSWORD,
+    database: DB_NAME,
+    waitForConnections: true,
+    connectionLimit: 10,
+    dateStrings: false,
+  });
+}
 
 // Run startup database migrations to ensure templates table columns exist
 (async () => {
   try {
+    if (useSqlite) {
+      await initializeSqliteDb(pool);
+    }
     const [cols] = await pool.query("SHOW COLUMNS FROM templates LIKE 'display_mode'");
     if (cols.length === 0) {
       await pool.query("ALTER TABLE templates ADD COLUMN display_mode VARCHAR(64) DEFAULT 'multi_page'");
