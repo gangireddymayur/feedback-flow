@@ -31,7 +31,10 @@ function persist(a: AuthState | null) {
 }
 
 function toState(u: Me): AuthState {
-  return { id: u.id, name: u.name, email: u.email, role: u.role, local_mode: u.local_mode, max_devices: u.max_devices };
+  const localMode = (typeof window !== "undefined" && (window.location.port === "8080" || window.location.hostname === "localhost"))
+    ? "solo"
+    : u.local_mode;
+  return { id: u.id, name: u.name, email: u.email, role: u.role, local_mode: localMode, max_devices: u.max_devices };
 }
 
 export async function loginWithApi(email: string, password: string) {
