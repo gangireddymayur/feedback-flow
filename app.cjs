@@ -524,7 +524,7 @@ app.post(
       return res.status(401).json({ error: "Invalid credentials" });
     const ok = await bcrypt.compare(password, u.password_hash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-    const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status };
+    const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, password_hash: u.password_hash };
     res.json({ token: signToken(user), user });
   }),
 );
