@@ -420,13 +420,15 @@ function SettingsPage() {
           </GlassCard>
 
           {/* Session Management / Log Out Card */}
-          <GlassCard className="border-red-500/20 bg-red-500/[0.01]">
-            <h3 className="font-semibold text-red-400 text-lg mb-1">Session</h3>
-            <p className="text-xs text-muted-foreground mb-4">Log out of your current session on this device.</p>
-            <Button variant="destructive" className="w-full h-9 text-xs" onClick={() => setLogoutOpen(true)}>
-              <LogOut className="size-4 mr-2" /> Log Out
-            </Button>
-          </GlassCard>
+          {auth?.local_mode !== "solo" && (
+            <GlassCard className="border-red-500/20 bg-red-500/[0.01]">
+              <h3 className="font-semibold text-red-400 text-lg mb-1">Session</h3>
+              <p className="text-xs text-muted-foreground mb-4">Log out of your current session on this device.</p>
+              <Button variant="destructive" className="w-full h-9 text-xs" onClick={() => setLogoutOpen(true)}>
+                <LogOut className="size-4 mr-2" /> Log Out
+              </Button>
+            </GlassCard>
+          )}
         </div>
       </div>
 

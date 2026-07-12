@@ -296,92 +296,110 @@ function DevicesPage() {
               <DialogHeader>
                 <DialogTitle>Device Settings</DialogTitle>
                 <DialogDescription>
-                  Modify configurations, pause surveys, or unpair this tablet device.
+                  {isSoloMode 
+                    ? "Modify device configuration name and location." 
+                    : "Modify configurations, pause surveys, or unpair this tablet device."}
                 </DialogDescription>
               </DialogHeader>
               {editDevice && (
-                <div className="space-y-4 pt-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-dname" className="text-xs font-semibold text-muted-foreground">Device Name</Label>
-                    <Input
-                      id="edit-dname"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="bg-white/5 border-white/10 text-xs h-9"
-                      placeholder="Lobby Tablet"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-dloc" className="text-xs font-semibold text-muted-foreground">Location</Label>
-                    <Input
-                      id="edit-dloc"
-                      value={editLocation}
-                      onChange={(e) => setEditLocation(e.target.value)}
-                      className="bg-white/5 border-white/10 text-xs h-9"
-                      placeholder="Downtown Branch"
-                    />
+                <div className="space-y-4 py-2">
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="device-name">Friendly Name</Label>
+                      <Input
+                        id="device-name"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="e.g. Lobby Entrance Tablet"
+                        className="bg-white/5 border-white/10"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="device-loc">Location</Label>
+                      <Input
+                        id="device-loc"
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        placeholder="e.g. Front Desk / Reception"
+                        className="bg-white/5 border-white/10"
+                      />
+                    </div>
                   </div>
 
-                  <div className="border-t border-white/5 pt-4 flex flex-col gap-2">
-                    <Button
-                      onClick={handleEditSave}
-                      className="w-full text-xs h-9 font-semibold bg-primary hover:bg-primary/90"
-                      disabled={updateMut.isPending || !editName}
-                    >
-                      {updateMut.isPending ? "Saving..." : "Save Settings"}
-                    </Button>
-
+                  <div className="pt-2 space-y-2">
                     <Button
                       type="button"
-                      variant={editDevice.status === "paused" ? "default" : "outline"}
-                      className={cn(
-                        "w-full text-xs h-9 font-semibold",
-                        editDevice.status !== "paused" && "text-amber-300 hover:text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
-                      )}
+                      className="w-full text-xs h-9 font-semibold"
                       onClick={() => {
-                        const newStatus = editDevice.status === "paused" ? "online" : "paused";
                         updateMut.mutate({
                           id: editDevice.id,
                           name: editName,
                           location: editLocation || null,
-                          status: newStatus,
                         }, {
                           onSuccess: () => {
                             setEditOpen(false);
                           }
                         });
                       }}
-                      disabled={updateMut.isPending}
+                      disabled={updateMut.isPending || !editName}
                     >
-                      {editDevice.status === "paused" ? (
-                        <>
-                          <Play className="size-3.5 mr-1.5" /> Resume Playback
-                        </>
-                      ) : (
-                        <>
-                          <Pause className="size-3.5 mr-1.5" /> Pause Playback
-                        </>
-                      )}
+                      {updateMut.isPending ? "Saving..." : "Save Settings"}
                     </Button>
 
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      className="w-full text-xs h-9 font-semibold"
-                      onClick={() => {
-                        if (confirm(`WARNING: Deleting device ${editDevice.name} will unpair it and clear all its schedules. This cannot be undone. Do you want to proceed?`)) {
-                          del.mutate(editDevice.id, {
-                            onSuccess: () => {
-                              setEditOpen(false);
+                    {!isSoloMode && (
+                      <>
+                        <Button
+                          type="button"
+                          variant={editDevice.status === "paused" ? "default" : "outline"}
+                          className={cn(
+                            "w-full text-xs h-9 font-semibold",
+                            editDevice.status !== "paused" && "text-amber-300 hover:text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                          )}
+                          onClick={() => {
+                            const newStatus = editDevice.status === "paused" ? "online" : "paused";
+                            updateMut.mutate({
+                              id: editDevice.id,
+                              name: editName,
+                              location: editLocation || null,
+                              status: newStatus,
+                            }, {
+                              onSuccess: () => {
+                                setEditOpen(false);
+                              }
+                            });
+                          }}
+                          disabled={updateMut.isPending}
+                        >
+                          {editDevice.status === "paused" ? (
+                            <>
+                              <Play className="size-3.5 mr-1.5" /> Resume Playback
+                            </>
+                          ) : (
+                            <>
+                              <Pause className="size-3.5 mr-1.5" /> Pause Playback
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          className="w-full text-xs h-9 font-semibold"
+                          onClick={() => {
+                            if (confirm(`WARNING: Deleting device ${editDevice.name} will unpair it and clear all its schedules. This cannot be undone. Do you want to proceed?`)) {
+                              del.mutate(editDevice.id, {
+                                onSuccess: () => {
+                                  setEditOpen(false);
+                                }
+                              });
                             }
-                          });
-                        }
-                      }}
-                      disabled={del.isPending}
-                    >
-                      <Trash2 className="size-3.5 mr-1.5" /> Delete Screen / Logout
-                    </Button>
+                          }}
+                          disabled={del.isPending}
+                        >
+                          <Trash2 className="size-3.5 mr-1.5" /> Delete Screen / Logout
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
