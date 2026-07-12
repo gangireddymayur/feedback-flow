@@ -11,7 +11,7 @@ export const Route = createFileRoute("/login")({ component: LoginPage });
 
 function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = React.useState("admin@reviewos.app");
+  const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -99,11 +99,7 @@ function LoginPage() {
               Sign-in failed: {error}
             </p>
           )}
-          <p className="text-[11px] text-center text-muted-foreground">
-            Super admin: <b>admin@reviewos.app</b> / <b>1m2a3y4u5r</b>
-            <br />
-            Sub admin: <b>aisha@brand.co</b> / <b>ChangeMe!2026</b>
-          </p>
+
         </form>
       </div>
     </div>

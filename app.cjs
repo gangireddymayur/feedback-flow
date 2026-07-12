@@ -805,6 +805,14 @@ app.post(
     const u = rows[0];
     if (!u || u.status === "disabled")
       return res.status(401).json({ error: "Invalid credentials" });
+      
+    // Local server login restrictions: Only local sub-admins (local_mode !== 'none') can log in.
+    if (useSqlite) {
+      if (u.role !== "sub" || u.local_mode === "none") {
+        return res.status(403).json({ error: "Only local sub-admins are permitted to log in on the local server." });
+      }
+    }
+
     const ok = await bcrypt.compare(password, u.password_hash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
     const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, local_mode: u.local_mode, max_devices: u.max_devices };
