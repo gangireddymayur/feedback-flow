@@ -133,6 +133,8 @@ export type ApiAdmin = {
   created_at: string;
   devices: number;
   templates: number;
+  local_mode?: "none" | "single" | "multi";
+  max_devices?: number;
 };
 
 export type ApiProfile = {
@@ -425,7 +427,7 @@ export const Admins = {
   list: async () => {
     return await http<{ admins: ApiAdmin[] }>("/admins");
   },
-  create: async (body: { name: string; email: string; password: string; role?: "sub" | "super" }) => {
+  create: async (body: { name: string; email: string; password: string; role?: "sub" | "super"; local_mode?: "none" | "single" | "multi"; max_devices?: number }) => {
     return await http<{ id: number }>("/admins", {
       method: "POST",
       body: JSON.stringify(body),

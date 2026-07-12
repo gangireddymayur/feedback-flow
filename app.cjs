@@ -107,6 +107,13 @@ class SqlitePool {
 }
 
 async function initializeSqliteDb(sqlitePool) {
+  try {
+    await sqlitePool.execute("ALTER TABLE users ADD COLUMN local_mode TEXT NOT NULL DEFAULT 'none'");
+  } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE users ADD COLUMN max_devices INTEGER DEFAULT 1");
+  } catch (e) {}
+
   const tables = [
     `CREATE TABLE IF NOT EXISTS users (
       id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,6 +122,8 @@ async function initializeSqliteDb(sqlitePool) {
       password_hash TEXT NOT NULL,
       role          TEXT NOT NULL DEFAULT 'sub',
       status        TEXT NOT NULL DEFAULT 'active',
+      local_mode    TEXT NOT NULL DEFAULT 'none',
+      max_devices   INTEGER DEFAULT 1,
       created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS templates (
@@ -299,6 +308,17 @@ if (useSqlite) {
     if (devCols.length === 0) {
       await pool.query("ALTER TABLE devices ADD COLUMN schedules_enabled TINYINT(1) DEFAULT 1");
       console.log("[db] Added schedules_enabled column to devices table.");
+    }
+
+    const [userModeCols] = await pool.query("SHOW COLUMNS FROM users LIKE 'local_mode'");
+    if (userModeCols.length === 0) {
+      await pool.query("ALTER TABLE users ADD COLUMN local_mode VARCHAR(32) DEFAULT 'none'");
+      console.log("[db] Added local_mode column to users table.");
+    }
+    const [userMaxCols] = await pool.query("SHOW COLUMNS FROM users LIKE 'max_devices'");
+    if (userMaxCols.length === 0) {
+      await pool.query("ALTER TABLE users ADD COLUMN max_devices INT DEFAULT 1");
+      console.log("[db] Added max_devices column to users table.");
     }
 
     // Screensavers Table initialization
@@ -811,6 +831,18 @@ app.post(
       [normalizedCode, req.user.id],
     );
     if (!codes[0]) return res.status(404).json({ error: "Pairing code not found or expired" });
+
+    // Check max_devices limit
+    const [userRows] = await pool.query("SELECT local_mode, max_devices FROM users WHERE id = ? LIMIT 1", [req.user.id]);
+    const u = userRows[0];
+    if (u) {
+      const [countRows] = await pool.query("SELECT COUNT(*) as count FROM devices WHERE owner_id = ?", [req.user.id]);
+      const currentCount = countRows[0].count;
+      if (currentCount >= u.max_devices) {
+        return res.status(403).json({ error: `Device limit reached. Your maximum allowed devices is ${u.max_devices}.` });
+      }
+    }
+
     const [r] = await pool.query(
       "INSERT INTO devices (owner_id, name, location, status, android_version, last_sync) VALUES (?, ?, ?, 'online', 'Android 14', NOW())",
       [req.user.id, name, location || null],
@@ -992,7 +1024,7 @@ app.get(
   requireSuper,
   asyncH(async (_req, res) => {
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.status, u.created_at,
+      `SELECT u.id, u.name, u.email, u.role, u.status, u.local_mode, u.max_devices, u.created_at,
               (SELECT COUNT(*) FROM devices d WHERE d.owner_id = u.id) AS devices,
               (SELECT COUNT(*) FROM templates t WHERE t.owner_id = u.id) AS templates
        FROM users u ORDER BY u.id`,
@@ -1006,14 +1038,14 @@ app.post(
   auth(),
   requireSuper,
   asyncH(async (req, res) => {
-    const { name, email, password, role = "sub" } = req.body || {};
+    const { name, email, password, role = "sub", local_mode = "none", max_devices = 1 } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "email and password required" });
     if (password.length < 8) return res.status(400).json({ error: "password must be >=8 chars" });
     const hash = await bcrypt.hash(password, 10);
     try {
       const [r] = await pool.query(
-        "INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, 'active')",
-        [name || email.split("@")[0], email.trim().toLowerCase(), hash, role],
+        "INSERT INTO users (name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, 'active', ?, ?)",
+        [name || email.split("@")[0], email.trim().toLowerCase(), hash, role, local_mode, Number(max_devices)],
       );
       res.json({ id: r.insertId });
     } catch (e) {
@@ -1033,6 +1065,97 @@ app.put(
       return res.status(400).json({ error: "bad status" });
     await pool.query("UPDATE users SET status = ? WHERE id = ?", [status, Number(req.params.id)]);
     res.json({ ok: true });
+  }),
+app.get(
+  "/api/downloads/local-server-pkg",
+  auth(),
+  requireSuper,
+  asyncH(async (_req, res) => {
+    const AdmZip = require("adm-zip");
+    const zip = new AdmZip();
+
+    // 1. package.json
+    const localPackageJson = {
+      name: "reviewos-local-server",
+      version: "1.0.0",
+      description: "Local Node.js backend runner utilizing SQLite fallback storage.",
+      main: "app.cjs",
+      dependencies: {
+        "bcryptjs": "^3.0.3",
+        "cors": "^2.8.6",
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1",
+        "jsonwebtoken": "^9.0.3",
+        "sqlite3": "^5.1.7"
+      },
+      scripts: {
+        "start": "node app.cjs"
+      }
+    };
+    zip.addFile("package.json", Buffer.from(JSON.stringify(localPackageJson, null, 2), "utf8"));
+
+    // 2. app.cjs (read current app.cjs file contents and add it)
+    const fs = require("fs");
+    const path = require("path");
+    const appContent = fs.readFileSync(path.join(__dirname, "app.cjs"));
+    zip.addFile("app.cjs", appContent);
+
+    // 3. start-server.bat (Windows Batch Runner)
+    const batContent = `@echo off
+echo ===================================================
+echo   ReviewOS Feedback-Flow Local Server Setup & Launch
+echo ===================================================
+echo.
+echo Installing node modules dependencies...
+call npm install --no-audit --no-fund
+echo.
+echo Launching local server with SQLite database...
+set PORT=3000
+set USE_SQLITE=true
+set JWT_SECRET=local-network-jwt-secret-key-12345
+call npm start
+pause
+`;
+    zip.addFile("start-server.bat", Buffer.from(batContent, "utf8"));
+
+    // 4. README.txt
+    const readmeContent = `ReviewOS Feedback-Flow Local Server Package
+=========================================================
+
+This package runs a local offline instance of the ReviewOS Feedback-Flow server
+utilizing SQLite for database storage on any local computer.
+
+System Requirements:
+--------------------
+- Node.js installed on the computer (download from https://nodejs.org)
+
+Installation & Running (Windows):
+--------------------------------
+1. Extract all contents of this ZIP file to a folder.
+2. Double-click the "start-server.bat" file.
+3. The script will automatically install standard dependencies and launch the server on port 3000.
+4. Navigate to http://localhost:3000 in your browser to access the local admin dashboard console.
+
+Installation & Running (Mac / Linux):
+------------------------------------
+1. Open Terminal and navigate to the extracted folder.
+2. Run command: npm install
+3. Run command: USE_SQLITE=true PORT=3000 npm start
+4. Open http://localhost:3000 in your browser.
+
+Tablet Connection Setup:
+------------------------
+1. Find the local computer's IP address (e.g., 192.168.1.100).
+2. Ensure both the computer and the tablets are connected to the same Wi-Fi network.
+3. On the tablets, set the deployment mode in settings to "Local Network" and input the server address (e.g., http://192.168.1.100:3000).
+4. Enter the 6-digit code displayed on the tablet inside your local computer dashboard (http://localhost:3000/devices) to pair them.
+`;
+    zip.addFile("README.txt", Buffer.from(readmeContent, "utf8"));
+
+    const zipBuffer = zip.toBuffer();
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", "attachment; filename=local-network-server.zip");
+    res.send(zipBuffer);
   }),
 );
 
