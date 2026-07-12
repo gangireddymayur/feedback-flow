@@ -288,10 +288,12 @@ async function initializeSqliteDb(sqlitePool) {
 let pool;
 const useSqlite = process.env.USE_SQLITE === "true" || !DB_USER || !DB_PASSWORD || !DB_NAME;
 
+const baseDir = process.pkg ? path.dirname(process.execPath) : __dirname;
+
 if (useSqlite) {
   console.log("[startup] Using local SQLite database file configuration...");
   const fs = require("node:fs");
-  const dbDir = path.join(__dirname, "db");
+  const dbDir = path.join(baseDir, "db");
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
@@ -663,7 +665,7 @@ app.get(
         try {
           const fs = require("node:fs");
           const filename = profile.avatar_url.replace("/uploads/", "");
-          const filePath = path.join(__dirname, "uploads", filename);
+          const filePath = path.join(baseDir, "uploads", filename);
           if (fs.existsSync(filePath)) {
             const buffer = fs.readFileSync(filePath);
             const ext = path.extname(filename).replace(".", "");
@@ -1123,195 +1125,27 @@ app.put(
   }),
 );
 
-// Helper to compute CRC-32 checksums for ZIP headers
-function computeCrc32(buf) {
-  const table = [];
-  for (let i = 0; i < 256; i++) {
-    let c = i;
-    for (let j = 0; j < 8; j++) {
-      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-    }
-    table[i] = c;
-  }
-  let crc = 0 ^ (-1);
-  for (let i = 0; i < buf.length; i++) {
-    crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xFF];
-  }
-  return (crc ^ (-1)) >>> 0;
-}
-
-// Pure JS ZIP generator (Store-only, uncompressed)
-function makeZip(files) {
-  const localHeaders = [];
-  const localDatas = [];
-  const centralHeaders = [];
-  let currentOffset = 0;
-
-  for (const file of files) {
-    const nameBuf = Buffer.from(file.name, "utf8");
-    const dataBuf = Buffer.isBuffer(file.content) ? file.content : Buffer.from(file.content, "utf8");
-    const crc = computeCrc32(dataBuf);
-    const size = dataBuf.length;
-
-    // Fixed DOS date/time (12:00:00, 2026-07-12)
-    const time = 0x6000;
-    const date = 0x5CEF;
-
-    // 1. Local File Header
-    const lfh = Buffer.alloc(30);
-    lfh.writeUInt32LE(0x04034b50, 0);
-    lfh.writeUInt16LE(10, 4);
-    lfh.writeUInt16LE(0, 6);
-    lfh.writeUInt16LE(0, 8); // compression method (0 = store)
-    lfh.writeUInt16LE(time, 10);
-    lfh.writeUInt16LE(date, 12);
-    lfh.writeUInt32LE(crc, 14);
-    lfh.writeUInt32LE(size, 18);
-    lfh.writeUInt32LE(size, 22);
-    lfh.writeUInt16LE(nameBuf.length, 26);
-    lfh.writeUInt16LE(0, 28);
-
-    localHeaders.push(Buffer.concat([lfh, nameBuf]));
-    localDatas.push(dataBuf);
-
-    // 2. Central Directory File Header
-    const cdh = Buffer.alloc(46);
-    cdh.writeUInt32LE(0x02014b50, 0);
-    cdh.writeUInt16LE(20, 4);
-    cdh.writeUInt16LE(10, 6);
-    cdh.writeUInt16LE(0, 8);
-    cdh.writeUInt16LE(0, 10);
-    cdh.writeUInt16LE(time, 12);
-    cdh.writeUInt16LE(date, 14);
-    cdh.writeUInt32LE(crc, 16);
-    cdh.writeUInt32LE(size, 20);
-    cdh.writeUInt32LE(size, 24);
-    cdh.writeUInt16LE(nameBuf.length, 28);
-    cdh.writeUInt16LE(0, 30);
-    cdh.writeUInt16LE(0, 32);
-    cdh.writeUInt16LE(0, 34);
-    cdh.writeUInt16LE(0, 36);
-    cdh.writeUInt32LE(0, 38);
-    cdh.writeUInt32LE(currentOffset, 42);
-
-    centralHeaders.push(Buffer.concat([cdh, nameBuf]));
-    currentOffset += 30 + nameBuf.length + size;
-  }
-
-  const localPart = Buffer.concat(localHeaders.flatMap((h, i) => [h, localDatas[i]]));
-  const centralPart = Buffer.concat(centralHeaders);
-
-  // 3. End of Central Directory Record
-  const eocd = Buffer.alloc(22);
-  eocd.writeUInt32LE(0x06054b50, 0);
-  eocd.writeUInt16LE(0, 4);
-  eocd.writeUInt16LE(0, 6);
-  eocd.writeUInt16LE(files.length, 8);
-  eocd.writeUInt16LE(files.length, 10);
-  eocd.writeUInt32LE(centralPart.length, 12);
-  eocd.writeUInt32LE(localPart.length, 16);
-  eocd.writeUInt16LE(0, 20);
-
-  return Buffer.concat([localPart, centralPart, eocd]);
-}
-
 app.get(
   "/api/downloads/local-server-pkg",
   auth(),
   requireSuper,
   asyncH(async (_req, res) => {
     try {
-      const files = [];
-
-      // 1. package.json
-      const localPackageJson = {
-        name: "reviewos-local-server",
-        version: "1.0.0",
-        description: "Local Node.js backend runner utilizing SQLite fallback storage.",
-        main: "app.cjs",
-        dependencies: {
-          "bcryptjs": "^3.0.3",
-          "cors": "^2.8.6",
-          "dotenv": "^17.4.2",
-          "express": "^5.2.1",
-          "jsonwebtoken": "^9.0.3",
-          "sqlite3": "^5.1.7"
-        },
-        scripts: {
-          "start": "node app.cjs"
-        }
-      };
-      files.push({ name: "package.json", content: JSON.stringify(localPackageJson, null, 2) });
-
-      // 2. app.cjs (read current app.cjs file contents)
       const fs = require("fs");
       const path = require("path");
-      const appContent = fs.readFileSync(path.join(__dirname, "app.cjs"));
-      files.push({ name: "app.cjs", content: appContent });
-
-      // 3. start-server.bat (Windows Batch Runner)
-      const batContent = `@echo off
-echo ===================================================
-echo   ReviewOS Feedback-Flow Local Server Setup & Launch
-echo ===================================================
-echo.
-echo Installing node modules dependencies...
-call npm install --no-audit --no-fund
-echo.
-echo Launching local server with SQLite database...
-set PORT=3000
-set USE_SQLITE=true
-set JWT_SECRET=local-network-jwt-secret-key-12345
-call npm start
-pause
-`;
-      files.push({ name: "start-server.bat", content: batContent });
-
-      // 4. README.txt
-      const readmeContent = `ReviewOS Feedback-Flow Local Server Package
-=========================================================
-
-This package runs a local offline instance of the ReviewOS Feedback-Flow server
-utilizing SQLite for database storage on any local computer.
-
-System Requirements:
---------------------
-- Node.js installed on the computer (download from https://nodejs.org)
-
-Installation & Running (Windows):
---------------------------------
-1. Extract all contents of this ZIP file to a folder.
-2. Double-click the "start-server.bat" file.
-3. The script will automatically install standard dependencies and launch the server on port 3000.
-4. Navigate to http://localhost:3000 in your browser to access the local admin dashboard console.
-
-Installation & Running (Mac / Linux):
-------------------------------------
-1. Open Terminal and navigate to the extracted folder.
-2. Run command: npm install
-3. Run command: USE_SQLITE=true PORT=3000 npm start
-4. Open http://localhost:3000 in your browser.
-
-Tablet Connection Setup:
-------------------------
-1. Find the local computer's IP address (e.g., 192.168.1.100).
-2. Ensure both the computer and the tablets are connected to the same Wi-Fi network.
-3. On the tablets, set the deployment mode in settings to "Local Network" and input the server address (e.g., http://192.168.1.100:3000).
-4. Enter the 6-digit code displayed on the tablet inside your local computer dashboard (http://localhost:3000/devices) to pair them.
-`;
-      files.push({ name: "README.txt", content: readmeContent });
-
-      const zipBuffer = makeZip(files);
-      
-      // Let's set status 200 explicitly and serve the file
-      res.status(200);
-      res.setHeader("Content-Type", "application/zip");
-      res.setHeader("Content-Disposition", "attachment; filename=local-network-server.zip");
-      res.send(zipBuffer);
+      const exePath = path.join(__dirname, "local-server.exe");
+      if (fs.existsSync(exePath)) {
+        res.status(200);
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("Content-Disposition", "attachment; filename=local-server.exe");
+        fs.createReadStream(exePath).pipe(res);
+      } else {
+        res.status(200).json({ error: "local-server.exe file not found on server root" });
+      }
     } catch (err) {
-      console.error("[local-server-pkg] generation failed:", err);
+      console.error("[local-server-pkg] download failed:", err);
       res.status(200).json({
-        error: "Failed to generate local server package",
+        error: "Failed to download local server package",
         message: err.message,
         stack: err.stack
       });
@@ -1357,7 +1191,7 @@ app.post(
       return res.status(400).json({ error: "filename and base64Data required" });
     }
     const buffer = Buffer.from(base64Data, "base64");
-    const uploadsDir = path.join(__dirname, "uploads");
+    const uploadsDir = path.join(baseDir, "uploads");
     const fs = require("node:fs");
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir);
@@ -2537,7 +2371,7 @@ app.post(
 
     // Parse base64 and write to uploads/
     const fs = require("node:fs");
-    const uploadsDir = path.join(__dirname, "uploads");
+    const uploadsDir = path.join(baseDir, "uploads");
     const uniqueFilename = `${Date.now()}_${filename.replace(/\s+/g, "_")}`;
     const filePath = path.join(uploadsDir, uniqueFilename);
     const fileUrl = `/uploads/${uniqueFilename}`;
@@ -2621,7 +2455,7 @@ app.delete(
     if (rows.length > 0) {
       const url = rows[0].url;
       const filename = url.replace("/uploads/", "");
-      const filePath = path.join(__dirname, "uploads", filename);
+      const filePath = path.join(baseDir, "uploads", filename);
       const fs = require("node:fs");
       if (fs.existsSync(filePath)) {
         try {
@@ -2848,7 +2682,7 @@ app.use("/api", (err, _req, res, _next) => {
 });
 
 const distDir = path.join(__dirname, "dist");
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(path.join(baseDir, "uploads")));
 app.use(express.static(distDir, { maxAge: "1h", index: false }));
 app.get(/^(?!\/api).*/, (_req, res) => {
   res.sendFile(path.join(distDir, "index.html"));
