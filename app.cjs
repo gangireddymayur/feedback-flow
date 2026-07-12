@@ -2775,8 +2775,8 @@ app.listen(PORT, () => {
 
   // Broadcast UDP server presence on local subnet for tablet auto-discovery
   try {
-    const dgram = require("node:dgram");
-    const os = require("node:os");
+    const dgram = require("dgram");
+    const os = require("os");
     const server = dgram.createSocket("udp4");
     
     server.bind(() => {
