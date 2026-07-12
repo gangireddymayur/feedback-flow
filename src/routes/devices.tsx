@@ -106,6 +106,7 @@ function DevicesPage() {
   };
 
   const auth = useAuth();
+  console.log("DevicesScreen auth:", auth, "isSoloMode:", auth?.local_mode === "solo");
   const isSoloMode = auth?.local_mode === "solo";
 
   return (
