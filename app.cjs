@@ -63,6 +63,7 @@ function translateSqlQuery(sql) {
   let s = sql;
   s = s.replace(/DATE_ADD\(NOW\(\),\s*INTERVAL\s*10\s*MINUTE\)/gi, "datetime('now', '+10 minutes')");
   s = s.replace(/TIMESTAMPDIFF\(SECOND,\s*d\.last_sync,\s*NOW\(\)\)/gi, "CAST((julianday('now') - julianday(d.last_sync)) * 86400 AS INTEGER)");
+  s = s.replace(/CURDATE\(\)/gi, "date('now')");
   s = s.replace(/NOW\(\)/gi, "datetime('now')");
   s = s.replace(/ON DUPLICATE KEY UPDATE/gi, "ON CONFLICT DO UPDATE SET");
   // MySQL → SQLite date/time formatting functions

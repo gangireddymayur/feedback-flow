@@ -61,7 +61,7 @@ export type Me = {
   email: string;
   role: "super" | "sub";
   status?: string;
-  local_mode?: "none" | "solo" | "network";
+  local_mode?: "none" | "single" | "multi" | "solo" | "network";
   max_devices?: number;
 };
 

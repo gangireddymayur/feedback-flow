@@ -106,8 +106,8 @@ function DevicesPage() {
   };
 
   const auth = useAuth();
-  console.log("DevicesScreen auth:", auth, "isSoloMode:", auth?.local_mode === "solo");
   const isSoloMode = auth?.local_mode === "solo";
+  const deviceLimit = auth?.max_devices && auth.max_devices > 0 ? auth.max_devices : null;
 
   return (
     <DashboardLayout>
@@ -195,7 +195,10 @@ function DevicesPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <Stat label="Total paired" value={devices.length} />
+            <Stat
+              label="Paired / maximum"
+              value={deviceLimit ? `${devices.length} / ${deviceLimit}` : devices.length}
+            />
             <Stat
               label="Online"
               value={devices.filter((d) => d.status === "online").length}
