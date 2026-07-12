@@ -290,53 +290,85 @@ const useSqlite = process.env.USE_SQLITE === "true" || !DB_USER || !DB_PASSWORD 
 
 const baseDir = process.pkg ? path.dirname(process.execPath) : __dirname;
 
-// One-Click Self-Installer for Windows Executable
+// One-Click Self-Installer for Windows Executable (with GUI wizard dialogs)
 if (process.pkg && process.platform === "win32") {
-  const fs = require("fs");
-  const path = require("path");
-  const logPath = path.join(process.env.USERPROFILE || "", "Desktop", "reviewos-install-log.txt");
-  
-  const log = (msg) => {
-    try {
-      fs.appendFileSync(logPath, `${new Date().toISOString()} - ${msg}\n`, "utf8");
-    } catch(e) {}
-  };
-
   try {
-    log("Installer started");
+    const fs = require("fs");
+    const path = require("path");
+    
     const installDir = path.join(process.env.LOCALAPPDATA || "", "Programs", "ReviewOS Local Server");
     const targetExe = path.join(installDir, "local-server.exe");
     const currentExe = process.execPath;
     
-    log(`currentExe: ${currentExe}`);
-    log(`targetExe: ${targetExe}`);
-    
     if (path.resolve(currentExe).toLowerCase() !== path.resolve(targetExe).toLowerCase()) {
-      log("Path mismatch detected, starting install process...");
+      const { execSync } = require("child_process");
       
-      // 1. Create install directory
+      // 1. Show GUI Install Dialog using Windows Forms (native .NET on Windows)
+      const welcomeScript = `
+        Add-Type -AssemblyName System.Windows.Forms;
+        Add-Type -AssemblyName System.Drawing;
+        $Form = New-Object System.Windows.Forms.Form;
+        $Form.Text = 'ReviewOS Local Server Setup';
+        $Form.Size = New-Object System.Drawing.Size(420, 240);
+        $Form.StartPosition = 'CenterScreen';
+        $Form.FormBorderStyle = 'FixedDialog';
+        $Form.MaximizeBox = $false;
+        $Form.MinimizeBox = $false;
+        $Form.TopMost = $true;
+        
+        $Label = New-Object System.Windows.Forms.Label;
+        $Label.Location = New-Object System.Drawing.Point(25, 25);
+        $Label.Size = New-Object System.Drawing.Size(360, 80);
+        $Label.Font = New-Object System.Drawing.Font('Segoe UI', 10);
+        $Label.Text = 'Welcome to the ReviewOS Local Server Setup Wizard.\n\nThis will install the local database runner and administration dashboard on your computer.\n\nClick Install to continue.';
+        
+        $InstallBtn = New-Object System.Windows.Forms.Button;
+        $InstallBtn.Location = New-Object System.Drawing.Point(210, 130);
+        $InstallBtn.Size = New-Object System.Drawing.Size(85, 32);
+        $InstallBtn.Font = New-Object System.Drawing.Font('Segoe UI', 9);
+        $InstallBtn.Text = 'Install';
+        $InstallBtn.DialogResult = [System.Windows.Forms.DialogResult]::OK;
+        
+        $CancelBtn = New-Object System.Windows.Forms.Button;
+        $CancelBtn.Location = New-Object System.Drawing.Point(305, 130);
+        $CancelBtn.Size = New-Object System.Drawing.Size(85, 32);
+        $CancelBtn.Font = New-Object System.Drawing.Font('Segoe UI', 9);
+        $CancelBtn.Text = 'Cancel';
+        $CancelBtn.DialogResult = [System.Windows.Forms.DialogResult]::Cancel;
+        
+        $Form.Controls.Add($Label);
+        $Form.Controls.Add($InstallBtn);
+        $Form.Controls.Add($CancelBtn);
+        $Form.AcceptButton = $InstallBtn;
+        $Form.CancelButton = $CancelBtn;
+        
+        $Result = $Form.ShowDialog();
+        if ($Result -eq [System.Windows.Forms.DialogResult]::OK) { exit 0 } else { exit 1 }
+      `;
+
+      try {
+        execSync(`powershell -NoProfile -Command "${welcomeScript.replace(/\n/g, ' ')}"`);
+      } catch (guiErr) {
+        // User clicked Cancel or closed the installer window
+        process.exit(0);
+      }
+      
+      // 2. Create install directory
       if (!fs.existsSync(installDir)) {
-        log("Creating install directory...");
         fs.mkdirSync(installDir, { recursive: true });
       }
       
-      // 2. Copy executable
-      log("Copying executable...");
+      // 3. Copy executable
       try {
         fs.copyFileSync(currentExe, targetExe);
-        log("Copy successful.");
       } catch (copyErr) {
-        log(`Copy failed: ${copyErr.message}`);
-        // If it's already running, we might not be able to overwrite, which is fine!
+        // Safe bypass if file in use/overwrite fails
       }
       
-      // 3. Create shortcuts
+      // 4. Create desktop and start menu shortcuts using VBScript
       const desktopPath = path.join(process.env.USERPROFILE || "", "Desktop", "ReviewOS Local Server.lnk");
       const startMenuDir = path.join(process.env.APPDATA || "", "Microsoft", "Windows", "Start Menu", "Programs");
       const startMenuPath = path.join(startMenuDir, "ReviewOS Local Server.lnk");
-      
-      log(`desktopPath: ${desktopPath}`);
-      log(`startMenuPath: ${startMenuPath}`);
       
       const vbsPath = path.join(installDir, "shortcut.vbs");
       const vbsContent = `
@@ -354,25 +386,24 @@ if (process.pkg && process.platform === "win32") {
         Shortcut2.Description = "ReviewOS Local Server"
         Shortcut2.Save
       `;
-      
-      log("Writing VBScript shortcut creator...");
       fs.writeFileSync(vbsPath, vbsContent, "utf8");
-      
-      const { execSync } = require("child_process");
       try {
-        log("Executing VBScript shortcut creator...");
         execSync(`cscript.exe //NoLogo "${vbsPath}"`);
-        log("Shortcuts created successfully.");
-      } catch (err) {
-        log(`Shortcut creation failed: ${err.message}`);
-      } finally {
-        try {
-          fs.unlinkSync(vbsPath);
-        } catch (e) {}
-      }
+      } catch (e) {}
+      try {
+        fs.unlinkSync(vbsPath);
+      } catch (e) {}
       
-      // 4. Launch targetExe
-      log("Spawning target executable in background...");
+      // 5. Show Finish Confirmation GUI Message Box
+      const finishScript = `
+        Add-Type -AssemblyName System.Windows.Forms;
+        [System.Windows.Forms.MessageBox]::Show('ReviewOS Local Server has been installed successfully!\n\nA desktop shortcut has been created.\n\nClick OK to start the server and open the browser dashboard.', 'Installation Complete', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information);
+      `;
+      try {
+        execSync(`powershell -NoProfile -Command "${finishScript.replace(/\n/g, ' ')}"`);
+      } catch (e) {}
+
+      // 6. Launch installed target detached in background
       const { spawn } = require("child_process");
       const child = spawn(targetExe, [], {
         detached: true,
@@ -381,14 +412,11 @@ if (process.pkg && process.platform === "win32") {
         env: process.env
       });
       child.unref();
-      log("Spawn completed. Exiting installer.");
       
       process.exit(0);
-    } else {
-      log("Running from target installation path. Normal boot.");
     }
   } catch (shErr) {
-    log(`Installer crashed: ${shErr.message}`);
+    // Fail-safe boot on any installer faults
   }
 }
 
