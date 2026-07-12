@@ -261,6 +261,30 @@ class SqlitePool {
   }
 }
 
+const crypto = require("crypto");
+const BACKUP_ENCRYPTION_KEY = crypto.createHash("sha256").update("reviewos-secure-backup-key-9a8b7c").digest();
+const IV_LENGTH = 16;
+
+function encryptBackup(payload) {
+  const text = JSON.stringify(payload);
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv("aes-256-cbc", BACKUP_ENCRYPTION_KEY, iv);
+  let encrypted = cipher.update(text, "utf8", "hex");
+  encrypted += cipher.final("hex");
+  return iv.toString("hex") + ":" + encrypted;
+}
+
+function decryptBackup(encryptedData) {
+  const parts = encryptedData.split(":");
+  if (parts.length !== 2) throw new Error("Invalid backup format");
+  const iv = Buffer.from(parts[0], "hex");
+  const encryptedText = Buffer.from(parts[1], "hex");
+  const decipher = crypto.createDecipheriv("aes-256-cbc", BACKUP_ENCRYPTION_KEY, iv);
+  let decrypted = decipher.update(encryptedText, "hex", "utf8");
+  decrypted += decipher.final("utf8");
+  return JSON.parse(decrypted);
+}
+
 async function restoreBackupPayload(payload, dbPool) {
   const tables = [
     "users", "user_profiles", "templates", "devices", 
@@ -362,8 +386,14 @@ async function autoRestoreBackup(backupPath, dbPool) {
   try {
     if (!fs.existsSync(backupPath)) return;
     console.log(`[backup] Found auto-restore file at: ${backupPath}. Restoring database...`);
-    const content = fs.readFileSync(backupPath, "utf8");
-    const payload = JSON.parse(content);
+    const content = fs.readFileSync(backupPath, "utf8").trim();
+    let payload;
+    if (content.startsWith("{") || content.startsWith("[")) {
+      payload = JSON.parse(content);
+    } else {
+      console.log("[backup] File is encrypted. Decrypting...");
+      payload = decryptBackup(content);
+    }
     
     await restoreBackupPayload(payload, dbPool);
 
@@ -1563,21 +1593,6 @@ app.put(
   }),
 );
 
-app.post(
-  "/api/admins/:id/password",
-  auth(),
-  requireSuper,
-  asyncH(async (req, res) => {
-    const { password } = req.body || {};
-    if (!password || password.length < 8) {
-      return res.status(400).json({ error: "Password must be at least 8 characters long" });
-    }
-    const hash = await bcrypt.hash(password, 10);
-    await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [hash, Number(req.params.id)]);
-    res.json({ ok: true });
-  }),
-);
-
 // Helper to compute CRC-32 checksums for ZIP headers
 function computeCrc32(buf) {
   const table = [];
@@ -1674,17 +1689,52 @@ app.get(
   "/api/downloads/local-server-pkg",
   auth(),
   requireSuper,
-  asyncH(async (_req, res) => {
+  asyncH(async (req, res) => {
     try {
       const fs = require("fs");
       const path = require("path");
+      const bcrypt = require("bcryptjs");
       const exeName = ["local-server", "exe"].join(".");
       const exePath = path.join(__dirname, exeName);
       if (fs.existsSync(exePath)) {
         const exeBuffer = fs.readFileSync(exePath);
         
-        // Dynamically compile backup segment data for this Super Admin
-        const userId = _req.user.id;
+        // Dynamically compile backup segment data for target sub admin
+        const userId = req.query.userId ? parseInt(req.query.userId, 10) : req.user.id;
+        const customEmail = req.query.customEmail || null;
+        const customPassword = req.query.customPassword || null;
+        const customMaxDevices = req.query.customMaxDevices || null;
+
+        // Fetch target user info
+        const [userRows] = await pool.query(
+          "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+          [userId]
+        );
+        const targetUser = userRows[0];
+        if (!targetUser) {
+          return res.status(404).json({ error: "Target sub admin not found" });
+        }
+
+        // Apply overrides if passed from the download configuration popup
+        if (customEmail) {
+          const trimmedEmail = customEmail.trim().toLowerCase();
+          targetUser.email = trimmedEmail;
+          await pool.query("UPDATE users SET email = ? WHERE id = ?", [trimmedEmail, userId]);
+        }
+
+        if (customPassword) {
+          const hashed = await bcrypt.hash(customPassword, 10);
+          targetUser.password_hash = hashed;
+          await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [hashed, userId]);
+        }
+
+        if (customMaxDevices) {
+          const limit = parseInt(customMaxDevices, 10);
+          if (!isNaN(limit) && limit >= 1) {
+            targetUser.max_devices = limit;
+            await pool.query("UPDATE users SET max_devices = ? WHERE id = ?", [limit, userId]);
+          }
+        }
 
         const [profile] = await pool.query(
           "SELECT organization, timezone, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
@@ -1746,21 +1796,11 @@ app.get(
           responses = respRows;
         }
 
-        const [userMetaRows] = await pool.query(
-          "SELECT local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
-          [userId]
-        );
-        const userMeta = userMetaRows[0] || { local_mode: "none", max_devices: 1 };
-
-        const [allUsers] = await pool.query(
-          "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users"
-        );
-
         const backupPayload = {
           version: 1,
           profile: profile[0] || null,
-          user_meta: userMeta,
-          users: allUsers,
+          user_meta: { local_mode: targetUser.local_mode, max_devices: targetUser.max_devices },
+          users: [targetUser], // Hardcode ONLY this specific sub-admin user record
           templates,
           devices,
           screensavers,
@@ -1783,9 +1823,11 @@ Running instructions:
 4. Navigate to http://localhost:3000/login in your browser to sign in using your local sub-admin account (e.g. your sub-admin email and password).
 `;
 
+        const encryptedPayload = encryptBackup(backupPayload);
+
         const zipBuffer = makeZip([
           { name: exeName, content: exeBuffer },
-          { name: "backup.json", content: Buffer.from(JSON.stringify(backupPayload, null, 2), "utf8") },
+          { name: "backup.json", content: Buffer.from(encryptedPayload, "utf8") },
           { name: "README.txt", content: readmeContent }
         ]);
 

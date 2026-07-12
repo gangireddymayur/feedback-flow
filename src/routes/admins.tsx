@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Key } from "lucide-react";
+import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Download } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +40,13 @@ function AdminsPage() {
     email: "",
     password: "",
     local_mode: "none" as "none" | "single" | "multi",
+    max_devices: 5,
+  });
+  const [downloadOpen, setDownloadOpen] = React.useState(false);
+  const [selectedSubAdmin, setSelectedSubAdmin] = React.useState<any>(null);
+  const [downloadForm, setDownloadForm] = React.useState({
+    email: "",
+    password: "",
     max_devices: 5,
   });
   const create = useMutation({
@@ -204,6 +211,21 @@ function AdminsPage() {
                     >
                       <Copy className="size-3.5 mr-2" /> Copy email
                     </DropdownMenuItem>
+                    {a.local_mode !== "none" && (
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setSelectedSubAdmin(a);
+                          setDownloadForm({
+                            email: a.email,
+                            password: "",
+                            max_devices: a.max_devices,
+                          });
+                          setDownloadOpen(true);
+                        }}
+                      >
+                        <Download className="size-3.5 mr-2" /> Download Local Server
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       onClick={() =>
                         setStatus.mutate({
@@ -221,24 +243,6 @@ function AdminsPage() {
                           <Power className="size-3.5 mr-2" /> Enable
                         </>
                       )}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={async () => {
-                        const newPass = window.prompt(`Enter new password for ${a.name} (min 8 characters):`);
-                        if (newPass === null) return;
-                        if (newPass.length < 8) {
-                          toast.error("Password must be at least 8 characters long");
-                          return;
-                        }
-                        try {
-                          await Admins.updatePassword(a.id, newPass);
-                          toast.success(`Password for ${a.name} updated successfully!`);
-                        } catch (e) {
-                          toast.error((e as Error).message);
-                        }
-                      }}
-                    >
-                      <Key className="size-3.5 mr-2" /> Reset password
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -281,6 +285,72 @@ function AdminsPage() {
           ))}
         </div>
       )}
+
+      <Dialog open={downloadOpen} onOpenChange={setDownloadOpen}>
+        <DialogContent className="glass-strong border-white/10 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure Local Server Download</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="text-xs text-muted-foreground mb-2">
+              Generate a pre-configured local server package for <strong>{selectedSubAdmin?.name}</strong>. The user's account details and device limit will be securely hardcoded into the setup database package.
+            </div>
+            
+            <Label>Email / Username</Label>
+            <Input
+              type="email"
+              className="bg-white/5 border-white/10"
+              value={downloadForm.email}
+              onChange={(e) => setDownloadForm({ ...downloadForm, email: e.target.value })}
+            />
+            
+            <Label>New Password (Optional override)</Label>
+            <Input
+              type="password"
+              placeholder="Leave blank to keep existing password"
+              className="bg-white/5 border-white/10"
+              value={downloadForm.password}
+              onChange={(e) => setDownloadForm({ ...downloadForm, password: e.target.value })}
+            />
+            
+            <Label>Max Allowed Tablets</Label>
+            <Input
+              type="number"
+              min={1}
+              className="bg-white/5 border-white/10"
+              value={downloadForm.max_devices}
+              onChange={(e) => setDownloadForm({ ...downloadForm, max_devices: Number(e.target.value) })}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              className="w-full"
+              onClick={() => {
+                const token = getToken();
+                let url = `/api/downloads/local-server-pkg?token=${encodeURIComponent(token || "")}&userId=${selectedSubAdmin?.id}`;
+                if (downloadForm.email.trim()) {
+                  url += `&customEmail=${encodeURIComponent(downloadForm.email.trim())}`;
+                }
+                if (downloadForm.password) {
+                  url += `&customPassword=${encodeURIComponent(downloadForm.password)}`;
+                }
+                if (downloadForm.max_devices >= 1) {
+                  url += `&customMaxDevices=${downloadForm.max_devices}`;
+                }
+                window.open(url, "_blank");
+                setDownloadOpen(false);
+                toast.success("Generating package download...");
+                // Reload list to sync any changed limits/emails on UI
+                setTimeout(() => {
+                  qc.invalidateQueries({ queryKey: ["admins"] });
+                }, 2000);
+              }}
+            >
+              Generate & Download ZIP
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
