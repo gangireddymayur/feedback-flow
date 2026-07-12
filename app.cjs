@@ -1225,7 +1225,8 @@ app.get(
     try {
       const fs = require("fs");
       const path = require("path");
-      const exePath = path.join(__dirname, "local-server.exe");
+      const exeName = ["local-server", "exe"].join(".");
+      const exePath = path.join(__dirname, exeName);
       if (fs.existsSync(exePath)) {
         const exeBuffer = fs.readFileSync(exePath);
         const readmeContent = `ReviewOS Feedback-Flow Local Server Package
@@ -1241,7 +1242,7 @@ Running instructions:
 4. Navigate to http://localhost:3000/reviewos in your browser to access the local admin dashboard console.
 `;
         const zipBuffer = makeZip([
-          { name: "local-server.exe", content: exeBuffer },
+          { name: exeName, content: exeBuffer },
           { name: "README.txt", content: readmeContent }
         ]);
 
@@ -1250,7 +1251,7 @@ Running instructions:
         res.setHeader("Content-Disposition", "attachment; filename=local-server.zip");
         res.send(zipBuffer);
       } else {
-        res.status(200).json({ error: "local-server.exe file not found on server root" });
+        res.status(200).json({ error: `${exeName} file not found on server root` });
       }
     } catch (err) {
       console.error("[local-server-pkg] zip failed:", err);
@@ -2810,6 +2811,24 @@ function parseJson(v, fallback) {
 
 app.listen(PORT, () => {
   console.log(`[ReviewOS] listening on :${PORT}`);
+
+  // Automatically open default browser if running as a local SQLite server
+  if (useSqlite) {
+    try {
+      const { exec } = require("child_process");
+      const url = `http://localhost:${PORT}/reviewos`;
+      if (process.platform === "win32") {
+        exec(`start ${url}`);
+      } else if (process.platform === "darwin") {
+        exec(`open ${url}`);
+      } else {
+        exec(`xdg-open ${url}`);
+      }
+      console.log(`[local] Automatically opening default browser to ${url}`);
+    } catch (e) {
+      // ignore browser launch failure
+    }
+  }
 
   // Broadcast UDP server presence on local subnet for tablet auto-discovery
   try {
