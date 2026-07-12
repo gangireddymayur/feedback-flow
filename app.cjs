@@ -1066,6 +1066,8 @@ app.put(
     await pool.query("UPDATE users SET status = ? WHERE id = ?", [status, Number(req.params.id)]);
     res.json({ ok: true });
   }),
+);
+
 app.get(
   "/api/downloads/local-server-pkg",
   auth(),
