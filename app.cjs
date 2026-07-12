@@ -35,6 +35,13 @@ function translateSqlQuery(sql) {
   s = s.replace(/TIMESTAMPDIFF\(SECOND,\s*d\.last_sync,\s*NOW\(\)\)/gi, "CAST((julianday('now') - julianday(d.last_sync)) * 86400 AS INTEGER)");
   s = s.replace(/NOW\(\)/gi, "datetime('now')");
   s = s.replace(/ON DUPLICATE KEY UPDATE/gi, "ON CONFLICT DO UPDATE SET");
+  // MySQL → SQLite date/time formatting functions
+  // DATE_FORMAT(col, '%Y-%m-%d %H:%i:%s') → strftime('%Y-%m-%d %H:%M:%S', col)
+  s = s.replace(/DATE_FORMAT\(([^,]+),\s*'%Y-%m-%d %H:%i:%s'\)/gi, "strftime('%Y-%m-%d %H:%M:%S', $1)");
+  // DATE_FORMAT(col, '%Y-%m-%d') → strftime('%Y-%m-%d', col)
+  s = s.replace(/DATE_FORMAT\(([^,]+),\s*'%Y-%m-%d'\)/gi, "strftime('%Y-%m-%d', $1)");
+  // TIME_FORMAT(col, '%H:%i') → strftime('%H:%M', col)
+  s = s.replace(/TIME_FORMAT\(([^,]+),\s*'%H:%i'\)/gi, "strftime('%H:%M', $1)");
   return s;
 }
 
@@ -77,6 +84,36 @@ class SqlitePool {
 
     const translatedSql = translateSqlQuery(sql);
 
+    // Handle MySQL-style bulk INSERT: "INSERT INTO t (...) VALUES ?" with params=[[[row1],[row2],...]]
+    // SQLite doesn't support this syntax, so we expand into individual inserts.
+    if (
+      Array.isArray(params) &&
+      params.length === 1 &&
+      Array.isArray(params[0]) &&
+      params[0].length > 0 &&
+      Array.isArray(params[0][0])
+    ) {
+      const rows = params[0];
+      // Build single-row template: replace trailing "VALUES ?" with "VALUES (?,?,?,...)"
+      const colCount = rows[0].length;
+      const placeholder = `(${Array(colCount).fill("?").join(",")})`;
+      const singleRowSql = translatedSql.replace(/VALUES\s+\?/i, `VALUES ${placeholder}`);
+      return new Promise((resolve, reject) => {
+        let lastId = 0;
+        let changes = 0;
+        const run = (i) => {
+          if (i >= rows.length) return resolve([{ insertId: lastId, affectedRows: changes }, null]);
+          this.db.run(singleRowSql, rows[i], function (err) {
+            if (err) return reject(err);
+            lastId = this.lastID || lastId;
+            changes += this.changes || 0;
+            run(i + 1);
+          });
+        };
+        run(0);
+      });
+    }
+
     return new Promise((resolve, reject) => {
       const isSelect = translatedSql.trim().toLowerCase().startsWith("select") || 
                        translatedSql.trim().toLowerCase().startsWith("pragma");
@@ -94,6 +131,7 @@ class SqlitePool {
       }
     });
   }
+
 
   async getConnection() {
     return {
