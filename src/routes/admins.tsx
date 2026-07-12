@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff } from "lucide-react";
+import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Key } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -221,6 +221,24 @@ function AdminsPage() {
                           <Power className="size-3.5 mr-2" /> Enable
                         </>
                       )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        const newPass = window.prompt(`Enter new password for ${a.name} (min 8 characters):`);
+                        if (newPass === null) return;
+                        if (newPass.length < 8) {
+                          toast.error("Password must be at least 8 characters long");
+                          return;
+                        }
+                        try {
+                          await Admins.updatePassword(a.id, newPass);
+                          toast.success(`Password for ${a.name} updated successfully!`);
+                        } catch (e) {
+                          toast.error((e as Error).message);
+                        }
+                      }}
+                    >
+                      <Key className="size-3.5 mr-2" /> Reset password
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

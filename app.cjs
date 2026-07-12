@@ -1563,6 +1563,21 @@ app.put(
   }),
 );
 
+app.post(
+  "/api/admins/:id/password",
+  auth(),
+  requireSuper,
+  asyncH(async (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: "Password must be at least 8 characters long" });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [hash, Number(req.params.id)]);
+    res.json({ ok: true });
+  }),
+);
+
 // Helper to compute CRC-32 checksums for ZIP headers
 function computeCrc32(buf) {
   const table = [];
