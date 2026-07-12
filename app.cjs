@@ -772,6 +772,16 @@ app.get(
   }),
 );
 
+app.delete(
+  "/api/devices/me",
+  auth(),
+  deviceAuth,
+  asyncH(async (req, res) => {
+    await pool.query("DELETE FROM devices WHERE id = ?", [req.device.id]);
+    res.json({ ok: true });
+  }),
+);
+
 app.post(
   "/api/devices/heartbeat",
   auth(),
