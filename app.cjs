@@ -3451,7 +3451,7 @@ app.listen(PORT, () => {
     const dgram = require("dgram");
     const os = require("os");
     const server = dgram.createSocket("udp4");
-    
+    let discoveryLogged = false;
     server.bind(() => {
       server.setBroadcast(true);
       setInterval(() => {
@@ -3464,6 +3464,10 @@ app.listen(PORT, () => {
                 ips.push(net.address);
               }
             }
+          }
+          if (!discoveryLogged && ips.length > 0) {
+            console.log(`[discovery] Broadcasting local server presence on: ${ips.map(ip => `http://${ip}:${PORT}`).join(", ")}`);
+            discoveryLogged = true;
           }
           for (const ip of ips) {
             const payload = JSON.stringify({
