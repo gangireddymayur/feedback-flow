@@ -106,7 +106,7 @@ function AdminsPage() {
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                   />
-                  <Label>Temporary password</Label>
+                  <Label>Password</Label>
                   <Input
                     type="password"
                     className="bg-white/5 border-white/10"
