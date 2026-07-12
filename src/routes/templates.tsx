@@ -295,19 +295,6 @@ function TemplatesPage() {
               </div>
             </GlassCard>
           ))}
-
-          <Link
-            to="/templates/builder"
-            className="glass rounded-2xl p-5 border border-dashed border-white/10 grid place-items-center min-h-[220px] hover:bg-white/5 transition-colors"
-          >
-            <div className="text-center">
-              <div className="size-12 rounded-2xl bg-white/5 grid place-items-center mx-auto mb-3">
-                <Plus className="size-5 text-muted-foreground" />
-              </div>
-              <div className="font-medium">Create new template</div>
-              <div className="text-xs text-muted-foreground mt-1">Open drag &amp; drop builder</div>
-            </div>
-          </Link>
         </div>
       )}
     </DashboardLayout>
