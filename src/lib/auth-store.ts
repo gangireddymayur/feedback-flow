@@ -11,7 +11,13 @@ export function getAuth(): AuthState | null {
   try {
     const raw = localStorage.getItem(USER_KEY);
     if (!raw || !getToken()) return null;
-    return JSON.parse(raw) as AuthState;
+    const parsed = JSON.parse(raw) as AuthState;
+    if (parsed && (parsed.local_mode === "none" || !parsed.local_mode)) {
+      if (window.location.port === "8080" || window.location.hostname === "localhost") {
+        parsed.local_mode = "solo";
+      }
+    }
+    return parsed;
   } catch {
     return null;
   }
