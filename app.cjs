@@ -259,6 +259,121 @@ class SqlitePool {
   }
 }
 
+async function autoRestoreBackup(backupPath, dbPool) {
+  const fs = require("node:fs");
+  try {
+    if (!fs.existsSync(backupPath)) return;
+    console.log(`[backup] Found auto-restore file at: ${backupPath}. Restoring database...`);
+    const content = fs.readFileSync(backupPath, "utf8");
+    const payload = JSON.parse(content);
+    
+    const tables = [
+      "users", "user_profiles", "templates", "devices", 
+      "screensavers", "schedules", "schedule_recurrences", 
+      "schedule_instances", "responses"
+    ];
+    for (const table of tables) {
+      try {
+        await dbPool.query(`DELETE FROM ${table}`);
+      } catch (e) {}
+    }
+
+    if (Array.isArray(payload.users)) {
+      for (const u of payload.users) {
+        await dbPool.query(
+          "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [u.id, u.name, u.email, u.password_hash, u.role, u.status || "active", u.local_mode || "none", u.max_devices || 1]
+        );
+      }
+    }
+
+    if (payload.profile) {
+      const p = payload.profile;
+      await dbPool.query(
+        "INSERT OR REPLACE INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement) VALUES (?, ?, ?, ?, ?, ?)",
+        [p.user_id || payload.users?.[0]?.id || 1, p.organization, p.timezone || "IST", p.avatar_url, p.show_brand_header || 0, p.brand_header_placement || "top"]
+      );
+    }
+
+    if (Array.isArray(payload.templates)) {
+      for (const t of payload.templates) {
+        const qStr = typeof t.questions === "string" ? t.questions : JSON.stringify(t.questions || []);
+        const bStr = typeof t.branding === "string" ? t.branding : JSON.stringify(t.branding || null);
+        await dbPool.query(
+          "INSERT OR REPLACE INTO templates (id, owner_id, name, description, category, status, questions, display_mode, branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [t.id, t.owner_id, t.name, t.description || "", t.category || "General", t.status || "draft", qStr, t.display_mode || "multi_page", bStr]
+        );
+      }
+    }
+
+    if (Array.isArray(payload.devices)) {
+      for (const d of payload.devices) {
+        await dbPool.query(
+          "INSERT OR REPLACE INTO devices (id, owner_id, name, location, status, android_version, template_id, schedules_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [d.id, d.owner_id, d.name, d.location || "", d.status || "offline", d.android_version || "", d.template_id, d.schedules_enabled ?? 1]
+        );
+      }
+    }
+
+    if (Array.isArray(payload.screensavers)) {
+      for (const s of payload.screensavers) {
+        await dbPool.query(
+          "INSERT OR REPLACE INTO screensavers (id, owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [s.id, s.owner_id, s.name, s.url, s.type || "image", s.is_active || 0, s.timeout_seconds || 300]
+        );
+      }
+    }
+
+    if (Array.isArray(payload.schedules)) {
+      for (const s of payload.schedules) {
+        await dbPool.query(
+          "INSERT OR REPLACE INTO schedules (id, device_id, template_id, owner_id, start_time, end_time, start_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [s.id, s.device_id, s.template_id, s.owner_id, s.start_time, s.end_time, s.start_date]
+        );
+      }
+    }
+
+    if (Array.isArray(payload.recurrences)) {
+      for (const r of payload.recurrences) {
+        await dbPool.query(
+          "INSERT OR REPLACE INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count) VALUES (?, ?, ?, ?)",
+          [r.schedule_id, r.repeat_mode || "none", r.repeat_interval || 1, r.days_count || 1]
+        );
+      }
+    }
+
+    if (Array.isArray(payload.instances)) {
+      for (const i of payload.instances) {
+        await dbPool.query(
+          "INSERT OR REPLACE INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [i.schedule_id, i.device_id, i.template_id, i.date, i.start_time, i.end_time, i.start_datetime, i.end_datetime]
+        );
+      }
+    }
+
+    if (Array.isArray(payload.responses)) {
+      for (const r of payload.responses) {
+        const aStr = typeof r.answers === "string" ? r.answers : JSON.stringify(r.answers || {});
+        await dbPool.query(
+          "INSERT OR REPLACE INTO responses (id, template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+          [r.id, r.template_id, r.device_id, r.rating, aStr, r.duration_seconds || 0, r.submitted_at]
+        );
+      }
+    }
+
+    console.log("[backup] Database auto-restore completed successfully!");
+    
+    try {
+      fs.unlinkSync(backupPath);
+      console.log("[backup] Deleted backup.json after successful restore.");
+    } catch (e) {
+      console.error("[backup] Error deleting backup.json:", e.message);
+    }
+  } catch (err) {
+    console.error("[backup] Auto-restore database failed:", err);
+  }
+}
+
 async function initializeSqliteDb(sqlitePool) {
   try {
     await sqlitePool.execute("ALTER TABLE users ADD COLUMN local_mode TEXT NOT NULL DEFAULT 'none'");
@@ -558,6 +673,17 @@ if (useSqlite) {
   try {
     if (useSqlite) {
       await initializeSqliteDb(pool);
+      // Auto-restore database backup on startup if backup.json exists in directory
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const candidates = [
+        path.join(baseDir, "backup.json"),
+        path.join(process.cwd(), "backup.json")
+      ];
+      const foundPath = candidates.find(p => fs.existsSync(p));
+      if (foundPath) {
+        await autoRestoreBackup(foundPath, pool);
+      }
     }
     const [cols] = await pool.query("SHOW COLUMNS FROM templates LIKE 'display_mode'");
     if (cols.length === 0) {
@@ -1489,6 +1615,94 @@ app.get(
       const exePath = path.join(__dirname, exeName);
       if (fs.existsSync(exePath)) {
         const exeBuffer = fs.readFileSync(exePath);
+        
+        // Dynamically compile backup segment data for this Super Admin
+        const userId = _req.user.id;
+
+        const [profile] = await pool.query(
+          "SELECT organization, timezone, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
+          [userId]
+        );
+
+        const [templates] = await pool.query(
+          "SELECT id, name, description, category, status, questions, display_mode, branding FROM templates WHERE owner_id = ?",
+          [userId]
+        );
+
+        const [devices] = await pool.query(
+          "SELECT id, name, location, status, android_version, template_id, schedules_enabled FROM devices WHERE owner_id = ?",
+          [userId]
+        );
+
+        const [screensavers] = await pool.query(
+          "SELECT id, name, url, type, is_active, timeout_seconds FROM screensavers WHERE owner_id = ?",
+          [userId]
+        );
+
+        const [schedules] = await pool.query(
+          "SELECT id, device_id, template_id, start_time, end_time, start_date FROM schedules WHERE owner_id = ?",
+          [userId]
+        );
+
+        const scheduleIds = schedules.map(s => s.id);
+        let recurrences = [];
+        let instances = [];
+        if (scheduleIds.length > 0) {
+          const [recRows] = await pool.query(
+            "SELECT schedule_id, repeat_mode, repeat_interval, days_count FROM schedule_recurrences WHERE schedule_id IN (?)",
+            [scheduleIds]
+          );
+          recurrences = recRows;
+
+          const [instRows] = await pool.query(
+            "SELECT schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime FROM schedule_instances WHERE schedule_id IN (?)",
+            [scheduleIds]
+          );
+          instances = instRows;
+        }
+
+        const templateIds = templates.map(t => t.id);
+        const deviceIds = devices.map(d => d.id);
+        let responses = [];
+        if (templateIds.length > 0 || deviceIds.length > 0) {
+          let respQuery = "SELECT id, template_id, device_id, rating, answers, duration_seconds, submitted_at FROM responses WHERE 1=0";
+          const respParams = [];
+          if (templateIds.length > 0) {
+            respQuery += " OR template_id IN (?)";
+            respParams.push(templateIds);
+          }
+          if (deviceIds.length > 0) {
+            respQuery += " OR device_id IN (?)";
+            respParams.push(deviceIds);
+          }
+          const [respRows] = await pool.query(respQuery, respParams);
+          responses = respRows;
+        }
+
+        const [userMetaRows] = await pool.query(
+          "SELECT local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+          [userId]
+        );
+        const userMeta = userMetaRows[0] || { local_mode: "none", max_devices: 1 };
+
+        const [allUsers] = await pool.query(
+          "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users"
+        );
+
+        const backupPayload = {
+          version: 1,
+          profile: profile[0] || null,
+          user_meta: userMeta,
+          users: allUsers,
+          templates,
+          devices,
+          screensavers,
+          schedules,
+          recurrences,
+          instances,
+          responses
+        };
+
         const readmeContent = `ReviewOS Feedback-Flow Local Server Package
 =========================================================
 
@@ -1496,13 +1710,15 @@ This package contains the standalone local server executable for Windows.
 
 Running instructions:
 ---------------------
-1. Extract "local-server.exe" and place it in a dedicated folder on your computer.
-2. Double-click "local-server.exe" to start the server.
-3. The server will run offline utilizing an internal SQLite database in the same folder.
-4. Navigate to http://localhost:3000/reviewos in your browser to access the local admin dashboard console.
+1. Extract the contents of "local-server.zip" into a dedicated folder on your computer.
+2. Ensure both "local-server.exe" and "backup.json" are extracted to the same folder.
+3. Double-click "local-server.exe". The setup wizard will install the app and automatically configure your local database segment on first start.
+4. Navigate to http://localhost:3000/login in your browser to sign in using your local sub-admin account (e.g. your sub-admin email and password).
 `;
+
         const zipBuffer = makeZip([
           { name: exeName, content: exeBuffer },
+          { name: "backup.json", content: Buffer.from(JSON.stringify(backupPayload, null, 2), "utf8") },
           { name: "README.txt", content: readmeContent }
         ]);
 
