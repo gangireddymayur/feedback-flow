@@ -2817,6 +2817,33 @@ app.listen(PORT, () => {
     try {
       const { exec } = require("child_process");
       const url = `http://localhost:${PORT}/reviewos`;
+      
+      // Auto-create desktop shortcut on Windows for first-time launch
+      if (process.platform === "win32") {
+        try {
+          const fs = require("fs");
+          const path = require("path");
+          const desktopPath = path.join(process.env.USERPROFILE || "", "Desktop", "ReviewOS Local Server.lnk");
+          if (!fs.existsSync(desktopPath)) {
+            const exePath = process.execPath;
+            const createShortcutScript = `
+              $WshShell = New-Object -ComObject WScript.Shell;
+              $Shortcut = $WshShell.CreateShortcut('${desktopPath.replace(/'/g, "''")}');
+              $Shortcut.TargetPath = '${exePath.replace(/'/g, "''")}';
+              $Shortcut.Description = 'ReviewOS Local Server';
+              $Shortcut.WorkingDirectory = '${path.dirname(exePath).replace(/'/g, "''")}';
+              $Shortcut.Save();
+            `;
+            exec(`powershell -Command "${createShortcutScript.replace(/\n/g, ' ')}"`, (err) => {
+              if (err) console.error("[local] Failed to create desktop shortcut:", err.message);
+              else console.log("[local] Successfully created desktop shortcut on Desktop!");
+            });
+          }
+        } catch (shErr) {
+          console.error("[local] Shortcut creation error:", shErr.message);
+        }
+      }
+
       if (process.platform === "win32") {
         exec(`start ${url}`);
       } else if (process.platform === "darwin") {
