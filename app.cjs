@@ -87,13 +87,17 @@ class SqlitePool {
     const path = require("node:path");
     
     // Load WebAssembly binary from node_modules inside package snapshot
-    const wasmPath = path.join(__dirname, "node_modules", "sql.js", "dist", "sql-wasm.wasm");
-    let wasmBinary;
-    try {
-      wasmBinary = fs.readFileSync(wasmPath);
-    } catch (err) {
-      wasmBinary = fs.readFileSync(path.join(process.cwd(), "node_modules", "sql.js", "dist", "sql-wasm.wasm"));
+    // `__dirname` points into pkg's read-only snapshot in the Windows build,
+    // where the wasm asset is bundled. The second path supports normal Node runs.
+    const wasmCandidates = [
+      path.join(__dirname, "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+      path.join(process.cwd(), "node_modules", "sql.js", "dist", "sql-wasm.wasm"),
+    ];
+    const wasmPath = wasmCandidates.find((candidate) => fs.existsSync(candidate));
+    if (!wasmPath) {
+      throw new Error(`sql.js WebAssembly asset was not found. Checked: ${wasmCandidates.join(", ")}`);
     }
+    const wasmBinary = fs.readFileSync(wasmPath);
 
     this.SQL = await initSqlJs({ wasmBinary: wasmBinary });
     
@@ -389,10 +393,10 @@ async function initializeSqliteDb(sqlitePool) {
 
   const [users] = await sqlitePool.query("SELECT id FROM users LIMIT 1");
   if (users.length === 0) {
-    console.log("[sqlite] Seeding default super admin account: admin@reviewos.local / admin123");
+    console.log("[sqlite] Seeding default super admin account: admin@reviewos.app");
     await sqlitePool.query(
       "INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
-      ["Admin", "admin@reviewos.local", "$2b$10$alt8uoHymwrSMN4fPJFw0uUFGeKLIpAm9L3B8PCOn1Li8YXj2Dzeu", "super", "active"]
+      ["Admin", "admin@reviewos.app", "$2b$10$alt8uoHymwrSMN4fPJFw0uUFGeKLIpAm9L3B8PCOn1Li8YXj2Dzeu", "super", "active"]
     );
   }
 }
@@ -803,7 +807,7 @@ app.post(
       return res.status(401).json({ error: "Invalid credentials" });
     const ok = await bcrypt.compare(password, u.password_hash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-    const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, local_mode: u.local_mode, max_devices: u.max_devices, password_hash: u.password_hash };
+    const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, local_mode: u.local_mode, max_devices: u.max_devices };
     res.json({ token: signToken(user), user });
   }),
 );
@@ -3052,7 +3056,7 @@ app.listen(PORT, () => {
   if (useSqlite) {
     try {
       const { exec } = require("child_process");
-      const url = `http://localhost:${PORT}/reviewos`;
+      const url = `http://localhost:${PORT}/login`;
       
       // Auto-create desktop shortcut on Windows for first-time launch
       if (process.platform === "win32") {

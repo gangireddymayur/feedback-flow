@@ -1,11 +1,13 @@
 {
   "name": "tanstack_start_ts",
   "private": true,
+  "bin": "app.cjs",
   "sideEffects": false,
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:windows": "npm run build && npx --yes pkg . --targets node18-win-x64 --output local-server.exe",
     "preview": "vite preview",
     "start": "node server.js",
     "db:check": "node scripts/check-db.cjs",
@@ -104,6 +106,7 @@
     "assets": [
       "dist/**/*",
       "node_modules/sql.js/dist/sql-wasm.wasm"
-    ]
+    ],
+    "outputPath": "."
   }
 }
