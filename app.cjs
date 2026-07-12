@@ -52,6 +52,8 @@ const {
   NODE_ENV,
 } = process.env;
 
+const CLOUD_URL = process.env.CLOUD_URL || "https://reviewos.app";
+
 if (NODE_ENV === "production" && JWT_SECRET === "change-me-in-plesk-env") {
   console.error("FATAL ERROR: Environment variable JWT_SECRET is unset or insecure in production mode!");
   process.exit(1);
@@ -259,6 +261,102 @@ class SqlitePool {
   }
 }
 
+async function restoreBackupPayload(payload, dbPool) {
+  const tables = [
+    "users", "user_profiles", "templates", "devices", 
+    "screensavers", "schedules", "schedule_recurrences", 
+    "schedule_instances", "responses"
+  ];
+  for (const table of tables) {
+    try {
+      await dbPool.query(`DELETE FROM ${table}`);
+    } catch (e) {}
+  }
+
+  if (Array.isArray(payload.users)) {
+    for (const u of payload.users) {
+      await dbPool.query(
+        "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [u.id, u.name, u.email, u.password_hash, u.role, u.status || "active", u.local_mode || "none", u.max_devices || 1]
+      );
+    }
+  }
+
+  if (payload.profile) {
+    const p = payload.profile;
+    await dbPool.query(
+      "INSERT OR REPLACE INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement) VALUES (?, ?, ?, ?, ?, ?)",
+      [p.user_id || payload.users?.[0]?.id || 1, p.organization, p.timezone || "IST", p.avatar_url, p.show_brand_header || 0, p.brand_header_placement || "top"]
+    );
+  }
+
+  if (Array.isArray(payload.templates)) {
+    for (const t of payload.templates) {
+      const qStr = typeof t.questions === "string" ? t.questions : JSON.stringify(t.questions || []);
+      const bStr = typeof t.branding === "string" ? t.branding : JSON.stringify(t.branding || null);
+      await dbPool.query(
+        "INSERT OR REPLACE INTO templates (id, owner_id, name, description, category, status, questions, display_mode, branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [t.id, t.owner_id, t.name, t.description || "", t.category || "General", t.status || "draft", qStr, t.display_mode || "multi_page", bStr]
+      );
+    }
+  }
+
+  if (Array.isArray(payload.devices)) {
+    for (const d of payload.devices) {
+      await dbPool.query(
+        "INSERT OR REPLACE INTO devices (id, owner_id, name, location, status, android_version, template_id, schedules_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [d.id, d.owner_id, d.name, d.location || "", d.status || "offline", d.android_version || "", d.template_id, d.schedules_enabled ?? 1]
+      );
+    }
+  }
+
+  if (Array.isArray(payload.screensavers)) {
+    for (const s of payload.screensavers) {
+      await dbPool.query(
+        "INSERT OR REPLACE INTO screensavers (id, owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [s.id, s.owner_id, s.name, s.url, s.type || "image", s.is_active || 0, s.timeout_seconds || 300]
+      );
+    }
+  }
+
+  if (Array.isArray(payload.schedules)) {
+    for (const s of payload.schedules) {
+      await dbPool.query(
+        "INSERT OR REPLACE INTO schedules (id, device_id, template_id, owner_id, start_time, end_time, start_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [s.id, s.device_id, s.template_id, s.owner_id, s.start_time, s.end_time, s.start_date]
+      );
+    }
+  }
+
+  if (Array.isArray(payload.recurrences)) {
+    for (const r of payload.recurrences) {
+      await dbPool.query(
+        "INSERT OR REPLACE INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count) VALUES (?, ?, ?, ?)",
+        [r.schedule_id, r.repeat_mode || "none", r.repeat_interval || 1, r.days_count || 1]
+      );
+    }
+  }
+
+  if (Array.isArray(payload.instances)) {
+    for (const i of payload.instances) {
+      await dbPool.query(
+        "INSERT OR REPLACE INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [i.schedule_id, i.device_id, i.template_id, i.date, i.start_time, i.end_time, i.start_datetime, i.end_datetime]
+      );
+    }
+  }
+
+  if (Array.isArray(payload.responses)) {
+    for (const r of payload.responses) {
+      const aStr = typeof r.answers === "string" ? r.answers : JSON.stringify(r.answers || {});
+      await dbPool.query(
+        "INSERT OR REPLACE INTO responses (id, template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [r.id, r.template_id, r.device_id, r.rating, aStr, r.duration_seconds || 0, r.submitted_at]
+      );
+    }
+  }
+}
+
 async function autoRestoreBackup(backupPath, dbPool) {
   const fs = require("node:fs");
   try {
@@ -267,99 +365,7 @@ async function autoRestoreBackup(backupPath, dbPool) {
     const content = fs.readFileSync(backupPath, "utf8");
     const payload = JSON.parse(content);
     
-    const tables = [
-      "users", "user_profiles", "templates", "devices", 
-      "screensavers", "schedules", "schedule_recurrences", 
-      "schedule_instances", "responses"
-    ];
-    for (const table of tables) {
-      try {
-        await dbPool.query(`DELETE FROM ${table}`);
-      } catch (e) {}
-    }
-
-    if (Array.isArray(payload.users)) {
-      for (const u of payload.users) {
-        await dbPool.query(
-          "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [u.id, u.name, u.email, u.password_hash, u.role, u.status || "active", u.local_mode || "none", u.max_devices || 1]
-        );
-      }
-    }
-
-    if (payload.profile) {
-      const p = payload.profile;
-      await dbPool.query(
-        "INSERT OR REPLACE INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement) VALUES (?, ?, ?, ?, ?, ?)",
-        [p.user_id || payload.users?.[0]?.id || 1, p.organization, p.timezone || "IST", p.avatar_url, p.show_brand_header || 0, p.brand_header_placement || "top"]
-      );
-    }
-
-    if (Array.isArray(payload.templates)) {
-      for (const t of payload.templates) {
-        const qStr = typeof t.questions === "string" ? t.questions : JSON.stringify(t.questions || []);
-        const bStr = typeof t.branding === "string" ? t.branding : JSON.stringify(t.branding || null);
-        await dbPool.query(
-          "INSERT OR REPLACE INTO templates (id, owner_id, name, description, category, status, questions, display_mode, branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          [t.id, t.owner_id, t.name, t.description || "", t.category || "General", t.status || "draft", qStr, t.display_mode || "multi_page", bStr]
-        );
-      }
-    }
-
-    if (Array.isArray(payload.devices)) {
-      for (const d of payload.devices) {
-        await dbPool.query(
-          "INSERT OR REPLACE INTO devices (id, owner_id, name, location, status, android_version, template_id, schedules_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [d.id, d.owner_id, d.name, d.location || "", d.status || "offline", d.android_version || "", d.template_id, d.schedules_enabled ?? 1]
-        );
-      }
-    }
-
-    if (Array.isArray(payload.screensavers)) {
-      for (const s of payload.screensavers) {
-        await dbPool.query(
-          "INSERT OR REPLACE INTO screensavers (id, owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [s.id, s.owner_id, s.name, s.url, s.type || "image", s.is_active || 0, s.timeout_seconds || 300]
-        );
-      }
-    }
-
-    if (Array.isArray(payload.schedules)) {
-      for (const s of payload.schedules) {
-        await dbPool.query(
-          "INSERT OR REPLACE INTO schedules (id, device_id, template_id, owner_id, start_time, end_time, start_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [s.id, s.device_id, s.template_id, s.owner_id, s.start_time, s.end_time, s.start_date]
-        );
-      }
-    }
-
-    if (Array.isArray(payload.recurrences)) {
-      for (const r of payload.recurrences) {
-        await dbPool.query(
-          "INSERT OR REPLACE INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count) VALUES (?, ?, ?, ?)",
-          [r.schedule_id, r.repeat_mode || "none", r.repeat_interval || 1, r.days_count || 1]
-        );
-      }
-    }
-
-    if (Array.isArray(payload.instances)) {
-      for (const i of payload.instances) {
-        await dbPool.query(
-          "INSERT OR REPLACE INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [i.schedule_id, i.device_id, i.template_id, i.date, i.start_time, i.end_time, i.start_datetime, i.end_datetime]
-        );
-      }
-    }
-
-    if (Array.isArray(payload.responses)) {
-      for (const r of payload.responses) {
-        const aStr = typeof r.answers === "string" ? r.answers : JSON.stringify(r.answers || {});
-        await dbPool.query(
-          "INSERT OR REPLACE INTO responses (id, template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [r.id, r.template_id, r.device_id, r.rating, aStr, r.duration_seconds || 0, r.submitted_at]
-        );
-      }
-    }
+    await restoreBackupPayload(payload, dbPool);
 
     console.log("[backup] Database auto-restore completed successfully!");
     
@@ -928,8 +934,50 @@ app.post(
       "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE email = ? LIMIT 1",
       [email.trim().toLowerCase()],
     );
-    const u = rows[0];
-    if (!u || u.status === "disabled")
+    let u = rows[0];
+    let ok = false;
+    if (u) {
+      ok = await bcrypt.compare(password, u.password_hash);
+    }
+
+    if ((!u || !ok) && useSqlite) {
+      console.log(`[auth] User not found locally or password mismatch. Attempting authentication against cloud server: ${CLOUD_URL}...`);
+      try {
+        const cloudLoginRes = await fetch(`${CLOUD_URL}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password })
+        });
+        
+        if (cloudLoginRes.ok) {
+          const loginData = await cloudLoginRes.json();
+          const cloudToken = loginData.token;
+          console.log("[auth] Cloud authentication successful! Pulling database segment from cloud...");
+          
+          const cloudBackupRes = await fetch(`${CLOUD_URL}/api/backup`, {
+            headers: { "Authorization": `Bearer ${cloudToken}` }
+          });
+          
+          if (cloudBackupRes.ok) {
+            const backupPayload = await cloudBackupRes.json();
+            console.log("[auth] Cloud backup segment downloaded successfully. Restoring locally...");
+            
+            await restoreBackupPayload(backupPayload, pool);
+            
+            const [newRows] = await pool.query(
+              "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE email = ? LIMIT 1",
+              [email.trim().toLowerCase()],
+            );
+            u = newRows[0];
+            if (u) ok = true;
+          }
+        }
+      } catch (cloudErr) {
+        console.error("[auth] Cloud fallback authentication error:", cloudErr.message);
+      }
+    }
+
+    if (!u || !ok || u.status === "disabled")
       return res.status(401).json({ error: "Invalid credentials" });
       
     // Local server login restrictions: Only local sub-admins (local_mode !== 'none') can log in.
@@ -951,8 +999,6 @@ app.post(
       }
     }
 
-    const ok = await bcrypt.compare(password, u.password_hash);
-    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
     const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, local_mode: u.local_mode, max_devices: u.max_devices };
     res.json({ token: signToken(user), user });
   }),
