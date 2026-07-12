@@ -36,6 +36,20 @@ export async function loginWithApi(email: string, password: string) {
   return state;
 }
 
+export async function refreshAuth() {
+  try {
+    const token = getToken();
+    if (!token) return null;
+    const { user } = await Auth.me();
+    const state = toState(user);
+    persist(state);
+    return state;
+  } catch (e) {
+    console.error("Refresh auth failed:", e);
+    return null;
+  }
+}
+
 export function logout() {
   setToken(null);
   persist(null);
@@ -45,6 +59,12 @@ export function useAuth() {
   const [auth, setState] = React.useState<AuthState | null>(null);
   React.useEffect(() => {
     setState(getAuth());
+    
+    // Refresh session on mount to sync local_mode
+    refreshAuth().then((updated) => {
+      if (updated) setState(updated);
+    });
+
     const h = () => setState(getAuth());
     window.addEventListener("rms-auth-change", h);
     window.addEventListener("storage", h);
