@@ -1216,7 +1216,7 @@ Tablet Connection Setup:
       res.send(zipBuffer);
     } catch (err) {
       console.error("[local-server-pkg] generation failed:", err);
-      res.status(500).json({
+      res.status(200).json({
         error: "Failed to generate local server package",
         message: err.message,
         stack: err.stack
