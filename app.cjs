@@ -1128,37 +1128,38 @@ app.get(
   auth(),
   requireSuper,
   asyncH(async (_req, res) => {
-    const AdmZip = require("adm-zip");
-    const zip = new AdmZip();
+    try {
+      const AdmZip = require("adm-zip");
+      const zip = new AdmZip();
 
-    // 1. package.json
-    const localPackageJson = {
-      name: "reviewos-local-server",
-      version: "1.0.0",
-      description: "Local Node.js backend runner utilizing SQLite fallback storage.",
-      main: "app.cjs",
-      dependencies: {
-        "bcryptjs": "^3.0.3",
-        "cors": "^2.8.6",
-        "dotenv": "^17.4.2",
-        "express": "^5.2.1",
-        "jsonwebtoken": "^9.0.3",
-        "sqlite3": "^5.1.7"
-      },
-      scripts: {
-        "start": "node app.cjs"
-      }
-    };
-    zip.addFile("package.json", Buffer.from(JSON.stringify(localPackageJson, null, 2), "utf8"));
+      // 1. package.json
+      const localPackageJson = {
+        name: "reviewos-local-server",
+        version: "1.0.0",
+        description: "Local Node.js backend runner utilizing SQLite fallback storage.",
+        main: "app.cjs",
+        dependencies: {
+          "bcryptjs": "^3.0.3",
+          "cors": "^2.8.6",
+          "dotenv": "^17.4.2",
+          "express": "^5.2.1",
+          "jsonwebtoken": "^9.0.3",
+          "sqlite3": "^5.1.7"
+        },
+        scripts: {
+          "start": "node app.cjs"
+        }
+      };
+      zip.addFile("package.json", Buffer.from(JSON.stringify(localPackageJson, null, 2), "utf8"));
 
-    // 2. app.cjs (read current app.cjs file contents and add it)
-    const fs = require("fs");
-    const path = require("path");
-    const appContent = fs.readFileSync(path.join(__dirname, "app.cjs"));
-    zip.addFile("app.cjs", appContent);
+      // 2. app.cjs (read current app.cjs file contents and add it)
+      const fs = require("fs");
+      const path = require("path");
+      const appContent = fs.readFileSync(path.join(__dirname, "app.cjs"));
+      zip.addFile("app.cjs", appContent);
 
-    // 3. start-server.bat (Windows Batch Runner)
-    const batContent = `@echo off
+      // 3. start-server.bat (Windows Batch Runner)
+      const batContent = `@echo off
 echo ===================================================
 echo   ReviewOS Feedback-Flow Local Server Setup & Launch
 echo ===================================================
@@ -1173,10 +1174,10 @@ set JWT_SECRET=local-network-jwt-secret-key-12345
 call npm start
 pause
 `;
-    zip.addFile("start-server.bat", Buffer.from(batContent, "utf8"));
+      zip.addFile("start-server.bat", Buffer.from(batContent, "utf8"));
 
-    // 4. README.txt
-    const readmeContent = `ReviewOS Feedback-Flow Local Server Package
+      // 4. README.txt
+      const readmeContent = `ReviewOS Feedback-Flow Local Server Package
 =========================================================
 
 This package runs a local offline instance of the ReviewOS Feedback-Flow server
@@ -1207,12 +1208,20 @@ Tablet Connection Setup:
 3. On the tablets, set the deployment mode in settings to "Local Network" and input the server address (e.g., http://192.168.1.100:3000).
 4. Enter the 6-digit code displayed on the tablet inside your local computer dashboard (http://localhost:3000/devices) to pair them.
 `;
-    zip.addFile("README.txt", Buffer.from(readmeContent, "utf8"));
+      zip.addFile("README.txt", Buffer.from(readmeContent, "utf8"));
 
-    const zipBuffer = zip.toBuffer();
-    res.setHeader("Content-Type", "application/zip");
-    res.setHeader("Content-Disposition", "attachment; filename=local-network-server.zip");
-    res.send(zipBuffer);
+      const zipBuffer = zip.toBuffer();
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", "attachment; filename=local-network-server.zip");
+      res.send(zipBuffer);
+    } catch (err) {
+      console.error("[local-server-pkg] generation failed:", err);
+      res.status(500).json({
+        error: "Failed to generate local server package",
+        message: err.message,
+        stack: err.stack
+      });
+    }
   }),
 );
 
