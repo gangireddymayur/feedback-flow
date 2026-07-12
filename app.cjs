@@ -970,10 +970,16 @@ app.post(
             );
             u = newRows[0];
             if (u) ok = true;
+          } else {
+            const backupErrText = await cloudBackupRes.text().catch(() => "");
+            console.error(`[auth] Cloud backup sync failed. Status: ${cloudBackupRes.status}, Body: ${backupErrText}`);
           }
+        } else {
+          const loginErrText = await cloudLoginRes.text().catch(() => "");
+          console.error(`[auth] Cloud fallback authentication failed. Status: ${cloudLoginRes.status}, Body: ${loginErrText}`);
         }
       } catch (cloudErr) {
-        console.error("[auth] Cloud fallback authentication error:", cloudErr.message);
+        console.error("[auth] Cloud fallback authentication error encountered:", cloudErr);
       }
     }
 
