@@ -1527,14 +1527,16 @@ app.post(
 app.get(
   "/api/responses",
   auth(),
-  asyncH(async (_req, res) => {
+  asyncH(async (req, res) => {
     const [rows] = await pool.query(
       `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
               r.rating, r.answers, r.submitted_at, r.duration_seconds
        FROM responses r
        LEFT JOIN templates t ON t.id = r.template_id
        LEFT JOIN devices d ON d.id = r.device_id
+       WHERE (d.owner_id = ? OR t.owner_id = ?)
        ORDER BY r.submitted_at DESC LIMIT 500`,
+      [req.user.id, req.user.id]
     );
     res.json({
       responses: rows.map((r) => ({
