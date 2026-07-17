@@ -1057,16 +1057,16 @@ app.post(
     if (!u || !ok || u.status === "disabled")
       return res.status(401).json({ error: "Invalid credentials" });
       
-    // Local server login restrictions: Only local sub-admins (local_mode !== 'none') can log in.
+    // Local server login restrictions: Only local Network sub-admins (local_mode === 'multi') can log in.
     if (useSqlite) {
       const [localSubs] = await pool.query(
-        "SELECT id FROM users WHERE role = 'sub' AND local_mode != 'none' LIMIT 1"
+        "SELECT id FROM users WHERE role = 'sub' AND local_mode = 'multi' LIMIT 1"
       );
       const hasLocalSubs = localSubs.length > 0;
       
       if (hasLocalSubs) {
-        if (u.role !== "sub" || u.local_mode === "none") {
-          return res.status(403).json({ error: "Only local sub-admins are permitted to log in on the local server." });
+        if (u.role !== "sub" || u.local_mode !== "multi") {
+          return res.status(403).json({ error: "Only local network sub-admins are permitted to log in on the local server." });
         }
       } else {
         // Fresh local install: only allow super admin to log in and restore backup
