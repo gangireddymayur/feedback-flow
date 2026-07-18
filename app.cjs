@@ -1016,6 +1016,9 @@ app.post(
           const loginData = await cloudLoginRes.json();
           const remoteUser = loginData.user;
           console.log(`[auth] Cloud authentication successful for user: ${remoteUser.email}. Registering/updating user locally...`);
+          // The cloud has already validated this password. Store only a
+          // BCrypt hash locally so subsequent logins work without internet.
+          const localPasswordHash = await bcrypt.hash(password, 10);
           
           await pool.query(
             "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1023,7 +1026,7 @@ app.post(
               remoteUser.id,
               remoteUser.name,
               remoteUser.email.trim().toLowerCase(),
-              "", // Empty hash, authenticates via cloud
+              localPasswordHash,
               remoteUser.role,
               remoteUser.status || "active",
               remoteUser.local_mode || "multi",
