@@ -576,14 +576,6 @@ async function initializeSqliteDb(sqlitePool) {
     "DELETE FROM schedule_recurrences WHERE schedule_id NOT IN (SELECT id FROM schedules)"
   );
 
-  const [users] = await sqlitePool.query("SELECT id FROM users LIMIT 1");
-  if (users.length === 0) {
-    console.log("[sqlite] Seeding default super admin account: admin@reviewos.app");
-    await sqlitePool.query(
-      "INSERT INTO users (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)",
-      ["Admin", "admin@reviewos.app", "$2b$10$alt8uoHymwrSMN4fPJFw0uUFGeKLIpAm9L3B8PCOn1Li8YXj2Dzeu", "super", "active"]
-    );
-  }
 }
 
 let pool;
@@ -1022,29 +1014,29 @@ app.post(
         
         if (cloudLoginRes.ok) {
           const loginData = await cloudLoginRes.json();
-          const cloudToken = loginData.token;
-          console.log("[auth] Cloud authentication successful! Pulling database segment from cloud...");
+          const remoteUser = loginData.user;
+          console.log(`[auth] Cloud authentication successful for user: ${remoteUser.email}. Registering/updating user locally...`);
           
-          const cloudBackupRes = await fetch(`${CLOUD_URL}/api/backup`, {
-            headers: { "Authorization": `Bearer ${cloudToken}` }
-          });
-          
-          if (cloudBackupRes.ok) {
-            const backupPayload = await cloudBackupRes.json();
-            console.log("[auth] Cloud backup segment downloaded successfully. Restoring locally...");
-            
-            await restoreBackupPayload(backupPayload, pool);
-            
-            const [newRows] = await pool.query(
-              "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE email = ? LIMIT 1",
-              [email.trim().toLowerCase()],
-            );
-            u = newRows[0];
-            if (u) ok = true;
-          } else {
-            const backupErrText = await cloudBackupRes.text().catch(() => "");
-            console.error(`[auth] Cloud backup sync failed. Status: ${cloudBackupRes.status}, Body: ${backupErrText}`);
-          }
+          await pool.query(
+            "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+              remoteUser.id,
+              remoteUser.name,
+              remoteUser.email.trim().toLowerCase(),
+              "", // Empty hash, authenticates via cloud
+              remoteUser.role,
+              remoteUser.status || "active",
+              remoteUser.local_mode || "multi",
+              remoteUser.max_devices || 1
+            ]
+          );
+
+          const [newRows] = await pool.query(
+            "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE email = ? LIMIT 1",
+            [email.trim().toLowerCase()],
+          );
+          u = newRows[0];
+          if (u) ok = true;
         } else {
           const loginErrText = await cloudLoginRes.text().catch(() => "");
           console.error(`[auth] Cloud fallback authentication failed. Status: ${cloudLoginRes.status}, Body: ${loginErrText}`);
@@ -1057,22 +1049,10 @@ app.post(
     if (!u || !ok || u.status === "disabled")
       return res.status(401).json({ error: "Invalid credentials" });
       
-    // Local server login restrictions: Only local Network sub-admins (local_mode === 'multi') can log in.
+    // Local server login restrictions: Only local Network sub-admins (role === 'sub', local_mode === 'multi') are permitted to log in.
     if (useSqlite) {
-      const [localSubs] = await pool.query(
-        "SELECT id FROM users WHERE role = 'sub' AND local_mode = 'multi' LIMIT 1"
-      );
-      const hasLocalSubs = localSubs.length > 0;
-      
-      if (hasLocalSubs) {
-        if (u.role !== "sub" || u.local_mode !== "multi") {
-          return res.status(403).json({ error: "Only local network sub-admins are permitted to log in on the local server." });
-        }
-      } else {
-        // Fresh local install: only allow super admin to log in and restore backup
-        if (u.role !== "super") {
-          return res.status(403).json({ error: "Initial setup required. Please log in as the default Super Admin to restore the database backup." });
-        }
+      if (u.role !== "sub" || u.local_mode !== "multi") {
+        return res.status(403).json({ error: "Only local network sub-admins are permitted to log in on this local server." });
       }
     }
 
