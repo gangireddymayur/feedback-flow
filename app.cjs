@@ -3466,6 +3466,9 @@ const distDir = path.join(__dirname, "dist");
 app.use("/uploads", express.static(path.join(baseDir, "uploads")));
 app.use(express.static(distDir, { maxAge: "1h", index: false }));
 app.get(/^(?!\/api).*/, (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.sendFile(path.join(distDir, "index.html"));
 });
 
