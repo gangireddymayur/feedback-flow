@@ -1619,6 +1619,65 @@ app.put(
   }),
 );
 
+app.put(
+  "/api/admins/:id",
+  auth(),
+  requireSuper,
+  asyncH(async (req, res) => {
+    const userId = Number(req.params.id);
+    const { name, email, password, local_mode, max_devices } = req.body || {};
+    
+    // Check if user exists
+    const [exist] = await pool.query("SELECT id FROM users WHERE id = ? LIMIT 1", [userId]);
+    if (!exist.length) return res.status(404).json({ error: "User not found" });
+    
+    const fields = [];
+    const params = [];
+    
+    if (name !== undefined) {
+      fields.push("name = ?");
+      params.push(name);
+    }
+    
+    if (email !== undefined) {
+      if (!email.includes("@")) return res.status(400).json({ error: "Invalid email format" });
+      fields.push("email = ?");
+      params.push(email.trim().toLowerCase());
+    }
+    
+    if (password !== undefined && password.trim() !== "") {
+      if (password.length < 8) return res.status(400).json({ error: "password must be >=8 chars" });
+      const hash = await bcrypt.hash(password, 10);
+      fields.push("password_hash = ?");
+      params.push(hash);
+    }
+    
+    if (local_mode !== undefined) {
+      fields.push("local_mode = ?");
+      params.push(local_mode);
+    }
+    
+    if (max_devices !== undefined) {
+      fields.push("max_devices = ?");
+      params.push(Number(max_devices));
+    }
+    
+    if (fields.length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+    
+    params.push(userId);
+    
+    try {
+      await pool.query(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`, params);
+      res.json({ ok: true });
+    } catch (e) {
+      if (e.code === "ER_DUP_ENTRY") return res.status(409).json({ error: "Email already exists" });
+      throw e;
+    }
+  }),
+);
+
 // Helper to compute CRC-32 checksums for ZIP headers
 function computeCrc32(buf) {
   const table = [];

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Download } from "lucide-react";
+import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Download, Pencil } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +49,42 @@ function AdminsPage() {
     password: "",
     max_devices: 5,
   });
+
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editingAdmin, setEditingAdmin] = React.useState<any>(null);
+  const [editForm, setEditForm] = React.useState({
+    name: "",
+    email: "",
+    password: "",
+    local_mode: "none" as "none" | "single" | "multi",
+    max_devices: 5,
+  });
+
+  const updateAdmin = useMutation({
+    mutationFn: () =>
+      Admins.update(editingAdmin.id, {
+        name: editForm.name,
+        email: editForm.email,
+        password: editForm.password ? editForm.password : undefined,
+        local_mode: editForm.local_mode,
+        max_devices: editForm.local_mode === "multi" ? editForm.max_devices : 1,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admins"] });
+      toast.success("Admin updated successfully");
+      setEditOpen(false);
+      setEditingAdmin(null);
+      setEditForm({
+        name: "",
+        email: "",
+        password: "",
+        local_mode: "none",
+        max_devices: 5,
+      });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   const create = useMutation({
     mutationFn: () =>
       Admins.create({
@@ -211,6 +247,21 @@ function AdminsPage() {
                     >
                       <Copy className="size-3.5 mr-2" /> Copy email
                     </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditingAdmin(a);
+                        setEditForm({
+                          name: a.name,
+                          email: a.email,
+                          password: "",
+                          local_mode: a.local_mode as any,
+                          max_devices: a.max_devices || 5,
+                        });
+                        setEditOpen(true);
+                      }}
+                    >
+                      <Pencil className="size-3.5 mr-2" /> Edit Details
+                    </DropdownMenuItem>
                     {a.local_mode !== "none" && (
                       <DropdownMenuItem
                         onClick={() => {
@@ -347,6 +398,79 @@ function AdminsPage() {
               }}
             >
               Generate & Download ZIP
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="glass-strong border-white/10 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Sub Admin: {editingAdmin?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <Label>Name</Label>
+            <Input
+              className="bg-white/5 border-white/10"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            />
+            <Label>Email</Label>
+            <Input
+              type="email"
+              className="bg-white/5 border-white/10"
+              value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            />
+            <Label>Password (Optional override)</Label>
+            <Input
+              type="password"
+              placeholder="Leave blank to keep existing password"
+              className="bg-white/5 border-white/10"
+              value={editForm.password}
+              onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+            />
+            <Label>Deployment Mode</Label>
+            <select
+              className="w-full h-10 px-3 rounded-md bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-white"
+              value={editForm.local_mode}
+              onChange={(e) =>
+                setEditForm({ ...editForm, local_mode: e.target.value as any })
+              }
+            >
+              <option value="none" className="bg-[#18181b]">
+                Cloud Mode (Standard)
+              </option>
+              <option value="single" className="bg-[#18181b]">
+                Local Single-Device (Solo)
+              </option>
+              <option value="multi" className="bg-[#18181b]">
+                Local Multi-Tablet (Network Cluster)
+              </option>
+            </select>
+
+            {editForm.local_mode === "multi" && (
+              <>
+                <Label>Max Allowed Tablets</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  className="bg-white/5 border-white/10"
+                  value={editForm.max_devices}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, max_devices: Number(e.target.value) })
+                  }
+                />
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              className="w-full"
+              disabled={updateAdmin.isPending || !editForm.email}
+              onClick={() => updateAdmin.mutate()}
+            >
+              {updateAdmin.isPending ? "Saving changes…" : "Save changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

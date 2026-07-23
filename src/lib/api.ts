@@ -435,6 +435,12 @@ export const Admins = {
       body: JSON.stringify(body),
     });
   },
+  update: async (id: number, body: { name?: string; email?: string; password?: string; local_mode?: "none" | "single" | "multi"; max_devices?: number }) => {
+    return await http<{ ok: true }>(`/admins/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+  },
   setStatus: async (id: number, status: "active" | "disabled") => {
     return await http<{ ok: true }>(`/admins/${id}/status`, {
       method: "PUT",
