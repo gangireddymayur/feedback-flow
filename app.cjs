@@ -1315,6 +1315,9 @@ app.get(
   auth(),
   deviceAuth,
   asyncH(async (req, res) => {
+    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
+      req.device.id,
+    ]);
     const [rows] = await pool.query(
       "SELECT id, owner_id, name, location, status, android_version, last_sync, template_id, created_at, schedules_enabled FROM devices WHERE id = ? LIMIT 1",
       [req.device.id],
@@ -3107,6 +3110,9 @@ app.get(
   auth(),
   deviceAuth,
   asyncH(async (req, res) => {
+    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
+      req.device.id,
+    ]);
     const [drows] = await pool.query(
       "SELECT id, template_id, schedules_enabled FROM devices WHERE id = ? LIMIT 1",
       [req.device.id],
