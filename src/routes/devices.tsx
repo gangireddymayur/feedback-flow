@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MapPin, Smartphone, Trash2, Pause, Play, Calendar, Settings } from "lucide-react";
+import { Plus, MapPin, Smartphone, Trash2, Pause, Play, Calendar, Settings, RefreshCw } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Devices, Templates, ApiDevice } from "@/lib/api";
-import { useAuth } from "@/lib/auth-store";
+import { Auth, Devices, Templates, ApiDevice } from "@/lib/api";
+import { refreshAuth, useAuth } from "@/lib/auth-store";
 import { LoadingState, ErrorState } from "@/routes/templates";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,7 @@ function DevicesPage() {
 
   // Unpair confirm state
   const [deleteConfirmId, setDeleteConfirmId] = React.useState<number | null>(null);
+  const [syncingCloud, setSyncingCloud] = React.useState(false);
 
   const updateMut = useMutation({
     mutationFn: ({
@@ -107,7 +108,27 @@ function DevicesPage() {
 
   const auth = useAuth();
   const isSoloMode = auth?.local_mode === "solo";
+  const isLocalNetworkServer =
+    auth?.local_mode === "network" &&
+    typeof window !== "undefined" &&
+    window.location.protocol === "http:";
   const deviceLimit = auth?.max_devices && auth.max_devices > 0 ? auth.max_devices : null;
+
+  const handleCloudSync = async () => {
+    setSyncingCloud(true);
+    try {
+      const result = await Auth.syncCloudEntitlements();
+      await refreshAuth();
+      await qc.invalidateQueries({ queryKey: ["devices"] });
+      toast.success(`Maximum devices updated to ${result.max_devices}`, {
+        description: "Local devices, templates, responses, schedules, and files were left unchanged.",
+      });
+    } catch (error) {
+      toast.error((error as Error).message || "Cloud entitlement sync failed");
+    } finally {
+      setSyncingCloud(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -116,7 +137,18 @@ function DevicesPage() {
         description="Pair Android-based review devices, monitor health, push templates instantly."
         actions={
           isSoloMode ? null : (
-            <Dialog open={open} onOpenChange={setOpen}>
+            <div className="flex items-center gap-2">
+              {isLocalNetworkServer && (
+                <Button
+                  variant="outline"
+                  onClick={handleCloudSync}
+                  disabled={syncingCloud}
+                >
+                  <RefreshCw className={cn("size-4 mr-2", syncingCloud && "animate-spin")} />
+                  {syncingCloud ? "Syncing..." : "Sync from Cloud"}
+                </Button>
+              )}
+              <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="size-4 mr-2" /> Pair Device
@@ -183,7 +215,8 @@ function DevicesPage() {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+              </Dialog>
+            </div>
           )
         }
       />

@@ -54,6 +54,11 @@ const {
 
 const CLOUD_URL = process.env.CLOUD_URL || "https://exciting-greider.103-69-196-157.plesk.page";
 
+// The Windows local server keeps the current sign-in password in memory only.
+// It is used exclusively when the signed-in admin explicitly refreshes their
+// cloud device entitlement. Restarting the server clears this map.
+const localLoginPasswords = new Map();
+
 if (NODE_ENV === "production" && JWT_SECRET === "change-me-in-plesk-env") {
   console.error("FATAL ERROR: Environment variable JWT_SECRET is unset or insecure in production mode!");
   process.exit(1);
@@ -1057,6 +1062,7 @@ app.post(
       if (u.role !== "sub" || u.local_mode !== "multi") {
         return res.status(403).json({ error: "Only local network sub-admins are permitted to log in on this local server." });
       }
+      localLoginPasswords.set(String(u.id), String(password));
     }
 
     const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, local_mode: u.local_mode, max_devices: u.max_devices };
@@ -1074,6 +1080,77 @@ app.get(
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
     res.json({ user: rows[0] });
+  }),
+);
+
+app.post(
+  "/api/cloud-sync/entitlements",
+  auth(),
+  asyncH(async (req, res) => {
+    if (!useSqlite) {
+      return res.status(404).json({ error: "Cloud entitlement sync is available only in the Windows local server." });
+    }
+
+    const [rows] = await pool.query(
+      "SELECT id, email, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+      [req.user.id],
+    );
+    const localUser = rows[0];
+    if (!localUser || localUser.role !== "sub" || localUser.local_mode !== "multi") {
+      return res.status(403).json({ error: "Only a local Network account can sync its cloud device allowance." });
+    }
+
+    const password = localLoginPasswords.get(String(localUser.id));
+    if (!password) {
+      return res.status(428).json({
+        error: "Please sign out and sign in once, then press Sync from Cloud again.",
+      });
+    }
+
+    let cloudResponse;
+    try {
+      cloudResponse = await fetch(`${CLOUD_URL.replace(/\/+$/, "")}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: localUser.email, password }),
+      });
+    } catch {
+      return res.status(503).json({
+        error: "Cloud is unreachable. Local ReviewOS data was not changed.",
+      });
+    }
+
+    if (!cloudResponse.ok) {
+      return res.status(cloudResponse.status === 401 ? 401 : 502).json({
+        error:
+          cloudResponse.status === 401
+            ? "The current cloud password is incorrect. Sign out and sign in with the latest password."
+            : `Cloud login failed (${cloudResponse.status}). Local data was not changed.`,
+      });
+    }
+
+    const cloudLogin = await cloudResponse.json();
+    const cloudUser = cloudLogin?.user || {};
+    const cloudLimit = Number(cloudUser.max_devices);
+    if (!Number.isInteger(cloudLimit) || cloudLimit < 1) {
+      return res.status(502).json({
+        error: "Cloud did not return a valid maximum device allowance. Local data was not changed.",
+      });
+    }
+
+    const previousMaxDevices = Number(localUser.max_devices) || 1;
+    await pool.query("UPDATE users SET max_devices = ? WHERE id = ?", [
+      cloudLimit,
+      localUser.id,
+    ]);
+
+    // Deliberately entitlement-only: local devices, templates, responses,
+    // schedules, uploads, profiles, and password hashes remain untouched.
+    res.json({
+      success: true,
+      previous_max_devices: previousMaxDevices,
+      max_devices: cloudLimit,
+    });
   }),
 );
 

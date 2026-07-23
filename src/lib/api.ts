@@ -167,6 +167,15 @@ export const Auth = {
       body: JSON.stringify({ current_password, new_password }),
     });
   },
+  syncCloudEntitlements: async () => {
+    return await http<{
+      success: true;
+      previous_max_devices: number;
+      max_devices: number;
+    }>("/cloud-sync/entitlements", {
+      method: "POST",
+    });
+  },
 };
 
 // =================================================================
