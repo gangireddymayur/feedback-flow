@@ -837,6 +837,8 @@ function Canvas({
                 onToggleWidth={() => {
                   setQuestions((qs) => qs.map((x) => x.id === q.id ? { ...x, width: x.width === "half" ? "full" : "half" } : x));
                 }}
+                themeMode={branding.themeMode || "dark"}
+                brandColor={branding.brandColor || "#0F766E"}
               />
             ))}
           </div>
@@ -927,6 +929,8 @@ function SortableQuestion({
   onRemove,
   onDuplicate,
   onToggleWidth,
+  themeMode = "dark",
+  brandColor = "#0F766E",
 }: {
   q: BuilderQuestion;
   index: number;
@@ -935,6 +939,8 @@ function SortableQuestion({
   onRemove: () => void;
   onDuplicate: () => void;
   onToggleWidth: () => void;
+  themeMode?: "light" | "dark";
+  brandColor?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: q.id,
@@ -942,16 +948,19 @@ function SortableQuestion({
   });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const Icon = ICONS[q.type];
+  const isLight = themeMode === "light";
+  const customBorderColor = selected ? brandColor : (isLight ? "rgba(228, 228, 231, 1)" : "rgba(255, 255, 255, 0.05)");
+  const customBgColor = selected ? `${brandColor}15` : (isLight ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.03)");
+  const textTitleColor = isLight ? "text-zinc-900" : "text-white";
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, borderColor: customBorderColor, backgroundColor: customBgColor }}
       onClick={onSelect}
       className={cn(
-        "group rounded-xl border bg-white/[0.03] p-3 flex items-start gap-3 transition-colors cursor-pointer",
-        selected
-          ? "border-primary/40 bg-primary/[0.06]"
-          : "border-white/5 hover:border-white/10 hover:bg-white/[0.06]",
+        "group rounded-xl border p-3 flex items-start gap-3 transition-colors cursor-pointer",
+        isLight ? "text-zinc-900 shadow-sm" : "text-white",
         isDragging && "opacity-50",
         q.width === "half" ? "col-span-2 md:col-span-1" : "col-span-2"
       )}
@@ -970,11 +979,11 @@ function SortableQuestion({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground">Q{index + 1}</span>
+          <span className={cn("text-[10px]", isLight ? "text-zinc-500" : "text-muted-foreground")}>Q{index + 1}</span>
           {q.required && (
             <Badge
               variant="secondary"
-              className="bg-rose-400/15 text-rose-300 text-[9px] px-1.5 py-0"
+              className={cn("text-[9px] px-1.5 py-0", isLight ? "bg-rose-100 text-rose-700 font-semibold" : "bg-rose-400/15 text-rose-300")}
             >
               Required
             </Badge>
@@ -982,14 +991,14 @@ function SortableQuestion({
           {q.width === "half" && (
             <Badge
               variant="outline"
-              className="border-white/10 text-muted-foreground text-[9px] px-1.5 py-0"
+              className={cn("text-[9px] px-1.5 py-0", isLight ? "border-zinc-200 text-zinc-500" : "border-white/10 text-muted-foreground")}
             >
               50% Width
             </Badge>
           )}
         </div>
-        <div className="font-medium text-sm mt-0.5 truncate">{q.label}</div>
-        <QuestionPreview q={q} />
+        <div className={cn("font-medium text-sm mt-0.5 truncate", textTitleColor)}>{q.label}</div>
+        <QuestionPreview q={q} themeMode={themeMode} />
       </div>
       <div className="flex items-center gap-1">
         <button
@@ -997,7 +1006,12 @@ function SortableQuestion({
             e.stopPropagation();
             onToggleWidth();
           }}
-          className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-white/10 hover:bg-white/10 text-muted-foreground select-none shrink-0 cursor-pointer"
+          className={cn(
+            "text-[9px] font-bold px-1.5 py-0.5 rounded border select-none shrink-0 cursor-pointer",
+            isLight 
+              ? "border-zinc-200 hover:bg-zinc-100 text-zinc-600" 
+              : "border-white/10 hover:bg-white/10 text-muted-foreground"
+          )}
           title="Toggle width (50% / 100%)"
         >
           {q.width === "half" ? "50%" : "100%"}
@@ -1005,7 +1019,7 @@ function SortableQuestion({
         <Button
           size="icon"
           variant="ghost"
-          className="size-7"
+          className={cn("size-7", isLight ? "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100" : "text-muted-foreground hover:text-white")}
           onClick={(e) => {
             e.stopPropagation();
             onDuplicate();
@@ -1016,7 +1030,7 @@ function SortableQuestion({
         <Button
           size="icon"
           variant="ghost"
-          className="size-7 text-rose-300 hover:text-rose-200"
+          className={cn("size-7", isLight ? "text-rose-600 hover:text-rose-700 hover:bg-rose-50" : "text-rose-300 hover:text-rose-200")}
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
@@ -1029,7 +1043,11 @@ function SortableQuestion({
   );
 }
 
-function QuestionPreview({ q }: { q: BuilderQuestion }) {
+function QuestionPreview({ q, themeMode = "dark" }: { q: BuilderQuestion; themeMode?: "light" | "dark" }) {
+  const isLight = themeMode === "light";
+  const bgClass = isLight ? "bg-zinc-100 text-zinc-700 border-zinc-200" : "bg-white/5 text-muted-foreground border-white/5";
+  const textClass = isLight ? "text-zinc-500" : "text-muted-foreground";
+
   switch (q.type) {
     case "rating": {
       const totalStars = q.maxStars || 5;
@@ -1037,11 +1055,11 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
         <div className="mt-2 space-y-1">
           <div className="flex gap-1 flex-wrap">
             {Array.from({ length: totalStars }).map((_, i) => (
-              <Star key={i} className="size-4 text-muted-foreground/40" />
+              <Star key={i} className={cn("size-4", isLight ? "text-zinc-300" : "text-muted-foreground/40")} />
             ))}
           </div>
           {q.starLabels?.some((l) => l) && (
-            <div className="flex justify-between w-full text-[8px] text-muted-foreground px-0.5">
+            <div className={cn("flex justify-between w-full text-[8px] px-0.5", textClass)}>
               <span>{q.starLabels[0] || "1"}</span>
               <span>{q.starLabels[totalStars - 1] || totalStars.toString()}</span>
             </div>
@@ -1055,7 +1073,7 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
           {Array.from({ length: 11 }).map((_, i) => (
             <span
               key={i}
-              className="text-[9px] size-4.5 grid place-items-center rounded bg-white/5 text-muted-foreground"
+              className={cn("text-[9px] size-4.5 grid place-items-center rounded border", bgClass)}
             >
               {i}
             </span>
@@ -1071,9 +1089,9 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
         { emoji: "😍", label: "Extremely Satisfied" },
       ];
       return (
-        <div className="flex flex-wrap gap-1 mt-2 text-xs text-muted-foreground select-none">
+        <div className={cn("flex flex-wrap gap-1 mt-2 text-xs select-none", textClass)}>
           {emojiList.map((item, idx) => (
-            <span key={idx} className="bg-white/5 px-1 py-0.5 rounded border border-white/5" title={item.label}>
+            <span key={idx} className={cn("px-1 py-0.5 rounded border", bgClass)} title={item.label}>
               {item.emoji}
             </span>
           ))}
@@ -1083,10 +1101,10 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
     case "yes_no":
       return (
         <div className="flex gap-1.5 mt-2">
-          <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-muted-foreground font-medium">
+          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", bgClass)}>
             {q.yesLabel || "Yes"}
           </span>
-          <span className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-muted-foreground font-medium">
+          <span className={cn("text-[10px] px-2 py-0.5 rounded border font-medium", bgClass)}>
             {q.noLabel || "No"}
           </span>
         </div>
@@ -1098,7 +1116,7 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
           {(q.options ?? []).map((o, i) => (
             <span
               key={i}
-              className="text-[10px] px-2 py-0.5 rounded bg-white/5 text-muted-foreground"
+              className={cn("text-[10px] px-2 py-0.5 rounded border", bgClass)}
             >
               {o}
             </span>
@@ -1106,9 +1124,9 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
         </div>
       );
     case "short_text":
-      return <div className="mt-2 h-6 rounded bg-white/5 border border-white/5" />;
+      return <div className={cn("mt-2 h-6 rounded border", bgClass)} />;
     case "long_text":
-      return <div className="mt-2 h-10 rounded bg-white/5 border border-white/5" />;
+      return <div className={cn("mt-2 h-10 rounded border", bgClass)} />;
     case "customer_info": {
       const fields = [];
       if (q.collectName !== false) fields.push("Name");
@@ -1117,11 +1135,16 @@ function QuestionPreview({ q }: { q: BuilderQuestion }) {
       return (
         <div className="flex flex-wrap gap-1 mt-2">
           {fields.map((f) => (
-            <span key={f} className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+            <span key={f} className={cn(
+              "text-[9px] px-1.5 py-0.5 rounded border",
+              isLight 
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+            )}>
               {f} input
             </span>
           ))}
-          {fields.length === 0 && <span className="text-[9px] italic text-rose-300">No fields selected</span>}
+          {fields.length === 0 && <span className="text-[9px] italic text-rose-500">No fields selected</span>}
         </div>
       );
     }
