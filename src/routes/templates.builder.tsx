@@ -49,6 +49,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QUESTION_LIBRARY, type BuilderQuestion, type QuestionType } from "@/lib/mock-data";
 import { Templates } from "@/lib/api";
 import { toast } from "sonner";
@@ -147,6 +148,8 @@ function makeQuestion(type: QuestionType, page = 1): BuilderQuestion {
 
 function BuilderPage() {
   const router = useRouter();
+  const [previewQuestionType, setPreviewQuestionType] = React.useState<QuestionType | null>(null);
+  const [showTabletPreview, setShowTabletPreview] = React.useState(false);
   const qc = useQueryClient();
   const { templateId, name: qName, description: qDesc, category: qCat } = Route.useSearch();
 
@@ -403,6 +406,13 @@ function BuilderPage() {
             >
               <Save className="size-4" /> {saving ? "Saving…" : "Save Draft"}
             </Button>
+            <Button
+              variant="outline"
+              className="bg-white/5 border-white/10 hover:bg-white/10"
+              onClick={() => setShowTabletPreview(true)}
+            >
+              <Eye className="size-4" /> Preview
+            </Button>
             <Button disabled={saving} onClick={() => save(true)}>
               <Sparkles className="size-4" /> {saving ? "Publishing…" : "Publish"}
             </Button>
@@ -425,7 +435,13 @@ function BuilderPage() {
               </div>
               <div className="space-y-2">
                 {QUESTION_LIBRARY.map((q) => (
-                  <LibraryItem key={q.type} type={q.type} label={q.label} hint={q.hint} />
+                  <LibraryItem
+                    key={q.type}
+                    type={q.type}
+                    label={q.label}
+                    hint={q.hint}
+                    onPreviewClick={() => setPreviewQuestionType(q.type)}
+                  />
                 ))}
               </div>
             </div>
@@ -558,11 +574,140 @@ function BuilderPage() {
           )}
         </DragOverlay>
       </DndContext>
+
+      <Dialog open={previewQuestionType !== null} onOpenChange={(open) => !open && setPreviewQuestionType(null)}>
+        <DialogContent className="glass-strong border-white/10 text-white max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              {previewQuestionType && React.createElement(ICONS[previewQuestionType], { className: "size-5 text-primary" })}
+              {previewQuestionType && QUESTION_LIBRARY.find(q => q.type === previewQuestionType)?.label} Preview
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground mt-1">
+              {previewQuestionType && QUESTION_LIBRARY.find(q => q.type === previewQuestionType)?.hint}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Render Mock Preview of the Question Type */}
+          <div className="bg-white/5 border border-white/5 rounded-xl p-6 my-2 flex flex-col items-center justify-center min-h-[160px]">
+            {previewQuestionType === "rating" && (
+              <div className="space-y-4 text-center w-full">
+                <div className="text-sm font-medium">How would you rate our service?</div>
+                <div className="flex justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <Star key={star} className="size-8 text-amber-400 fill-amber-400 cursor-pointer" />
+                  ))}
+                </div>
+              </div>
+            )}
+            {previewQuestionType === "nps" && (
+              <div className="space-y-4 text-center w-full">
+                <div className="text-sm font-medium">How likely are you to recommend us?</div>
+                <div className="flex justify-center gap-1.5 flex-wrap">
+                  {Array.from({ length: 11 }).map((_, i) => (
+                    <div key={i} className="size-8 rounded-lg border border-white/10 flex items-center justify-center text-xs font-semibold bg-white/5 hover:bg-primary/20 cursor-pointer">
+                      {i}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {previewQuestionType === "emoji" && (
+              <div className="space-y-4 text-center w-full">
+                <div className="text-sm font-medium">How do you feel about today's visit?</div>
+                <div className="flex justify-center gap-3">
+                  {["😡", "😐", "🙂", "😍"].map(emoji => (
+                    <div key={emoji} className="text-3xl hover:scale-110 cursor-pointer transition-transform">
+                      {emoji}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {previewQuestionType === "yes_no" && (
+              <div className="space-y-4 text-center w-full">
+                <div className="text-sm font-medium">Did you find everything you were looking for?</div>
+                <div className="flex justify-center gap-3">
+                  <Button variant="outline" className="w-24 bg-white/5 border-white/10">Yes</Button>
+                  <Button variant="outline" className="w-24 bg-white/5 border-white/10">No</Button>
+                </div>
+              </div>
+            )}
+            {previewQuestionType === "single_choice" && (
+              <div className="space-y-4 text-center w-full">
+                <div className="text-sm font-medium">Which service did you use today?</div>
+                <div className="space-y-2 max-w-xs mx-auto">
+                  {["Dine In", "Takeaway", "Home Delivery"].map(opt => (
+                    <div key={opt} className="px-3 py-2 text-left rounded-lg bg-white/5 border border-white/10 text-xs cursor-pointer hover:bg-white/10">
+                      {opt}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {previewQuestionType === "multiple_choice" && (
+              <div className="space-y-4 text-center w-full">
+                <div className="text-sm font-medium">Select areas we did well:</div>
+                <div className="space-y-2 max-w-xs mx-auto">
+                  {["Speed of service", "Staff friendliness", "Cleanliness", "Product quality"].map(opt => (
+                    <div key={opt} className="px-3 py-2 text-left rounded-lg bg-white/5 border border-white/10 text-xs flex items-center gap-2 cursor-pointer hover:bg-white/10">
+                      <div className="size-4 rounded border border-white/20 flex items-center justify-center" />
+                      {opt}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {previewQuestionType === "short_text" && (
+              <div className="space-y-4 text-center w-full max-w-xs">
+                <div className="text-sm font-medium">Any specific comments?</div>
+                <Input placeholder="Type your comment..." className="bg-white/5 border-white/10 text-xs" readOnly />
+              </div>
+            )}
+            {previewQuestionType === "long_text" && (
+              <div className="space-y-4 text-center w-full max-w-xs">
+                <div className="text-sm font-medium">Share your experience in detail:</div>
+                <Textarea placeholder="Type detailed response..." className="bg-white/5 border-white/10 text-xs" readOnly />
+              </div>
+            )}
+            {previewQuestionType === "customer_info" && (
+              <div className="space-y-3 w-full max-w-xs mx-auto">
+                <div className="text-center text-sm font-medium">Contact Details</div>
+                <Input placeholder="Full Name" className="bg-white/5 border-white/10 text-xs h-8" readOnly />
+                <Input placeholder="Email Address" className="bg-white/5 border-white/10 text-xs h-8" readOnly />
+                <Input placeholder="Phone Number" className="bg-white/5 border-white/10 text-xs h-8" readOnly />
+              </div>
+            )}
+          </div>
+
+          <div className="text-[11px] text-muted-foreground mt-2">
+            💡 Drag this question type into your template or click the "+" button in the library list to customize it.
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <SurveyTabletPreview
+        open={showTabletPreview}
+        onClose={() => setShowTabletPreview(false)}
+        name={name}
+        questions={questions}
+        displayMode={displayMode}
+        branding={branding}
+      />
     </DashboardLayout>
   );
 }
 
-function LibraryItem({ type, label, hint }: { type: QuestionType; label: string; hint: string }) {
+function LibraryItem({
+  type,
+  label,
+  hint,
+  onPreviewClick,
+}: {
+  type: QuestionType;
+  label: string;
+  hint: string;
+  onPreviewClick: () => void;
+}) {
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: `lib_${type}`,
     data: { kind: "library", type },
@@ -574,17 +719,28 @@ function LibraryItem({ type, label, hint }: { type: QuestionType; label: string;
       {...attributes}
       {...listeners}
       className={cn(
-        "flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing border border-white/5",
+        "flex items-center gap-2 px-2 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-grab active:cursor-grabbing border border-white/5 group",
         isDragging && "opacity-40",
       )}
     >
-      <div className="size-7 rounded-lg bg-primary/10 grid place-items-center text-primary">
+      <div className="size-7 rounded-lg bg-primary/10 grid place-items-center text-primary shrink-0">
         <Icon className="size-3.5" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">{label}</div>
-        <div className="text-[10px] text-muted-foreground truncate">{hint}</div>
+        <div className="text-xs font-semibold truncate leading-tight">{label}</div>
+        <div className="text-[9px] text-muted-foreground truncate leading-tight">{hint}</div>
       </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          onPreviewClick();
+        }}
+        onPointerDown={(e) => e.stopPropagation()}
+        className="size-7 rounded-lg hover:bg-white/10 grid place-items-center text-muted-foreground hover:text-white transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+      >
+        <Eye className="size-3.5" />
+      </button>
       <GripVertical className="size-3.5 text-muted-foreground shrink-0" />
     </div>
   );
@@ -1528,5 +1684,358 @@ function BrandingInspector({
 
 
     </div>
+  );
+}
+
+function SurveyTabletPreview({
+  open,
+  onClose,
+  name,
+  questions,
+  displayMode,
+  branding,
+}: {
+  open: boolean;
+  onClose: () => void;
+  name: string;
+  questions: BuilderQuestion[];
+  displayMode: "multi_page" | "single_page";
+  branding: {
+    brandColor?: string;
+    fontFamily?: string;
+    backgroundStyle?: "solid" | "gradient";
+    themeMode?: "light" | "dark";
+  };
+}) {
+  const [activePage, setActivePage] = React.useState(1);
+  const [answers, setAnswers] = React.useState<Record<string, any>>({});
+  const [completed, setCompleted] = React.useState(false);
+
+  // Group questions by page
+  const maxPage = React.useMemo(() => {
+    if (displayMode === "single_page") return 1;
+    return Math.max(1, ...questions.map((q) => q.page || 1));
+  }, [questions, displayMode]);
+
+  const pageQuestions = React.useMemo(() => {
+    if (displayMode === "single_page") return questions;
+    return questions.filter((q) => (q.page || 1) === activePage);
+  }, [questions, displayMode, activePage]);
+
+  // Compute theme colors
+  const baseColor = branding.brandColor || "#0F766E";
+  const bgStyle = React.useMemo(() => {
+    if (branding.backgroundStyle === "solid") {
+      return { backgroundColor: baseColor };
+    }
+    return {
+      background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.95) 100%)`,
+    };
+  }, [branding.backgroundStyle, baseColor]);
+
+  const isLight = branding.themeMode === "light";
+  const textColor = isLight ? "text-zinc-900" : "text-white";
+  const mutedTextColor = isLight ? "text-zinc-600" : "text-zinc-400";
+  const cardBg = isLight ? "bg-white/80 border-black/10 text-zinc-900" : "bg-white/5 border-white/5 text-white";
+
+  const handleNext = () => {
+    if (activePage < maxPage) {
+      setActivePage(activePage + 1);
+    } else {
+      setCompleted(true);
+    }
+  };
+
+  const handleBack = () => {
+    if (activePage > 1) {
+      setActivePage(activePage - 1);
+    }
+  };
+
+  const handleReset = () => {
+    setActivePage(1);
+    setAnswers({});
+    setCompleted(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-4xl p-6 bg-[#0c0c0e]/95 backdrop-blur-xl border-white/10 text-white overflow-hidden flex flex-col h-[90vh]">
+        <DialogHeader>
+          <DialogTitle className="text-base font-semibold flex items-center gap-2">
+            <Eye className="size-4 text-primary" /> Tablet Survey Preview
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            This simulates how your survey renders in real-time on a tablet device.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Mock Tablet Wrapper */}
+        <div className="flex-1 flex items-center justify-center p-2 bg-black/40 rounded-2xl border border-white/5 overflow-hidden">
+          {/* Tablet Case */}
+          <div className="w-full max-w-3xl aspect-[16/10] bg-zinc-800 rounded-[28px] p-3 shadow-2xl border-4 border-zinc-700 flex flex-col relative">
+            {/* Camera dot */}
+            <div className="absolute left-1/2 -translate-x-1/2 top-1.5 size-1.5 rounded-full bg-zinc-900" />
+            
+            {/* Screen */}
+            <div 
+              style={{ ...bgStyle, fontFamily: branding.fontFamily || "Inter" }}
+              className={cn(
+                "flex-1 rounded-[18px] p-6 overflow-y-auto flex flex-col justify-between transition-all duration-300 relative select-none",
+                isLight ? "text-zinc-900" : "text-white"
+              )}
+            >
+              {completed ? (
+                /* Thank You / Success Screen */
+                <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="size-16 rounded-full bg-emerald-500/20 text-emerald-400 grid place-items-center animate-bounce">
+                    <CheckCircle2 className="size-8" />
+                  </div>
+                  <h2 className="text-2xl font-bold">Thank You!</h2>
+                  <p className={cn("text-xs max-w-xs", mutedTextColor)}>
+                    Your response has been recorded successfully.
+                  </p>
+                  <Button 
+                    onClick={handleReset} 
+                    className="mt-2 bg-white/10 hover:bg-white/20 text-white border border-white/10"
+                    size="sm"
+                  >
+                    Submit Another Response
+                  </Button>
+                </div>
+              ) : (
+                /* Survey Interface */
+                <div className="flex-1 flex flex-col justify-between h-full">
+                  {/* Top Bar */}
+                  <div className="flex justify-between items-center border-b border-white/10 pb-2 mb-4 shrink-0">
+                    <div className="text-sm font-bold truncate max-w-xs">{name}</div>
+                    {displayMode === "multi_page" && (
+                      <div className={cn("text-xs font-semibold", mutedTextColor)}>
+                        Page {activePage} of {maxPage}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Questions Grid */}
+                  <div className="flex-1 overflow-y-auto space-y-5 py-2 pr-1">
+                    {pageQuestions.map((q) => {
+                      const ans = answers[q.id];
+                      return (
+                        <div 
+                          key={q.id} 
+                          className={cn("p-4 rounded-xl border backdrop-blur-md transition-all duration-200", cardBg)}
+                        >
+                          <div className="text-xs font-semibold mb-2.5 flex items-baseline gap-1.5">
+                            <span>{q.label}</span>
+                            {q.required && <span className="text-rose-400 text-[10px]">*</span>}
+                          </div>
+
+                          {/* Render Question Answer Control */}
+                          {q.type === "rating" && (
+                            <div className="flex gap-2">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  onClick={() => setAnswers({ ...answers, [q.id]: star })}
+                                  className="transition-transform active:scale-95 cursor-pointer"
+                                >
+                                  <Star 
+                                    className={cn(
+                                      "size-7", 
+                                      ans >= star ? "text-amber-400 fill-amber-400" : "text-zinc-400"
+                                    )} 
+                                  />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {q.type === "nps" && (
+                            <div className="flex gap-1 flex-wrap">
+                              {Array.from({ length: 11 }).map((_, i) => (
+                                <button
+                                  key={i}
+                                  onClick={() => setAnswers({ ...answers, [q.id]: i })}
+                                  className={cn(
+                                    "size-8 rounded-lg border flex items-center justify-center text-[10px] font-bold cursor-pointer transition-colors",
+                                    ans === i 
+                                      ? "bg-white text-zinc-950 border-white" 
+                                      : "bg-black/20 border-white/10 hover:bg-black/30 text-white"
+                                  )}
+                                >
+                                  {i}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {q.type === "emoji" && (
+                            <div className="flex gap-3">
+                              {["😡", "😐", "🙂", "😍"].map((emoji) => (
+                                <button
+                                  key={emoji}
+                                  onClick={() => setAnswers({ ...answers, [q.id]: emoji })}
+                                  className={cn(
+                                    "text-2xl p-1 rounded-full transition-transform active:scale-95 cursor-pointer",
+                                    ans === emoji ? "bg-white/20 ring-2 ring-white" : "opacity-70 hover:opacity-100"
+                                  )}
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {q.type === "yes_no" && (
+                            <div className="flex gap-2">
+                              {["Yes", "No"].map((opt) => (
+                                <Button
+                                  key={opt}
+                                  variant={ans === opt ? "default" : "outline"}
+                                  onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                                  size="sm"
+                                  className="h-8 w-20 text-xs cursor-pointer"
+                                >
+                                  {opt}
+                                </Button>
+                              ))}
+                            </div>
+                          )}
+
+                          {q.type === "single_choice" && (
+                            <div className="space-y-1.5 max-w-md">
+                              {(q.options || ["Option 1", "Option 2"]).map((opt) => (
+                                <button
+                                  key={opt}
+                                  onClick={() => setAnswers({ ...answers, [q.id]: opt })}
+                                  className={cn(
+                                    "w-full text-left px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition-all",
+                                    ans === opt 
+                                      ? "bg-white text-zinc-950 border-white" 
+                                      : "bg-black/20 border-white/10 hover:bg-black/30 text-white"
+                                  )}
+                                >
+                                  {opt}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {q.type === "multiple_choice" && (
+                            <div className="space-y-1.5 max-w-md">
+                              {(q.options || ["Option 1", "Option 2"]).map((opt) => {
+                                const currentList = Array.isArray(ans) ? ans : [];
+                                const isChecked = currentList.includes(opt);
+                                return (
+                                  <button
+                                    key={opt}
+                                    onClick={() => {
+                                      const nextList = isChecked
+                                        ? currentList.filter(x => x !== opt)
+                                        : [...currentList, opt];
+                                      setAnswers({ ...answers, [q.id]: nextList });
+                                    }}
+                                    className={cn(
+                                      "w-full text-left px-3 py-1.5 rounded-lg border text-xs flex items-center gap-2 cursor-pointer transition-all",
+                                      isChecked 
+                                        ? "bg-white/10 border-white text-white" 
+                                        : "bg-black/20 border-white/10 hover:bg-black/30 text-white"
+                                    )}
+                                  >
+                                    <div className={cn(
+                                      "size-3.5 rounded border flex items-center justify-center shrink-0",
+                                      isChecked ? "bg-white border-white text-zinc-950" : "border-white/40"
+                                    )}>
+                                      {isChecked && <CheckCircle2 className="size-2.5 fill-current" />}
+                                    </div>
+                                    {opt}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {q.type === "short_text" && (
+                            <Input
+                              placeholder="Type comment..."
+                              value={ans || ""}
+                              onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
+                              className="bg-black/20 border-white/10 text-xs h-8 max-w-md focus-visible:ring-1 text-white"
+                            />
+                          )}
+
+                          {q.type === "long_text" && (
+                            <Textarea
+                              placeholder="Type detailed response..."
+                              value={ans || ""}
+                              onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
+                              className="bg-black/20 border-white/10 text-xs max-w-md focus-visible:ring-1 text-white"
+                            />
+                          )}
+
+                          {q.type === "customer_info" && (
+                            <div className="space-y-2 max-w-md">
+                              <Input
+                                placeholder="Full Name"
+                                value={ans?.name || ""}
+                                onChange={(e) => setAnswers({
+                                  ...answers,
+                                  [q.id]: { ...(ans || {}), name: e.target.value }
+                                })}
+                                className="bg-black/20 border-white/10 text-xs h-8 focus-visible:ring-1 text-white"
+                              />
+                              <Input
+                                placeholder="Email Address"
+                                value={ans?.email || ""}
+                                onChange={(e) => setAnswers({
+                                  ...answers,
+                                  [q.id]: { ...(ans || {}), email: e.target.value }
+                                })}
+                                className="bg-black/20 border-white/10 text-xs h-8 focus-visible:ring-1 text-white"
+                              />
+                              <Input
+                                placeholder="Phone Number"
+                                value={ans?.phone || ""}
+                                onChange={(e) => setAnswers({
+                                  ...answers,
+                                  [q.id]: { ...(ans || {}), phone: e.target.value }
+                                })}
+                                className="bg-black/20 border-white/10 text-xs h-8 focus-visible:ring-1 text-white"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Navigation Footer */}
+                  <div className="flex justify-between items-center border-t border-white/10 pt-3 mt-4 shrink-0">
+                    <Button
+                      variant="ghost"
+                      onClick={handleBack}
+                      disabled={activePage === 1}
+                      className={cn("h-8 text-xs font-semibold select-none cursor-pointer", isLight ? "hover:bg-black/5 text-zinc-900" : "hover:bg-white/5 text-white")}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handleNext}
+                      style={{ backgroundColor: baseColor }}
+                      className="h-8 text-xs font-semibold px-6 select-none cursor-pointer text-white shadow"
+                    >
+                      {activePage === maxPage ? "Submit" : "Next"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Home indicator bar */}
+            <div className="w-24 h-1 bg-zinc-900/60 rounded-full mx-auto mt-2 shrink-0" />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
