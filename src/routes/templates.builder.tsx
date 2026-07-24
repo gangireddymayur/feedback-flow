@@ -165,6 +165,10 @@ function BuilderPage() {
     size: number;
     offsetX: number;
     offsetY: number;
+    brandColor?: string;
+    fontFamily?: string;
+    backgroundStyle?: "solid" | "gradient";
+    themeMode?: "light" | "dark";
   }>({
     enabled: false,
     companyName: "",
@@ -173,6 +177,10 @@ function BuilderPage() {
     size: 100,
     offsetX: 16,
     offsetY: 16,
+    brandColor: "#0F766E",
+    fontFamily: "Inter",
+    backgroundStyle: "gradient",
+    themeMode: "dark",
   });
 
   const defaultQuestions = React.useMemo(() => [
@@ -206,6 +214,10 @@ function BuilderPage() {
           size: existingTemplate.branding.size || 100,
           offsetX: existingTemplate.branding.offsetX ?? 16,
           offsetY: existingTemplate.branding.offsetY ?? 16,
+          brandColor: existingTemplate.branding.brandColor || "#0F766E",
+          fontFamily: existingTemplate.branding.fontFamily || "Inter",
+          backgroundStyle: existingTemplate.branding.backgroundStyle || "gradient",
+          themeMode: existingTemplate.branding.themeMode || "dark",
         });
       } else {
         setBranding({
@@ -216,6 +228,10 @@ function BuilderPage() {
           size: 100,
           offsetX: 16,
           offsetY: 16,
+          brandColor: "#0F766E",
+          fontFamily: "Inter",
+          backgroundStyle: "gradient",
+          themeMode: "dark",
         });
       }
       const mappedQs = (existingTemplate.questions || []).map((q) => ({
@@ -483,11 +499,10 @@ function BuilderPage() {
                 </div>
               </div>
 
-              {/*
               <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
                 <div>
                   <Label className="text-xs font-semibold text-foreground">Template Settings & Branding</Label>
-                  <p className="text-[10px] text-muted-foreground">Configure the floating logo and details watermark</p>
+                  <p className="text-[10px] text-muted-foreground">Configure template fonts, colors, and logos</p>
                 </div>
                 <Button
                   variant={selectedId === null ? "secondary" : "outline"}
@@ -495,10 +510,9 @@ function BuilderPage() {
                   onClick={() => setSelectedId(null)}
                   className="h-7 text-[10px] px-3 py-0 font-semibold cursor-pointer"
                 >
-                  Edit Branding
+                  Edit Styles
                 </Button>
               </div>
-              */}
             </GlassCard>
  
             <Canvas
@@ -525,8 +539,7 @@ function BuilderPage() {
             {selected ? (
               <Inspector q={selected} onChange={updateSelected} />
             ) : (
-              /* <BrandingInspector branding={branding} onChange={setBranding} /> */
-              <p className="text-xs text-muted-foreground">Select a question card on the canvas to customize its settings.</p>
+              <BrandingInspector branding={branding} onChange={setBranding} />
             )}
           </GlassCard>
         </div>
@@ -618,11 +631,23 @@ function Canvas({
     ? questions.filter((q) => (q.page || 1) === activePage)
     : questions;
 
+  const canvasBgStyle = React.useMemo(() => {
+    if (branding.backgroundStyle === "solid") {
+      return { backgroundColor: branding.brandColor || "#0F766E" };
+    } else {
+      const baseColor = branding.brandColor || "#0F766E";
+      return {
+        background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.9) 100%)`,
+      };
+    }
+  }, [branding.backgroundStyle, branding.brandColor]);
+
   return (
     <div
       ref={setNodeRef}
+      style={{ ...canvasBgStyle, fontFamily: branding.fontFamily || "Inter", color: branding.themeMode === "light" ? "#18181b" : "#ffffff" }}
       className={cn(
-        "glass rounded-2xl p-4 min-h-[360px] transition-colors relative",
+        "glass rounded-2xl p-4 min-h-[360px] transition-all duration-300 relative",
         isOver && "ring-2 ring-primary/40 bg-primary/5",
       )}
     >
@@ -1361,6 +1386,10 @@ function BrandingInspector({
     size: number;
     offsetX: number;
     offsetY: number;
+    brandColor?: string;
+    fontFamily?: string;
+    backgroundStyle?: "solid" | "gradient";
+    themeMode?: "light" | "dark";
   };
   onChange: React.Dispatch<React.SetStateAction<{
     enabled: boolean;
@@ -1370,6 +1399,10 @@ function BrandingInspector({
     size: number;
     offsetX: number;
     offsetY: number;
+    brandColor?: string;
+    fontFamily?: string;
+    backgroundStyle?: "solid" | "gradient";
+    themeMode?: "light" | "dark";
   }>>;
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -1389,6 +1422,97 @@ function BrandingInspector({
       <div className="text-sm font-semibold text-foreground border-b border-white/5 pb-2 mb-1">
         Template Settings & Branding
       </div>
+
+      <div className="space-y-3 pt-2">
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Brand Color
+          </Label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="color"
+              value={branding.brandColor || "#0F766E"}
+              onChange={(e) => onChange((prev) => ({ ...prev, brandColor: e.target.value }))}
+              className="size-8 rounded border border-white/10 cursor-pointer bg-transparent"
+            />
+            <Input
+              value={branding.brandColor || "#0F766E"}
+              onChange={(e) => onChange((prev) => ({ ...prev, brandColor: e.target.value }))}
+              placeholder="#0F766E"
+              className="bg-white/5 border-white/10 text-xs h-8 font-mono flex-1"
+            />
+          </div>
+          <div className="flex gap-1.5 mt-1 flex-wrap">
+            {["#0F766E", "#3B82F6", "#8B5CF6", "#F59E0B", "#10B981", "#EF4444"].map((c) => (
+              <button
+                key={c}
+                onClick={() => onChange((prev) => ({ ...prev, brandColor: c }))}
+                style={{ backgroundColor: c }}
+                className={`size-5 rounded-full border border-white/20 cursor-pointer transition-transform ${
+                  branding.brandColor === c ? "ring-2 ring-white scale-110" : "hover:scale-105"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Font Family
+          </Label>
+          <select
+            className="w-full h-8 px-2 rounded bg-white/5 border border-white/10 text-xs focus:outline-none focus:ring-1 focus:ring-ring text-white"
+            value={branding.fontFamily || "Inter"}
+            onChange={(e) => onChange((prev) => ({ ...prev, fontFamily: e.target.value }))}
+          >
+            {["Inter", "Roboto", "Poppins", "Outfit", "Montserrat", "Playfair Display"].map((font) => (
+              <option key={font} value={font} className="bg-[#18181b] text-white">
+                {font}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Background Style
+          </Label>
+          <div className="grid grid-cols-2 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
+            {(["solid", "gradient"] as const).map((style) => (
+              <Button
+                key={style}
+                variant={branding.backgroundStyle === style ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onChange((prev) => ({ ...prev, backgroundStyle: style }))}
+                className="h-7 text-[9px] px-0 uppercase tracking-wide font-semibold cursor-pointer"
+              >
+                {style}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Theme Mode
+          </Label>
+          <div className="grid grid-cols-2 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
+            {(["light", "dark"] as const).map((mode) => (
+              <Button
+                key={mode}
+                variant={branding.themeMode === mode ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onChange((prev) => ({ ...prev, themeMode: mode }))}
+                className="h-7 text-[9px] px-0 uppercase tracking-wide font-semibold cursor-pointer"
+              >
+                {mode}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-white/5 my-4" />
 
       <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
         <div>

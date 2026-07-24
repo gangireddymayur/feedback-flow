@@ -1163,12 +1163,17 @@ app.get(
       [req.user.id]
     );
     res.json({
-      templates: rows.map((t) => ({
-        ...t,
-        displayMode: t.display_mode,
-        branding: parseJson(t.branding, null),
-        questions: parseJson(t.questions, []),
-      })),
+      templates: rows.map((t) => {
+        const b = parseJson(t.branding, null) || {};
+        return {
+          ...t,
+          displayMode: t.display_mode,
+          brand_color: b.brandColor || "#0F766E",
+          background_image: null,
+          branding: b,
+          questions: parseJson(t.questions, []),
+        };
+      }),
     });
   }),
 );
@@ -1267,6 +1272,8 @@ app.get(
     res.json({
       ...template,
       displayMode: template.display_mode,
+      brand_color: brandingObj.brandColor || "#0F766E",
+      background_image: null,
       branding: brandingObj,
       questions: parseJson(template.questions, []),
     });
