@@ -67,7 +67,7 @@ function AdminsPage() {
         email: editForm.email,
         password: editForm.password ? editForm.password : undefined,
         local_mode: editForm.local_mode,
-        max_devices: editForm.local_mode === "multi" ? editForm.max_devices : 1,
+        max_devices: editForm.local_mode === "single" ? 1 : editForm.max_devices,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admins"] });
@@ -90,7 +90,7 @@ function AdminsPage() {
       Admins.create({
         ...form,
         role: "sub",
-        max_devices: form.local_mode === "multi" ? form.max_devices : 1,
+        max_devices: form.local_mode === "single" ? 1 : form.max_devices,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admins"] });
@@ -178,7 +178,7 @@ function AdminsPage() {
                     </option>
                   </select>
 
-                  {form.local_mode === "multi" && (
+                  {form.local_mode !== "single" && (
                     <>
                       <Label>Max Allowed Tablets</Label>
                       <Input
@@ -302,7 +302,7 @@ function AdminsPage() {
                 <div>
                   <div className="text-[10px] uppercase text-muted-foreground">Devices</div>
                   <div className="font-semibold mt-0.5 text-xs">
-                    {a.devices} / {a.local_mode === "none" ? "∞" : a.max_devices}
+                    {a.devices} / {a.local_mode === "single" ? 1 : a.max_devices}
                   </div>
                 </div>
                 <div>
@@ -449,7 +449,7 @@ function AdminsPage() {
               </option>
             </select>
 
-            {editForm.local_mode === "multi" && (
+            {editForm.local_mode !== "single" && (
               <>
                 <Label>Max Allowed Tablets</Label>
                 <Input
