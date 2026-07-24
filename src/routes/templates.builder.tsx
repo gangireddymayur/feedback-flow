@@ -1465,8 +1465,22 @@ function BrandingInspector({
             value={branding.fontFamily || "Inter"}
             onChange={(e) => onChange((prev) => ({ ...prev, fontFamily: e.target.value }))}
           >
-            {["Inter", "Roboto", "Poppins", "Outfit", "Montserrat", "Playfair Display"].map((font) => (
-              <option key={font} value={font} className="bg-[#18181b] text-white">
+            {[
+              "Inter",
+              "Roboto",
+              "Poppins",
+              "Outfit",
+              "Montserrat",
+              "Playfair Display",
+              "Lora",
+              "Nunito",
+              "Raleway",
+              "Quicksand",
+              "Cinzel",
+              "Caveat",
+              "Fira Code"
+            ].map((font) => (
+              <option key={font} value={font} className="bg-[#18181b] text-white" style={{ fontFamily: font }}>
                 {font}
               </option>
             ))}
@@ -1512,151 +1526,7 @@ function BrandingInspector({
         </div>
       </div>
 
-      <div className="border-t border-white/5 my-4" />
 
-      <div className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
-        <div>
-          <Label htmlFor="brand-enable" className="text-xs font-semibold cursor-pointer">
-            Enable Branding Overlay
-          </Label>
-          <p className="text-[9px] text-muted-foreground">Show watermark on tablet screen</p>
-        </div>
-        <Switch
-          id="brand-enable"
-          checked={branding.enabled}
-          onCheckedChange={(v) => onChange((prev) => ({ ...prev, enabled: v }))}
-          className="scale-90 cursor-pointer"
-        />
-      </div>
-
-      {branding.enabled && (
-        <>
-          <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Company Name
-            </Label>
-            <Input
-              value={branding.companyName}
-              onChange={(e) => onChange((prev) => ({ ...prev, companyName: e.target.value }))}
-              placeholder="Enter Company Name"
-              className="bg-white/5 border-white/10 text-xs h-8"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Company Logo
-            </Label>
-            <div className="space-y-2">
-              {branding.logoUrl ? (
-                <div className="bg-white/5 border border-white/10 rounded-lg p-2 flex items-center justify-between gap-2">
-                  <img
-                    src={branding.logoUrl}
-                    alt="Logo preview"
-                    className="max-h-12 max-w-28 object-contain rounded bg-black/40 p-1"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="text-[10px] text-rose-300 hover:text-rose-200 hover:bg-rose-500/10 cursor-pointer"
-                    onClick={() => onChange((prev) => ({ ...prev, logoUrl: "" }))}
-                  >
-                    Clear Logo
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-white/5 border-white/10 border-dashed text-xs py-4 cursor-pointer"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    Upload Image
-                  </Button>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    accept="image/*"
-                    className="hidden"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-              Logo Position Corner
-            </Label>
-            <div className="grid grid-cols-2 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
-              {(["top_left", "top_right", "bottom_left", "bottom_right"] as const).map((pos) => (
-                <Button
-                  key={pos}
-                  variant={branding.position === pos ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => onChange((prev) => ({ ...prev, position: pos }))}
-                  className="h-7 text-[9px] px-0 uppercase tracking-wide font-semibold cursor-pointer"
-                >
-                  {pos.replace("_", " ")}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Logo Size
-              </Label>
-              <span className="text-[10px] text-muted-foreground">{branding.size}px</span>
-            </div>
-            <input
-              type="range"
-              min="40"
-              max="300"
-              value={branding.size}
-              onChange={(e) => onChange((prev) => ({ ...prev, size: Number(e.target.value) }))}
-              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                X Edge Offset
-              </Label>
-              <span className="text-[10px] text-muted-foreground">{branding.offsetX}px</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="200"
-              value={branding.offsetX}
-              onChange={(e) => onChange((prev) => ({ ...prev, offsetX: Number(e.target.value) }))}
-              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex justify-between items-center">
-              <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                Y Edge Offset
-              </Label>
-              <span className="text-[10px] text-muted-foreground">{branding.offsetY}px</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="200"
-              value={branding.offsetY}
-              onChange={(e) => onChange((prev) => ({ ...prev, offsetY: Number(e.target.value) }))}
-              className="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary"
-            />
-          </div>
-        </>
-      )}
     </div>
   );
 }
