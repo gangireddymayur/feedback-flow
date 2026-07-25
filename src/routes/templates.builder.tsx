@@ -172,6 +172,8 @@ function BuilderPage() {
     fontFamily?: string;
     backgroundStyle?: "solid" | "gradient";
     themeMode?: "light" | "dark";
+    fontSize?: "normal" | "large" | "xlarge";
+    textColor?: string;
   }>({
     enabled: false,
     companyName: "",
@@ -184,6 +186,8 @@ function BuilderPage() {
     fontFamily: "Inter",
     backgroundStyle: "gradient",
     themeMode: "dark",
+    fontSize: "normal",
+    textColor: "",
   });
 
   const defaultQuestions = React.useMemo(() => [
@@ -221,6 +225,8 @@ function BuilderPage() {
           fontFamily: existingTemplate.branding.fontFamily || "Inter",
           backgroundStyle: existingTemplate.branding.backgroundStyle || "gradient",
           themeMode: existingTemplate.branding.themeMode || "dark",
+          fontSize: (existingTemplate.branding as any)?.fontSize || "normal",
+          textColor: (existingTemplate.branding as any)?.textColor || "",
         });
       } else {
         setBranding({
@@ -235,6 +241,8 @@ function BuilderPage() {
           fontFamily: "Inter",
           backgroundStyle: "gradient",
           themeMode: "dark",
+          fontSize: "normal",
+          textColor: "",
         });
       }
       const mappedQs = (existingTemplate.questions || []).map((q) => ({
@@ -1664,6 +1672,58 @@ function BrandingInspector({
               </option>
             ))}
           </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Font Size
+          </Label>
+          <div className="grid grid-cols-3 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
+            {(["normal", "large", "xlarge"] as const).map((size) => (
+              <Button
+                key={size}
+                variant={(branding.fontSize || "normal") === size ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onChange((prev) => ({ ...prev, fontSize: size }))}
+                className="h-7 text-[9px] px-0 uppercase tracking-wide font-semibold cursor-pointer"
+              >
+                {size === "normal" ? "Normal" : size === "large" ? "Large" : "X-Large"}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Text Color
+          </Label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={branding.textColor || "#FFFFFF"}
+              onChange={(e) => onChange((prev) => ({ ...prev, textColor: e.target.value }))}
+              className="size-7 rounded cursor-pointer bg-transparent border border-white/20"
+            />
+            <Input
+              type="text"
+              value={branding.textColor || ""}
+              onChange={(e) => onChange((prev) => ({ ...prev, textColor: e.target.value }))}
+              placeholder="Default (Auto)"
+              className="bg-white/5 border-white/10 text-xs h-8 font-mono flex-1"
+            />
+          </div>
+          <div className="flex gap-1.5 mt-1 flex-wrap">
+            {["#FFFFFF", "#F8FAFC", "#94A3B8", "#0F172A", "#3B82F6", "#F59E0B"].map((c) => (
+              <button
+                key={c}
+                onClick={() => onChange((prev) => ({ ...prev, textColor: c }))}
+                style={{ backgroundColor: c }}
+                className={`size-5 rounded-full border border-white/20 cursor-pointer transition-transform ${
+                  branding.textColor === c ? "ring-2 ring-white scale-110" : "hover:scale-105"
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
         <div className="space-y-1.5">
