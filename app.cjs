@@ -1255,6 +1255,7 @@ app.get(
       }
 
       brandingObj = {
+        ...brandingObj,
         enabled: true,
         companyName: profile.organization || brandingObj.companyName || "ReviewOS",
         logoUrl: logoBase64 || brandingObj.logoUrl || null,
