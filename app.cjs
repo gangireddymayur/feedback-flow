@@ -3556,7 +3556,10 @@ app.use("/api", (err, _req, res, _next) => {
 const distDir = path.join(__dirname, "dist");
 app.use("/uploads", express.static(path.join(baseDir, "uploads")));
 app.use(express.static(distDir, { maxAge: "1h", index: false }));
-app.get(/^(?!\/api).*/, (_req, res) => {
+app.get(/^(?!\/api).*/, (req, res) => {
+  if (req.path.startsWith("/assets/") || /\.(js|css|png|jpg|jpeg|gif|svg|ico|wasm|map)$/i.test(req.path)) {
+    return res.status(404).send("Asset not found");
+  }
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
