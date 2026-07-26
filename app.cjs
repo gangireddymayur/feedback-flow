@@ -1667,6 +1667,61 @@ app.delete(
 );
 
 app.post(
+  "/api/public/submit-response",
+  asyncH(async (req, res) => {
+    const { template_id, device_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
+    let validDeviceId = Number(device_id) || null;
+    let ownerId = null;
+
+    if (validDeviceId) {
+      const [dRows] = await pool.query("SELECT id, owner_id FROM devices WHERE id = ? LIMIT 1", [validDeviceId]);
+      if (dRows.length > 0) {
+        ownerId = dRows[0].owner_id;
+      } else {
+        validDeviceId = null;
+      }
+    }
+
+    let validTemplateId = Number(template_id) || null;
+    if (validTemplateId) {
+      const [tRows] = await pool.query("SELECT id, owner_id FROM templates WHERE id = ? LIMIT 1", [validTemplateId]);
+      if (tRows.length > 0) {
+        ownerId = ownerId || tRows[0].owner_id;
+      } else {
+        const [fallbackRows] = await pool.query("SELECT id, owner_id FROM templates ORDER BY id DESC LIMIT 1");
+        validTemplateId = fallbackRows[0]?.id || null;
+        if (!ownerId && fallbackRows[0]?.owner_id) ownerId = fallbackRows[0].owner_id;
+      }
+    }
+
+    if (!ownerId) {
+      const [adminRows] = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'super') ORDER BY id ASC LIMIT 1");
+      ownerId = adminRows[0]?.id || 1;
+    }
+
+    await pool.query(
+      "INSERT INTO responses (template_id, device_id, owner_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
+      [
+        validTemplateId,
+        validDeviceId,
+        ownerId,
+        rating,
+        JSON.stringify(answers || {}),
+        Number(duration_seconds) || 0,
+      ],
+    );
+
+    if (validDeviceId) {
+      await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
+        validDeviceId,
+      ]);
+    }
+
+    res.status(200).json({ ok: true });
+  }),
+);
+
+app.post(
   "/api/responses",
   auth(false),
   asyncH(async (req, res) => {
