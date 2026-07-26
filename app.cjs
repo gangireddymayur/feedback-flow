@@ -3236,6 +3236,25 @@ app.get(
     await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
       req.device.id,
     ]);
+
+    if (req.device.owner_id) {
+      const [ownerRows] = await pool.query(
+        "SELECT id, role, status, subscription_status, trial_ends_at, created_at FROM users WHERE id = ? LIMIT 1",
+        [req.device.owner_id]
+      );
+      if (ownerRows[0]) {
+        const trialInfo = computeTrialInfo(ownerRows[0]);
+        if (trialInfo.isExpired) {
+          return res.status(403).json({
+            trial_expired: true,
+            error: "Trial Expired",
+            message: "Trial Expired: Your 7-day free trial period has ended. Contact your administrator to grant full access for this device.",
+            template_id: null
+          });
+        }
+      }
+    }
+
     const [drows] = await pool.query(
       "SELECT id, template_id, schedules_enabled FROM devices WHERE id = ? LIMIT 1",
       [req.device.id],
