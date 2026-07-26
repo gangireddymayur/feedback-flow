@@ -504,14 +504,12 @@ async function initializeSqliteDb(sqlitePool) {
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
       template_id      INTEGER NULL,
       device_id        INTEGER NULL,
-      owner_id         INTEGER NULL,
       rating           INTEGER NULL,
       answers          TEXT,
       duration_seconds INTEGER DEFAULT 0,
       submitted_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL,
-      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL,
-      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL
     )`,
     `CREATE TABLE IF NOT EXISTS schedules (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -895,26 +893,6 @@ if (useSqlite) {
       `);
       console.log("[db] Scheduling database tables initialized successfully.");
     }
-
-    // Always run responses owner_id migration on startup
-    try {
-      if (dbType === "mysql") {
-        const [rCols] = await pool.query("SHOW COLUMNS FROM responses LIKE 'owner_id'");
-        if (rCols.length === 0) {
-          await pool.query("ALTER TABLE responses ADD COLUMN owner_id INT NULL AFTER device_id");
-          await pool.query("UPDATE responses r LEFT JOIN templates t ON t.id = r.template_id LEFT JOIN devices d ON d.id = r.device_id SET r.owner_id = COALESCE(t.owner_id, d.owner_id) WHERE r.owner_id IS NULL");
-        }
-      } else {
-        const [rInfo] = await pool.query("PRAGMA table_info(responses)");
-        const hasOwner = rInfo.some((c) => c.name === "owner_id");
-        if (!hasOwner) {
-          await pool.query("ALTER TABLE responses ADD COLUMN owner_id INTEGER NULL");
-          await pool.query("UPDATE responses SET owner_id = (SELECT owner_id FROM templates WHERE templates.id = responses.template_id) WHERE owner_id IS NULL");
-        }
-      }
-    } catch (e) {
-      console.error("[db] responses owner_id migration warning:", e.message);
-    }
   } catch (err) {
     console.error("[db] Startup migration failed:", err);
   }
@@ -954,7 +932,7 @@ function auth(required = true) {
     if (!token) return required ? res.status(401).json({ error: "No token" }) : next();
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      if (payload?.type === "device" || payload?.owner_id !== undefined) req.device = payload;
+      if (payload?.type === "device") req.device = payload;
       else req.user = payload;
       next();
     } catch {
@@ -1667,112 +1645,25 @@ app.delete(
 );
 
 app.post(
-  "/api/public/submit-response",
-  asyncH(async (req, res) => {
-    const { template_id, device_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
-    let validDeviceId = Number(device_id) || null;
-    let ownerId = null;
-
-    if (validDeviceId) {
-      const [dRows] = await pool.query("SELECT id, owner_id FROM devices WHERE id = ? LIMIT 1", [validDeviceId]);
-      if (dRows.length > 0) {
-        ownerId = dRows[0].owner_id;
-      } else {
-        validDeviceId = null;
-      }
-    }
-
-    let validTemplateId = Number(template_id) || null;
-    if (validTemplateId) {
-      const [tRows] = await pool.query("SELECT id, owner_id FROM templates WHERE id = ? LIMIT 1", [validTemplateId]);
-      if (tRows.length > 0) {
-        ownerId = ownerId || tRows[0].owner_id;
-      } else {
-        const [fallbackRows] = await pool.query("SELECT id, owner_id FROM templates ORDER BY id DESC LIMIT 1");
-        validTemplateId = fallbackRows[0]?.id || null;
-        if (!ownerId && fallbackRows[0]?.owner_id) ownerId = fallbackRows[0].owner_id;
-      }
-    }
-
-    if (!ownerId) {
-      const [adminRows] = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'super') ORDER BY id ASC LIMIT 1");
-      ownerId = adminRows[0]?.id || 1;
-    }
-
-    await pool.query(
-      "INSERT INTO responses (template_id, device_id, owner_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
-      [
-        validTemplateId,
-        validDeviceId,
-        ownerId,
-        rating,
-        JSON.stringify(answers || {}),
-        Number(duration_seconds) || 0,
-      ],
-    );
-
-    if (validDeviceId) {
-      await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
-        validDeviceId,
-      ]);
-    }
-
-    res.status(200).json({ ok: true });
-  }),
-);
-
-app.post(
   "/api/responses",
-  auth(false),
+  auth(),
+  deviceAuth,
   asyncH(async (req, res) => {
     const { template_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
     if (!template_id) return res.status(400).json({ error: "template_id required" });
-
-    let validDeviceId = req.device ? req.device.id : null;
-    let ownerId = req.device?.owner_id || req.user?.owner_id || req.user?.id || null;
-
-    if (validDeviceId) {
-      const [dRows] = await pool.query("SELECT id, owner_id FROM devices WHERE id = ? LIMIT 1", [validDeviceId]);
-      if (dRows.length > 0) {
-        ownerId = dRows[0].owner_id || ownerId;
-      } else {
-        validDeviceId = null;
-      }
-    }
-
-    let validTemplateId = Number(template_id) || null;
-    if (validTemplateId) {
-      const [tRows] = await pool.query("SELECT id, owner_id FROM templates WHERE id = ? LIMIT 1", [validTemplateId]);
-      if (tRows.length > 0) {
-        ownerId = ownerId || tRows[0].owner_id;
-      } else {
-        const [fallbackRows] = await pool.query("SELECT id, owner_id FROM templates ORDER BY id DESC LIMIT 1");
-        validTemplateId = fallbackRows[0]?.id || null;
-        if (!ownerId && fallbackRows[0]?.owner_id) ownerId = fallbackRows[0].owner_id;
-      }
-    }
-
-    if (!ownerId) {
-      const [adminRows] = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'super') ORDER BY id ASC LIMIT 1");
-      ownerId = adminRows[0]?.id || 1;
-    }
-
     await pool.query(
-      "INSERT INTO responses (template_id, device_id, owner_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
+      "INSERT INTO responses (template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, NOW())",
       [
-        validTemplateId,
-        validDeviceId,
-        ownerId,
+        Number(template_id),
+        req.device.id,
         rating,
         JSON.stringify(answers || {}),
         Number(duration_seconds) || 0,
       ],
     );
-    if (validDeviceId) {
-      await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
-        validDeviceId,
-      ]);
-    }
+    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
+      req.device.id,
+    ]);
     res.json({ ok: true });
   }),
 );
@@ -1781,40 +1672,16 @@ app.get(
   "/api/responses",
   auth(),
   asyncH(async (req, res) => {
-    let rows = [];
-    const isSuper = req.user.role === "super";
-    try {
-      if (isSuper) {
-        [rows] = await pool.query(
-          `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
-                  r.rating, r.answers, r.submitted_at, r.duration_seconds
-           FROM responses r
-           LEFT JOIN templates t ON t.id = r.template_id
-           LEFT JOIN devices d ON d.id = r.device_id
-           ORDER BY r.submitted_at DESC LIMIT 500`
-        );
-      } else {
-        [rows] = await pool.query(
-          `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
-                  r.rating, r.answers, r.submitted_at, r.duration_seconds
-           FROM responses r
-           LEFT JOIN templates t ON t.id = r.template_id
-           LEFT JOIN devices d ON d.id = r.device_id
-           WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?) OR r.owner_id IS NULL)
-           ORDER BY r.submitted_at DESC LIMIT 500`,
-          [req.user.id, req.user.id, req.user.id, req.user.id]
-        );
-      }
-    } catch (err) {
-      [rows] = await pool.query(
-        `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
-                r.rating, r.answers, r.submitted_at, r.duration_seconds
-         FROM responses r
-         LEFT JOIN templates t ON t.id = r.template_id
-         LEFT JOIN devices d ON d.id = r.device_id
-         ORDER BY r.submitted_at DESC LIMIT 500`
-      );
-    }
+    const [rows] = await pool.query(
+      `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
+              r.rating, r.answers, r.submitted_at, r.duration_seconds
+       FROM responses r
+       LEFT JOIN templates t ON t.id = r.template_id
+       LEFT JOIN devices d ON d.id = r.device_id
+       WHERE (d.owner_id = ? OR t.owner_id = ?)
+       ORDER BY r.submitted_at DESC LIMIT 500`,
+      [req.user.id, req.user.id]
+    );
     res.json({
       responses: rows.map((r) => ({
         ...r,
@@ -1830,53 +1697,29 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const { device_id, from_date, to_date } = req.query;
-    const isSuper = req.user.role === "super";
-    let whereConditions = [];
-    let params = [];
-
-    if (!isSuper) {
-      whereConditions.push("(r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?) OR r.owner_id IS NULL)");
-      params.push(req.user.id, req.user.id, req.user.id, req.user.id);
-    }
-
-    if (device_id && device_id !== "all") {
-      whereConditions.push("r.device_id = ?");
-      params.push(Number(device_id));
-    }
-    if (from_date) {
-      whereConditions.push("DATE(r.submitted_at) >= ?");
-      params.push(from_date);
-    }
-    if (to_date) {
-      whereConditions.push("DATE(r.submitted_at) <= ?");
-      params.push(to_date);
-    }
-
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
-    const query = `
-      SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
+    let query = `
+      SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
              r.rating, r.answers, r.submitted_at, r.duration_seconds
       FROM responses r
       LEFT JOIN templates t ON t.id = r.template_id
       LEFT JOIN devices d ON d.id = r.device_id
-      ${whereClause}
-      ORDER BY r.submitted_at DESC
+      WHERE (d.owner_id = ? OR t.owner_id = ?)
     `;
-
-    let rows = [];
-    try {
-      [rows] = await pool.query(query, params);
-    } catch (err) {
-      [rows] = await pool.query(
-        `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
-                r.rating, r.answers, r.submitted_at, r.duration_seconds
-         FROM responses r
-         LEFT JOIN templates t ON t.id = r.template_id
-         LEFT JOIN devices d ON d.id = r.device_id
-         ORDER BY r.submitted_at DESC LIMIT 500`
-      );
+    const params = [req.user.id, req.user.id];
+    if (device_id && device_id !== "all") {
+      query += " AND r.device_id = ?";
+      params.push(Number(device_id));
     }
-
+    if (from_date) {
+      query += " AND DATE(r.submitted_at) >= ?";
+      params.push(from_date);
+    }
+    if (to_date) {
+      query += " AND DATE(r.submitted_at) <= ?";
+      params.push(to_date);
+    }
+    query += " ORDER BY r.submitted_at DESC";
+    const [rows] = await pool.query(query, params);
     res.json({
       responses: rows.map((r) => ({
         ...r,
