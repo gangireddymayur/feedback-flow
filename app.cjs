@@ -954,7 +954,7 @@ function auth(required = true) {
     if (!token) return required ? res.status(401).json({ error: "No token" }) : next();
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      if (payload?.type === "device") req.device = payload;
+      if (payload?.type === "device" || payload?.owner_id !== undefined) req.device = payload;
       else req.user = payload;
       next();
     } catch {
@@ -1672,22 +1672,28 @@ app.post(
   asyncH(async (req, res) => {
     const { template_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
     if (!template_id) return res.status(400).json({ error: "template_id required" });
-    const ownerId = req.device ? req.device.owner_id : (req.user ? req.user.id : null);
 
     let validDeviceId = req.device ? req.device.id : null;
+    let ownerId = req.device?.owner_id || req.user?.owner_id || req.user?.id || null;
+
     if (validDeviceId) {
-      const [dRows] = await pool.query("SELECT id FROM devices WHERE id = ? LIMIT 1", [validDeviceId]);
-      if (dRows.length === 0) {
+      const [dRows] = await pool.query("SELECT id, owner_id FROM devices WHERE id = ? LIMIT 1", [validDeviceId]);
+      if (dRows.length > 0) {
+        ownerId = dRows[0].owner_id || ownerId;
+      } else {
         validDeviceId = null;
       }
     }
 
     let validTemplateId = Number(template_id) || null;
     if (validTemplateId) {
-      const [tRows] = await pool.query("SELECT id FROM templates WHERE id = ? LIMIT 1", [validTemplateId]);
-      if (tRows.length === 0) {
-        const [fallbackRows] = await pool.query("SELECT id FROM templates WHERE owner_id = ? ORDER BY id DESC LIMIT 1", [ownerId]);
+      const [tRows] = await pool.query("SELECT id, owner_id FROM templates WHERE id = ? LIMIT 1", [validTemplateId]);
+      if (tRows.length > 0) {
+        ownerId = ownerId || tRows[0].owner_id;
+      } else {
+        const [fallbackRows] = await pool.query("SELECT id, owner_id FROM templates WHERE owner_id = ? ORDER BY id DESC LIMIT 1", [ownerId || 1]);
         validTemplateId = fallbackRows[0]?.id || null;
+        if (!ownerId && fallbackRows[0]?.owner_id) ownerId = fallbackRows[0].owner_id;
       }
     }
 
