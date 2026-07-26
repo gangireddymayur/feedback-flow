@@ -37,6 +37,7 @@ import {
   Trash2,
   Copy,
   Eye,
+  Palette,
   Save,
   Sparkles,
   Contact,
@@ -523,20 +524,6 @@ function BuilderPage() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
-                <div>
-                  <Label className="text-xs font-semibold text-foreground">Template Settings & Branding</Label>
-                  <p className="text-[10px] text-muted-foreground">Configure template fonts, colors, and logos</p>
-                </div>
-                <Button
-                  variant={selectedId === null ? "secondary" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedId(null)}
-                  className="h-7 text-[10px] px-3 py-0 font-semibold cursor-pointer"
-                >
-                  Edit Styles
-                </Button>
-              </div>
             </GlassCard>
  
             <Canvas
@@ -556,15 +543,22 @@ function BuilderPage() {
           </div>
  
           {/* Inspector */}
-          <GlassCard className="col-span-12 lg:col-span-3 p-4 h-fit lg:sticky lg:top-6">
-            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
-              <Eye className="size-3.5" /> Inspector
-            </div>
-            {selected ? (
-              <Inspector q={selected} onChange={updateSelected} />
-            ) : (
-              <BrandingInspector branding={branding} onChange={setBranding} />
+          <GlassCard className="col-span-12 lg:col-span-3 p-4 h-fit lg:sticky lg:top-6 space-y-6">
+            {selected && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-white/5">
+                  <Eye className="size-3.5" /> Question Properties
+                </div>
+                <Inspector q={selected} onChange={updateSelected} />
+                <div className="border-t border-white/10 my-6" />
+              </div>
             )}
+            <div>
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2 pb-2 border-b border-white/5">
+                <Palette className="size-3.5 text-teal-400" /> Template Settings & Branding
+              </div>
+              <BrandingInspector branding={branding} onChange={setBranding} />
+            </div>
           </GlassCard>
         </div>
 
