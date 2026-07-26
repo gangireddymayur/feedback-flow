@@ -108,15 +108,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   }, [auth, router]);
 
-  if (!auth) return null;
-
-  const items = NAV.filter((n) => n.roles.includes(auth.role));
-
   React.useEffect(() => {
     if (auth?.trial_info?.isExpired && auth.role !== "super" && pathname !== "/settings") {
       router.navigate({ to: "/settings" });
     }
   }, [auth?.trial_info?.isExpired, auth?.role, pathname, router]);
+
+  if (!auth) return null;
+
+  const items = NAV.filter((n) => n.roles.includes(auth.role));
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col lg:flex-row antialiased select-none">
