@@ -1668,7 +1668,7 @@ app.delete(
 
 app.post(
   "/api/responses",
-  auth(),
+  auth(false),
   asyncH(async (req, res) => {
     const { template_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
     if (!template_id) return res.status(400).json({ error: "template_id required" });
@@ -1691,10 +1691,15 @@ app.post(
       if (tRows.length > 0) {
         ownerId = ownerId || tRows[0].owner_id;
       } else {
-        const [fallbackRows] = await pool.query("SELECT id, owner_id FROM templates WHERE owner_id = ? ORDER BY id DESC LIMIT 1", [ownerId || 1]);
+        const [fallbackRows] = await pool.query("SELECT id, owner_id FROM templates ORDER BY id DESC LIMIT 1");
         validTemplateId = fallbackRows[0]?.id || null;
         if (!ownerId && fallbackRows[0]?.owner_id) ownerId = fallbackRows[0].owner_id;
       }
+    }
+
+    if (!ownerId) {
+      const [adminRows] = await pool.query("SELECT id FROM users WHERE role IN ('admin', 'super') ORDER BY id ASC LIMIT 1");
+      ownerId = adminRows[0]?.id || 1;
     }
 
     await pool.query(
