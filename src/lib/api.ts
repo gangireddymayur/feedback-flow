@@ -55,14 +55,24 @@ function safeJson(s: string) {
 // Types
 // =================================================================
 
+export type TrialInfo = {
+  isExpired: boolean;
+  status: "trial" | "active" | "expired";
+  daysLeft: number;
+  trialEndsAt: string | null;
+  createdAt: string | null;
+};
+
 export type Me = {
   id: number;
   name: string;
   email: string;
   role: "super" | "sub";
   status?: string;
+  subscription_status?: "trial" | "active" | "expired";
   local_mode?: "none" | "single" | "multi" | "solo" | "network";
   max_devices?: number;
+  trial_info?: TrialInfo;
 };
 
 export type ApiTemplate = {
@@ -132,11 +142,14 @@ export type ApiAdmin = {
   email: string;
   role: "super" | "sub";
   status: "active" | "disabled";
+  subscription_status?: "trial" | "active" | "expired";
+  trial_ends_at?: string | null;
   created_at: string;
   devices: number;
   templates: number;
   local_mode?: "none" | "single" | "multi";
   max_devices?: number;
+  trial_info?: TrialInfo;
 };
 
 export type ApiProfile = {
@@ -452,6 +465,12 @@ export const Admins = {
   },
   setStatus: async (id: number, status: "active" | "disabled") => {
     return await http<{ ok: true }>(`/admins/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    });
+  },
+  setAccessStatus: async (id: number, status: "active" | "trial" | "expired") => {
+    return await http<{ ok: true }>(`/admins/${id}/access`, {
       method: "PUT",
       body: JSON.stringify({ status }),
     });

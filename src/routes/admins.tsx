@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Download, Pencil } from "lucide-react";
+import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Download, Pencil, ShieldCheck, Clock, AlertTriangle, RotateCcw } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -110,6 +110,16 @@ function AdminsPage() {
     mutationFn: ({ id, status }: { id: number; status: "active" | "disabled" }) =>
       Admins.setStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admins"] }),
+  });
+
+  const setAccess = useMutation({
+    mutationFn: ({ id, status }: { id: number; status: "active" | "trial" | "expired" }) =>
+      Admins.setAccessStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admins"] });
+      toast.success("Account access updated");
+    },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   return (
@@ -317,8 +327,8 @@ function AdminsPage() {
                 </div>
               </div>
               <div className="flex items-center justify-between mt-4 text-xs">
-                <span className="text-muted-foreground">
-                  Joined {new Date(a.created_at).toLocaleDateString()}
+                <span className="text-muted-foreground text-[11px] flex items-center gap-1">
+                  <Clock className="size-3" /> Joined {new Date(a.created_at).toLocaleDateString()}
                 </span>
                 <button
                   onClick={() =>
@@ -327,10 +337,50 @@ function AdminsPage() {
                       status: a.status === "active" ? "disabled" : "active",
                     })
                   }
-                  className={`px-2 py-0.5 rounded-full ${a.status === "active" ? "bg-emerald-400/15 text-emerald-300" : "bg-rose-400/15 text-rose-300"}`}
+                  className={`px-2 py-0.5 rounded-full font-medium ${a.status === "active" ? "bg-emerald-400/15 text-emerald-300" : "bg-rose-400/15 text-rose-300"}`}
                 >
                   {a.status}
                 </button>
+              </div>
+
+              <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] uppercase text-muted-foreground font-semibold">Access Level</div>
+                  {a.subscription_status === "active" ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mt-1">
+                      <ShieldCheck className="size-3" /> Full Access
+                    </span>
+                  ) : a.trial_info?.isExpired ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 mt-1">
+                      <AlertTriangle className="size-3" /> Trial Expired
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 mt-1">
+                      <Clock className="size-3" /> {a.trial_info?.daysLeft ?? 7}d Trial Left
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  {a.subscription_status !== "active" ? (
+                    <Button
+                      size="sm"
+                      onClick={() => setAccess.mutate({ id: a.id, status: "active" })}
+                      className="h-7 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer px-3"
+                    >
+                      <ShieldCheck className="size-3 mr-1" /> Grant Access
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAccess.mutate({ id: a.id, status: "trial" })}
+                      className="h-7 text-[10px] font-semibold text-muted-foreground hover:text-white cursor-pointer border-white/10"
+                    >
+                      <RotateCcw className="size-3 mr-1" /> Reset Trial
+                    </Button>
+                  )}
+                </div>
               </div>
             </GlassCard>
           ))}

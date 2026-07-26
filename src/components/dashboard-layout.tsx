@@ -180,7 +180,30 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             {auth.role === "super" ? "Super Admin" : "Sub Admin"}
           </span>
         </header>
-        <div className="space-y-6">{children}</div>
+        <div className="space-y-6">
+          {auth?.trial_info?.isExpired && auth.role !== "super" && (
+            <div className="bg-rose-500/15 border border-rose-500/30 rounded-xl p-4 text-rose-200 flex items-center justify-between gap-4 select-none">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-lg bg-rose-500/20 grid place-items-center text-rose-400 shrink-0 font-bold">
+                  7D
+                </div>
+                <div>
+                  <div className="font-semibold text-sm text-rose-100 flex items-center gap-2">
+                    <span>7-Day Free Trial Expired</span>
+                    <span className="text-[10px] bg-rose-500/30 text-rose-200 px-2 py-0.5 rounded-full font-bold">Limit Reached</span>
+                  </div>
+                  <div className="text-xs text-rose-300/90 mt-0.5">
+                    Your 7-day free trial period has ended. Please contact your system administrator to grant full access for your account.
+                  </div>
+                </div>
+              </div>
+              <div className="text-xs font-semibold bg-rose-500/20 px-3 py-1.5 rounded-lg border border-rose-500/40 shrink-0">
+                Contact Admin to Unlock
+              </div>
+            </div>
+          )}
+          {children}
+        </div>
       </main>
 
       <Dialog open={searchOpen} onOpenChange={(openVal) => {

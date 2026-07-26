@@ -441,6 +441,12 @@ async function initializeSqliteDb(sqlitePool) {
   try {
     await sqlitePool.execute("ALTER TABLE users ADD COLUMN max_devices INTEGER DEFAULT 1");
   } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'trial'");
+  } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL");
+  } catch (e) {}
 
   const tables = [
     `CREATE TABLE IF NOT EXISTS users (
@@ -450,6 +456,8 @@ async function initializeSqliteDb(sqlitePool) {
       password_hash TEXT NOT NULL,
       role          TEXT NOT NULL DEFAULT 'sub',
       status        TEXT NOT NULL DEFAULT 'active',
+      subscription_status TEXT NOT NULL DEFAULT 'trial',
+      trial_ends_at TEXT NULL,
       local_mode    TEXT NOT NULL DEFAULT 'none',
       max_devices   INTEGER DEFAULT 1,
       created_at    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -793,6 +801,16 @@ if (useSqlite) {
       await pool.query("ALTER TABLE users ADD COLUMN max_devices INT DEFAULT 1");
       console.log("[db] Added max_devices column to users table.");
     }
+    const [userSubCols] = await pool.query("SHOW COLUMNS FROM users LIKE 'subscription_status'");
+    if (userSubCols.length === 0) {
+      await pool.query("ALTER TABLE users ADD COLUMN subscription_status VARCHAR(32) DEFAULT 'trial'");
+      console.log("[db] Added subscription_status column to users table.");
+    }
+    const [userTrialCols] = await pool.query("SHOW COLUMNS FROM users LIKE 'trial_ends_at'");
+    if (userTrialCols.length === 0) {
+      await pool.query("ALTER TABLE users ADD COLUMN trial_ends_at DATETIME NULL");
+      console.log("[db] Added trial_ends_at column to users table.");
+    }
 
     // Screensavers Table initialization
     const [screensaversExist] = await pool.query("SHOW TABLES LIKE 'screensavers'");
@@ -993,6 +1011,35 @@ app.get(
   }),
 );
 
+function computeTrialInfo(user) {
+  if (!user) return { isExpired: false, status: "active", daysLeft: 999, trialEndsAt: null, createdAt: null };
+  const role = String(user.role || "").toLowerCase();
+  if (role === "admin" || role === "superadmin" || role === "super_admin" || role === "owner") {
+    return { isExpired: false, status: "active", daysLeft: 999, trialEndsAt: null, createdAt: user.created_at || null };
+  }
+  if (user.subscription_status === "active") {
+    return { isExpired: false, status: "active", daysLeft: 999, trialEndsAt: user.trial_ends_at || null, createdAt: user.created_at || null };
+  }
+
+  const createdAt = user.created_at ? new Date(user.created_at) : new Date();
+  const trialEnds = user.trial_ends_at 
+    ? new Date(user.trial_ends_at) 
+    : new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+  
+  const now = new Date();
+  const diffMs = trialEnds.getTime() - now.getTime();
+  const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+  const isExpired = now > trialEnds || user.subscription_status === "expired";
+
+  return {
+    isExpired,
+    status: isExpired ? "expired" : "trial",
+    daysLeft,
+    trialEndsAt: trialEnds.toISOString(),
+    createdAt: user.created_at || null,
+  };
+}
+
 app.post(
   "/api/auth/login",
   asyncH(async (req, res) => {
@@ -1075,11 +1122,13 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
-      "SELECT id, name, email, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, name, email, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at FROM users WHERE id = ? LIMIT 1",
       [req.user.id],
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
-    res.json({ user: rows[0] });
+    const user = rows[0];
+    user.trial_info = computeTrialInfo(user);
+    res.json({ user });
   }),
 );
 
@@ -1663,12 +1712,16 @@ app.get(
   requireSuper,
   asyncH(async (_req, res) => {
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.status, u.local_mode, u.max_devices, u.created_at,
+      `SELECT u.id, u.name, u.email, u.role, u.status, u.subscription_status, u.trial_ends_at, u.local_mode, u.max_devices, u.created_at,
               (SELECT COUNT(*) FROM devices d WHERE d.owner_id = u.id) AS devices,
               (SELECT COUNT(*) FROM templates t WHERE t.owner_id = u.id) AS templates
-       FROM users u ORDER BY u.id`,
+       FROM users u ORDER BY u.id DESC`,
     );
-    res.json({ admins: rows });
+    const enriched = rows.map((u) => ({
+      ...u,
+      trial_info: computeTrialInfo(u),
+    }));
+    res.json({ admins: enriched });
   }),
 );
 
@@ -1682,8 +1735,13 @@ app.post(
     if (password.length < 8) return res.status(400).json({ error: "password must be >=8 chars" });
     const hash = await bcrypt.hash(password, 10);
     try {
+      const trialEndsStr = useSqlite
+        ? "datetime('now', '+7 days')"
+        : "DATE_ADD(NOW(), INTERVAL 7 DAY)";
       const [r] = await pool.query(
-        "INSERT INTO users (name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, 'active', ?, ?)",
+        useSqlite
+          ? `INSERT INTO users (name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices) VALUES (?, ?, ?, ?, 'active', 'trial', datetime('now', '+7 days'), ?, ?)`
+          : `INSERT INTO users (name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices) VALUES (?, ?, ?, ?, 'active', 'trial', DATE_ADD(NOW(), INTERVAL 7 DAY), ?, ?)`,
         [name || email.split("@")[0], email.trim().toLowerCase(), hash, role, local_mode, Number(max_devices)],
       );
       res.json({ id: r.insertId });
@@ -1703,6 +1761,39 @@ app.put(
     if (!["active", "disabled"].includes(status))
       return res.status(400).json({ error: "bad status" });
     await pool.query("UPDATE users SET status = ? WHERE id = ?", [status, Number(req.params.id)]);
+    res.json({ ok: true });
+  }),
+);
+
+app.put(
+  "/api/admins/:id/access",
+  auth(),
+  requireSuper,
+  asyncH(async (req, res) => {
+    const userId = Number(req.params.id);
+    const { status } = req.body || {}; // 'active' (full access) or 'trial' (reset 7-day trial)
+    if (!["active", "trial", "expired"].includes(status)) {
+      return res.status(400).json({ error: "Invalid subscription status" });
+    }
+
+    if (status === "active") {
+      await pool.query(
+        "UPDATE users SET subscription_status = 'active' WHERE id = ?",
+        [userId]
+      );
+    } else if (status === "trial") {
+      await pool.query(
+        useSqlite
+          ? "UPDATE users SET subscription_status = 'trial', trial_ends_at = datetime('now', '+7 days') WHERE id = ?"
+          : "UPDATE users SET subscription_status = 'trial', trial_ends_at = DATE_ADD(NOW(), INTERVAL 7 DAY) WHERE id = ?",
+        [userId]
+      );
+    } else {
+      await pool.query(
+        "UPDATE users SET subscription_status = 'expired' WHERE id = ?",
+        [userId]
+      );
+    }
     res.json({ ok: true });
   }),
 );

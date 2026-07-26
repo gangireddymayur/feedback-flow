@@ -2,7 +2,22 @@ import * as React from "react";
 import { Auth, getToken, setToken, type Me } from "./api";
 
 export type Role = "super" | "sub";
-export type AuthState = { role: Role; name: string; email: string; id: number; local_mode?: "none" | "solo" | "network"; max_devices?: number };
+export type AuthState = {
+  role: Role;
+  name: string;
+  email: string;
+  id: number;
+  local_mode?: "none" | "solo" | "network";
+  max_devices?: number;
+  subscription_status?: "trial" | "active" | "expired";
+  trial_info?: {
+    isExpired: boolean;
+    status: "trial" | "active" | "expired";
+    daysLeft: number;
+    trialEndsAt: string | null;
+    createdAt: string | null;
+  };
+};
 
 const USER_KEY = "rms_user";
 
@@ -40,7 +55,16 @@ function toState(u: Me): AuthState {
       : isLocalServer && (u.local_mode === "none" || !u.local_mode)
         ? "solo"
         : u.local_mode;
-  return { id: u.id, name: u.name, email: u.email, role: u.role, local_mode: localMode, max_devices: u.max_devices };
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    local_mode: localMode,
+    max_devices: u.max_devices,
+    subscription_status: u.subscription_status,
+    trial_info: u.trial_info,
+  };
 }
 
 export async function loginWithApi(email: string, password: string) {
