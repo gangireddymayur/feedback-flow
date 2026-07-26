@@ -1888,6 +1888,7 @@ function SurveyTabletPreview({
   const isLight = branding.themeMode === "light";
   const textColor = isLight ? "text-zinc-900" : "text-white";
   const mutedTextColor = isLight ? "text-zinc-600" : "text-zinc-400";
+  const cardBg = isLight ? "bg-white/80 border-black/10 text-zinc-900" : "bg-white/5 border-white/5 text-white";
   const previewFontSizePx = React.useMemo(() => {
     if (!branding.fontSize || branding.fontSize === "normal") return 14;
     if (branding.fontSize === "large") return 18;
