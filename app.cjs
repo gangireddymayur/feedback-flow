@@ -504,12 +504,14 @@ async function initializeSqliteDb(sqlitePool) {
       id               INTEGER PRIMARY KEY AUTOINCREMENT,
       template_id      INTEGER NULL,
       device_id        INTEGER NULL,
+      owner_id         INTEGER NULL,
       rating           INTEGER NULL,
       answers          TEXT,
       duration_seconds INTEGER DEFAULT 0,
       submitted_at     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE SET NULL,
-      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL
+      FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE SET NULL,
+      FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
     `CREATE TABLE IF NOT EXISTS schedules (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -891,6 +893,21 @@ if (useSqlite) {
       await pool.query(`
         CREATE INDEX idx_instances_device_time ON schedule_instances (device_id, start_datetime, end_datetime);
       `);
+      // Migrate owner_id column in responses table if missing
+      if (dbType === "mysql") {
+        const [rCols] = await pool.query("SHOW COLUMNS FROM responses LIKE 'owner_id'");
+        if (rCols.length === 0) {
+          await pool.query("ALTER TABLE responses ADD COLUMN owner_id INT NULL AFTER device_id");
+          await pool.query("UPDATE responses r LEFT JOIN templates t ON t.id = r.template_id LEFT JOIN devices d ON d.id = r.device_id SET r.owner_id = COALESCE(t.owner_id, d.owner_id) WHERE r.owner_id IS NULL");
+        }
+      } else {
+        const [rInfo] = await pool.query("PRAGMA table_info(responses)");
+        const hasOwner = rInfo.some((c) => c.name === "owner_id");
+        if (!hasOwner) {
+          await pool.query("ALTER TABLE responses ADD COLUMN owner_id INTEGER NULL");
+          await pool.query("UPDATE responses SET owner_id = (SELECT owner_id FROM templates WHERE templates.id = responses.template_id) WHERE owner_id IS NULL");
+        }
+      }
       console.log("[db] Scheduling database tables initialized successfully.");
     }
   } catch (err) {
@@ -1651,11 +1668,13 @@ app.post(
   asyncH(async (req, res) => {
     const { template_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
     if (!template_id) return res.status(400).json({ error: "template_id required" });
+    const ownerId = req.device ? req.device.owner_id : req.user.id;
     await pool.query(
-      "INSERT INTO responses (template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, NOW())",
+      "INSERT INTO responses (template_id, device_id, owner_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
       [
         Number(template_id),
         req.device.id,
+        ownerId,
         rating,
         JSON.stringify(answers || {}),
         Number(duration_seconds) || 0,
@@ -1678,9 +1697,9 @@ app.get(
        FROM responses r
        LEFT JOIN templates t ON t.id = r.template_id
        LEFT JOIN devices d ON d.id = r.device_id
-       WHERE (d.owner_id = ? OR t.owner_id = ?)
+       WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ?)
        ORDER BY r.submitted_at DESC LIMIT 500`,
-      [req.user.id, req.user.id]
+      [req.user.id, req.user.id, req.user.id]
     );
     res.json({
       responses: rows.map((r) => ({
@@ -1703,9 +1722,9 @@ app.get(
       FROM responses r
       LEFT JOIN templates t ON t.id = r.template_id
       LEFT JOIN devices d ON d.id = r.device_id
-      WHERE (d.owner_id = ? OR t.owner_id = ?)
+      WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ?)
     `;
-    const params = [req.user.id, req.user.id];
+    const params = [req.user.id, req.user.id, req.user.id];
     if (device_id && device_id !== "all") {
       query += " AND r.device_id = ?";
       params.push(Number(device_id));
