@@ -1040,6 +1040,28 @@ function computeTrialInfo(user) {
   };
 }
 
+async function requireTrialNotExpired(req, res, next) {
+  if (!req.user || req.user.role === "super") return next();
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, role, status, subscription_status, trial_ends_at, created_at FROM users WHERE id = ? LIMIT 1",
+      [req.user.id]
+    );
+    if (rows[0]) {
+      const trialInfo = computeTrialInfo(rows[0]);
+      if (trialInfo.isExpired) {
+        return res.status(403).json({
+          error: "Trial Expired",
+          message: "Your 7-day free trial has expired. Please contact your system administrator to unlock full access.",
+          trial_expired: true,
+          trial_info: trialInfo,
+        });
+      }
+    }
+  } catch (e) {}
+  next();
+}
+
 app.post(
   "/api/auth/login",
   asyncH(async (req, res) => {
@@ -1230,6 +1252,7 @@ app.get(
 app.post(
   "/api/templates",
   auth(),
+  requireTrialNotExpired,
   asyncH(async (req, res) => {
     const {
       name,
@@ -1505,6 +1528,7 @@ app.get(
 app.post(
   "/api/devices/pair",
   auth(),
+  requireTrialNotExpired,
   asyncH(async (req, res) => {
     const { code, name, location } = req.body || {};
     if (!code || !name) return res.status(400).json({ error: "code and name required" });
