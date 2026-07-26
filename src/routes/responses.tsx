@@ -136,24 +136,37 @@ function ResponsesPage() {
     return match?.template_questions || [];
   }, [selectedTemplateId, templates, allResponses]);
 
-  // Auto-select the first device and its active template
+  // Auto-select All Tablets & Unpaired (-1) by default or first template
   React.useEffect(() => {
-    if (selectedDeviceId === null && devices.length > 0) {
-      const firstDev = devices[0];
-      setSelectedDeviceId(firstDev.id);
-      if (firstDev.template_id) {
-        setSelectedTemplateId(firstDev.template_id);
+    if (selectedDeviceId === null) {
+      setSelectedDeviceId(-1);
+    }
+  }, [selectedDeviceId]);
+
+  React.useEffect(() => {
+    if (selectedTemplateId === null && deviceTemplates.length > 0) {
+      const activeOrFirst = deviceTemplates.find((t) => t.isActive) || deviceTemplates[0];
+      if (activeOrFirst) {
+        setSelectedTemplateId(activeOrFirst.id);
       }
     }
-  }, [devices, selectedDeviceId]);
+  }, [deviceTemplates, selectedTemplateId]);
 
   const handleDeviceSelect = (devId: number) => {
     setSelectedDeviceId(devId);
-    const dev = devices.find((d) => d.id === devId);
-    if (dev?.template_id) {
-      setSelectedTemplateId(dev.template_id);
+    if (devId === -1) {
+      if (deviceTemplates.length > 0) {
+        setSelectedTemplateId(deviceTemplates[0].id);
+      }
     } else {
-      setSelectedTemplateId(null);
+      const dev = devices.find((d) => d.id === devId);
+      if (dev?.template_id) {
+        setSelectedTemplateId(dev.template_id);
+      } else if (deviceTemplates.length > 0) {
+        setSelectedTemplateId(deviceTemplates[0].id);
+      } else {
+        setSelectedTemplateId(null);
+      }
     }
     setQ("");
     setDynamicFilters({});
@@ -161,16 +174,20 @@ function ResponsesPage() {
 
   // 3. Filter responses based on selected device, template, search query, and dynamic filters
   const list = React.useMemo(() => {
-    if (selectedDeviceId === null || selectedTemplateId === null) return [];
+    if (selectedTemplateId === null) return [];
     return allResponses.filter((r) => {
-      if (r.device_id !== selectedDeviceId || r.template_id !== selectedTemplateId) return false;
+      if (r.template_id !== selectedTemplateId) return false;
+
+      if (selectedDeviceId !== -1 && selectedDeviceId !== null) {
+        if (r.device_id && r.device_id !== selectedDeviceId) return false;
+      }
 
       // Text search match
       if (q.trim()) {
         const needle = q.toLowerCase();
         const matchesSearch =
-          r.template.toLowerCase().includes(needle) ||
-          r.device.toLowerCase().includes(needle) ||
+          (r.template && r.template.toLowerCase().includes(needle)) ||
+          (r.device && r.device.toLowerCase().includes(needle)) ||
           (r.answers && JSON.stringify(r.answers).toLowerCase().includes(needle));
         if (!matchesSearch) return false;
       }
@@ -559,6 +576,43 @@ function ResponsesPage() {
                   </Badge>
                 </div>
                 <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
+                  {/* All Tablets & Unpaired Option */}
+                  <div
+                    onClick={() => handleDeviceSelect(-1)}
+                    className={cn(
+                      "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
+                      selectedDeviceId === -1
+                        ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
+                        : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={cn(
+                          "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
+                          selectedDeviceId === -1
+                            ? "bg-primary/20 text-primary"
+                            : "bg-white/5 text-muted-foreground group-hover:text-foreground",
+                        )}
+                      >
+                        <Database className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm truncate">All Tablets & Unpaired</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                          View all survey responses
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5 text-[10px]">
+                      <span className="text-emerald-400 font-medium flex items-center gap-1">
+                        <span className="size-1.5 rounded-full bg-emerald-400" /> Active
+                      </span>
+                      <span className="text-muted-foreground font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded">
+                        <MessageSquare className="size-2.5" /> {allResponses.length} reviews
+                      </span>
+                    </div>
+                  </div>
                   {devices.length === 0 && (
                     <GlassCard className="py-8 text-center text-xs text-muted-foreground italic">
                       No tablets paired. Go to Devices tab to pair one.
