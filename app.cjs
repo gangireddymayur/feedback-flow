@@ -1669,11 +1669,10 @@ app.delete(
 app.post(
   "/api/responses",
   auth(),
-  deviceAuth,
   asyncH(async (req, res) => {
     const { template_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
     if (!template_id) return res.status(400).json({ error: "template_id required" });
-    const ownerId = req.device ? req.device.owner_id : req.user.id;
+    const ownerId = req.device ? req.device.owner_id : (req.user ? req.user.id : null);
 
     let validDeviceId = req.device ? req.device.id : null;
     if (validDeviceId) {
