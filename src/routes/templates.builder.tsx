@@ -781,6 +781,12 @@ function Canvas({
     size: number;
     offsetX: number;
     offsetY: number;
+    brandColor?: string;
+    fontFamily?: string;
+    backgroundStyle?: "solid" | "gradient";
+    themeMode?: "light" | "dark";
+    fontSize?: string;
+    textColor?: string;
   };
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
@@ -841,6 +847,8 @@ function Canvas({
                 }}
                 themeMode={branding.themeMode || "dark"}
                 brandColor={branding.brandColor || "#0F766E"}
+                fontSize={branding.fontSize}
+                textColor={branding.textColor}
               />
             ))}
           </div>
@@ -933,6 +941,8 @@ function SortableQuestion({
   onToggleWidth,
   themeMode = "dark",
   brandColor = "#0F766E",
+  fontSize,
+  textColor,
 }: {
   q: BuilderQuestion;
   index: number;
@@ -943,6 +953,8 @@ function SortableQuestion({
   onToggleWidth: () => void;
   themeMode?: "light" | "dark";
   brandColor?: string;
+  fontSize?: string;
+  textColor?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: q.id,
@@ -954,6 +966,14 @@ function SortableQuestion({
   const customBorderColor = selected ? brandColor : (isLight ? "rgba(228, 228, 231, 1)" : "rgba(255, 255, 255, 0.05)");
   const customBgColor = selected ? `${brandColor}15` : (isLight ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.03)");
   const textTitleColor = isLight ? "text-zinc-900" : "text-white";
+
+  const fontSizePx = React.useMemo(() => {
+    if (!fontSize || fontSize === "normal") return 14;
+    if (fontSize === "large") return 18;
+    if (fontSize === "xlarge") return 22;
+    const num = parseInt(fontSize, 10);
+    return isNaN(num) ? 14 : Math.min(32, Math.max(12, Math.round(num * 0.45)));
+  }, [fontSize]);
 
   return (
     <div
@@ -999,7 +1019,12 @@ function SortableQuestion({
             </Badge>
           )}
         </div>
-        <div className={cn("font-medium text-sm mt-0.5 truncate", textTitleColor)}>{q.label}</div>
+        <div 
+          style={{ fontSize: `${fontSizePx}px`, color: textColor || undefined }} 
+          className={cn("font-semibold mt-0.5 truncate transition-all", !textColor && textTitleColor)}
+        >
+          {q.label}
+        </div>
         <QuestionPreview q={q} themeMode={themeMode} />
       </div>
       <div className="flex items-center gap-1">
@@ -1830,6 +1855,8 @@ function SurveyTabletPreview({
     fontFamily?: string;
     backgroundStyle?: "solid" | "gradient";
     themeMode?: "light" | "dark";
+    fontSize?: string;
+    textColor?: string;
   };
 }) {
   const [activePage, setActivePage] = React.useState(1);
@@ -1861,7 +1888,13 @@ function SurveyTabletPreview({
   const isLight = branding.themeMode === "light";
   const textColor = isLight ? "text-zinc-900" : "text-white";
   const mutedTextColor = isLight ? "text-zinc-600" : "text-zinc-400";
-  const cardBg = isLight ? "bg-white/80 border-black/10 text-zinc-900" : "bg-white/5 border-white/5 text-white";
+  const previewFontSizePx = React.useMemo(() => {
+    if (!branding.fontSize || branding.fontSize === "normal") return 14;
+    if (branding.fontSize === "large") return 18;
+    if (branding.fontSize === "xlarge") return 22;
+    const num = parseInt(branding.fontSize, 10);
+    return isNaN(num) ? 14 : Math.min(36, Math.max(12, Math.round(num * 0.45)));
+  }, [branding.fontSize]);
 
   const handleNext = () => {
     if (activePage < maxPage) {
@@ -1950,8 +1983,8 @@ function SurveyTabletPreview({
                           key={q.id} 
                           className={cn("p-4 rounded-xl border backdrop-blur-md transition-all duration-200", cardBg)}
                         >
-                          <div className="text-xs font-semibold mb-2.5 flex items-baseline gap-1.5">
-                            <span>{q.label}</span>
+                          <div className="mb-2.5 flex items-baseline gap-1.5" style={{ fontSize: `${previewFontSizePx}px`, color: branding.textColor || undefined }}>
+                            <span className="font-semibold">{q.label}</span>
                             {q.required && <span className="text-rose-400 text-[10px]">*</span>}
                           </div>
 
