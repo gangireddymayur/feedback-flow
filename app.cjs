@@ -3237,19 +3237,26 @@ app.get(
       req.device.id,
     ]);
 
+    let subscriptionStatus = "trial";
+    let trialEndsAt = null;
+
     if (req.device.owner_id) {
       const [ownerRows] = await pool.query(
         "SELECT id, role, status, subscription_status, trial_ends_at, created_at FROM users WHERE id = ? LIMIT 1",
         [req.device.owner_id]
       );
       if (ownerRows[0]) {
+        subscriptionStatus = ownerRows[0].subscription_status || "trial";
+        trialEndsAt = ownerRows[0].trial_ends_at || null;
         const trialInfo = computeTrialInfo(ownerRows[0]);
         if (trialInfo.isExpired) {
           return res.status(403).json({
             trial_expired: true,
             error: "Trial Expired",
             message: "Trial Expired: Your 7-day free trial period has ended. Contact your administrator to grant full access for this device.",
-            template_id: null
+            template_id: null,
+            subscription_status: "expired",
+            trial_ends_at: trialEndsAt
           });
         }
       }
@@ -3266,7 +3273,9 @@ app.get(
     if (!schedulesEnabled) {
       return res.json({
         template_id: fallback,
-        source: "default"
+        source: "default",
+        subscription_status: subscriptionStatus,
+        trial_ends_at: trialEndsAt
       });
     }
 
@@ -3320,7 +3329,9 @@ app.get(
     res.json({
       template_id: active ? active.template_id : fallback,
       source: active ? "schedule" : "default",
-      screensaver: ssRows[0] || null
+      screensaver: ssRows[0] || null,
+      subscription_status: subscriptionStatus,
+      trial_ends_at: trialEndsAt
     });
   }),
 );
