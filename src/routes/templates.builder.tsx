@@ -797,7 +797,7 @@ function Canvas({
 
   const canvasBgStyle = React.useMemo(() => {
     if (branding.backgroundStyle === "solid") {
-      return { backgroundColor: branding.brandColor || "#0F766E" };
+      return { background: branding.brandColor || "#0F766E" };
     } else {
       const baseColor = branding.brandColor || "#0F766E";
       return {
@@ -1878,7 +1878,7 @@ function SurveyTabletPreview({
   const baseColor = branding.brandColor || "#0F766E";
   const bgStyle = React.useMemo(() => {
     if (branding.backgroundStyle === "solid") {
-      return { backgroundColor: baseColor };
+      return { background: baseColor };
     }
     return {
       background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.95) 100%)`,
