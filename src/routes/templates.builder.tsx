@@ -1675,10 +1675,21 @@ function BrandingInspector({
         </div>
 
         <div className="space-y-1.5">
-          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-            Font Size
-          </Label>
-          <div className="grid grid-cols-3 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
+          <div className="flex items-center justify-between">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Font Size
+            </Label>
+            <span className="text-[10px] text-muted-foreground font-mono">
+              {branding.fontSize === "normal"
+                ? "36px (Normal)"
+                : branding.fontSize === "large"
+                ? "44px (Large)"
+                : branding.fontSize === "xlarge"
+                ? "52px (X-Large)"
+                : `${branding.fontSize || 36}px (Custom)`}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
             {(["normal", "large", "xlarge"] as const).map((size) => (
               <Button
                 key={size}
@@ -1690,7 +1701,44 @@ function BrandingInspector({
                 {size === "normal" ? "Normal" : size === "large" ? "Large" : "X-Large"}
               </Button>
             ))}
+            <Button
+              variant={
+                branding.fontSize &&
+                !["normal", "large", "xlarge"].includes(branding.fontSize)
+                  ? "secondary"
+                  : "ghost"
+              }
+              size="sm"
+              onClick={() => onChange((prev) => ({ ...prev, fontSize: "40" }))}
+              className="h-7 text-[9px] px-0 uppercase tracking-wide font-semibold cursor-pointer"
+            >
+              Custom
+            </Button>
           </div>
+          {branding.fontSize && !["normal", "large", "xlarge"].includes(branding.fontSize) && (
+            <div className="flex items-center gap-2 mt-1.5 bg-white/5 p-2 rounded-lg border border-white/5">
+              <input
+                type="range"
+                min={16}
+                max={72}
+                value={parseInt(branding.fontSize || "40", 10) || 40}
+                onChange={(e) => onChange((prev) => ({ ...prev, fontSize: e.target.value }))}
+                className="flex-1 accent-teal-500 h-1.5 rounded bg-white/10 cursor-pointer"
+              />
+              <Input
+                type="number"
+                min={16}
+                max={72}
+                value={branding.fontSize || 40}
+                onChange={(e) => {
+                  const val = Math.min(72, Math.max(16, parseInt(e.target.value, 10) || 16));
+                  onChange((prev) => ({ ...prev, fontSize: val.toString() }));
+                }}
+                className="w-16 bg-white/5 border-white/10 text-xs h-7 font-mono text-center text-white"
+              />
+              <span className="text-[10px] text-muted-foreground font-mono">px</span>
+            </div>
+          )}
         </div>
 
         <div className="space-y-1.5">
