@@ -1697,27 +1697,37 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     let rows = [];
+    const isSuper = req.user.role === "super";
     try {
-      [rows] = await pool.query(
-        `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
-                r.rating, r.answers, r.submitted_at, r.duration_seconds
-         FROM responses r
-         LEFT JOIN templates t ON t.id = r.template_id
-         LEFT JOIN devices d ON d.id = r.device_id
-         WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
-         ORDER BY r.submitted_at DESC LIMIT 500`,
-        [req.user.id, req.user.id, req.user.id, req.user.id]
-      );
+      if (isSuper) {
+        [rows] = await pool.query(
+          `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
+                  r.rating, r.answers, r.submitted_at, r.duration_seconds
+           FROM responses r
+           LEFT JOIN templates t ON t.id = r.template_id
+           LEFT JOIN devices d ON d.id = r.device_id
+           ORDER BY r.submitted_at DESC LIMIT 500`
+        );
+      } else {
+        [rows] = await pool.query(
+          `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
+                  r.rating, r.answers, r.submitted_at, r.duration_seconds
+           FROM responses r
+           LEFT JOIN templates t ON t.id = r.template_id
+           LEFT JOIN devices d ON d.id = r.device_id
+           WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?) OR r.owner_id IS NULL)
+           ORDER BY r.submitted_at DESC LIMIT 500`,
+          [req.user.id, req.user.id, req.user.id, req.user.id]
+        );
+      }
     } catch (err) {
       [rows] = await pool.query(
-        `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
+        `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
                 r.rating, r.answers, r.submitted_at, r.duration_seconds
          FROM responses r
          LEFT JOIN templates t ON t.id = r.template_id
          LEFT JOIN devices d ON d.id = r.device_id
-         WHERE (d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
-         ORDER BY r.submitted_at DESC LIMIT 500`,
-        [req.user.id, req.user.id, req.user.id]
+         ORDER BY r.submitted_at DESC LIMIT 500`
       );
     }
     res.json({
@@ -1735,56 +1745,51 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const { device_id, from_date, to_date } = req.query;
-    let query = `
-      SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
+    const isSuper = req.user.role === "super";
+    let whereConditions = [];
+    let params = [];
+
+    if (!isSuper) {
+      whereConditions.push("(r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?) OR r.owner_id IS NULL)");
+      params.push(req.user.id, req.user.id, req.user.id, req.user.id);
+    }
+
+    if (device_id && device_id !== "all") {
+      whereConditions.push("r.device_id = ?");
+      params.push(Number(device_id));
+    }
+    if (from_date) {
+      whereConditions.push("DATE(r.submitted_at) >= ?");
+      params.push(from_date);
+    }
+    if (to_date) {
+      whereConditions.push("DATE(r.submitted_at) <= ?");
+      params.push(to_date);
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : "";
+    const query = `
+      SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
              r.rating, r.answers, r.submitted_at, r.duration_seconds
       FROM responses r
       LEFT JOIN templates t ON t.id = r.template_id
       LEFT JOIN devices d ON d.id = r.device_id
-      WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
+      ${whereClause}
+      ORDER BY r.submitted_at DESC
     `;
-    const params = [req.user.id, req.user.id, req.user.id, req.user.id];
-    if (device_id && device_id !== "all") {
-      query += " AND r.device_id = ?";
-      params.push(Number(device_id));
-    }
-    if (from_date) {
-      query += " AND DATE(r.submitted_at) >= ?";
-      params.push(from_date);
-    }
-    if (to_date) {
-      query += " AND DATE(r.submitted_at) <= ?";
-      params.push(to_date);
-    }
-    query += " ORDER BY r.submitted_at DESC";
 
     let rows = [];
     try {
       [rows] = await pool.query(query, params);
     } catch (err) {
-      let fallbackQuery = `
-        SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
-               r.rating, r.answers, r.submitted_at, r.duration_seconds
-        FROM responses r
-        LEFT JOIN templates t ON t.id = r.template_id
-        LEFT JOIN devices d ON d.id = r.device_id
-        WHERE (d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
-      `;
-      const fallbackParams = [req.user.id, req.user.id, req.user.id];
-      if (device_id && device_id !== "all") {
-        fallbackQuery += " AND r.device_id = ?";
-        fallbackParams.push(Number(device_id));
-      }
-      if (from_date) {
-        fallbackQuery += " AND DATE(r.submitted_at) >= ?";
-        fallbackParams.push(from_date);
-      }
-      if (to_date) {
-        fallbackQuery += " AND DATE(r.submitted_at) <= ?";
-        fallbackParams.push(to_date);
-      }
-      fallbackQuery += " ORDER BY r.submitted_at DESC";
-      [rows] = await pool.query(fallbackQuery, fallbackParams);
+      [rows] = await pool.query(
+        `SELECT r.id, r.template_id, COALESCE(t.name, 'Archived Survey') AS template, t.questions AS template_questions, r.device_id, COALESCE(d.name, 'Unpaired Device') AS device,
+                r.rating, r.answers, r.submitted_at, r.duration_seconds
+         FROM responses r
+         LEFT JOIN templates t ON t.id = r.template_id
+         LEFT JOIN devices d ON d.id = r.device_id
+         ORDER BY r.submitted_at DESC LIMIT 500`
+      );
     }
 
     res.json({
