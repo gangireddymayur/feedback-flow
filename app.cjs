@@ -1674,10 +1674,20 @@ app.post(
     const { template_id, rating = null, answers = {}, duration_seconds = 0 } = req.body || {};
     if (!template_id) return res.status(400).json({ error: "template_id required" });
     const ownerId = req.device ? req.device.owner_id : req.user.id;
+
+    let validTemplateId = Number(template_id) || null;
+    if (validTemplateId) {
+      const [tRows] = await pool.query("SELECT id FROM templates WHERE id = ? LIMIT 1", [validTemplateId]);
+      if (tRows.length === 0) {
+        const [fallbackRows] = await pool.query("SELECT id FROM templates WHERE owner_id = ? ORDER BY id DESC LIMIT 1", [ownerId]);
+        validTemplateId = fallbackRows[0]?.id || null;
+      }
+    }
+
     await pool.query(
       "INSERT INTO responses (template_id, device_id, owner_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
       [
-        Number(template_id),
+        validTemplateId,
         req.device.id,
         ownerId,
         rating,
