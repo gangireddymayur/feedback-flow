@@ -893,7 +893,11 @@ if (useSqlite) {
       await pool.query(`
         CREATE INDEX idx_instances_device_time ON schedule_instances (device_id, start_datetime, end_datetime);
       `);
-      // Migrate owner_id column in responses table if missing
+      console.log("[db] Scheduling database tables initialized successfully.");
+    }
+
+    // Always run responses owner_id migration on startup
+    try {
       if (dbType === "mysql") {
         const [rCols] = await pool.query("SHOW COLUMNS FROM responses LIKE 'owner_id'");
         if (rCols.length === 0) {
@@ -908,7 +912,8 @@ if (useSqlite) {
           await pool.query("UPDATE responses SET owner_id = (SELECT owner_id FROM templates WHERE templates.id = responses.template_id) WHERE owner_id IS NULL");
         }
       }
-      console.log("[db] Scheduling database tables initialized successfully.");
+    } catch (e) {
+      console.error("[db] responses owner_id migration warning:", e.message);
     }
   } catch (err) {
     console.error("[db] Startup migration failed:", err);
@@ -1691,16 +1696,30 @@ app.get(
   "/api/responses",
   auth(),
   asyncH(async (req, res) => {
-    const [rows] = await pool.query(
-      `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
-              r.rating, r.answers, r.submitted_at, r.duration_seconds
-       FROM responses r
-       LEFT JOIN templates t ON t.id = r.template_id
-       LEFT JOIN devices d ON d.id = r.device_id
-       WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ?)
-       ORDER BY r.submitted_at DESC LIMIT 500`,
-      [req.user.id, req.user.id, req.user.id]
-    );
+    let rows = [];
+    try {
+      [rows] = await pool.query(
+        `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
+                r.rating, r.answers, r.submitted_at, r.duration_seconds
+         FROM responses r
+         LEFT JOIN templates t ON t.id = r.template_id
+         LEFT JOIN devices d ON d.id = r.device_id
+         WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
+         ORDER BY r.submitted_at DESC LIMIT 500`,
+        [req.user.id, req.user.id, req.user.id, req.user.id]
+      );
+    } catch (err) {
+      [rows] = await pool.query(
+        `SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
+                r.rating, r.answers, r.submitted_at, r.duration_seconds
+         FROM responses r
+         LEFT JOIN templates t ON t.id = r.template_id
+         LEFT JOIN devices d ON d.id = r.device_id
+         WHERE (d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
+         ORDER BY r.submitted_at DESC LIMIT 500`,
+        [req.user.id, req.user.id, req.user.id]
+      );
+    }
     res.json({
       responses: rows.map((r) => ({
         ...r,
@@ -1722,9 +1741,9 @@ app.get(
       FROM responses r
       LEFT JOIN templates t ON t.id = r.template_id
       LEFT JOIN devices d ON d.id = r.device_id
-      WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ?)
+      WHERE (r.owner_id = ? OR d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
     `;
-    const params = [req.user.id, req.user.id, req.user.id];
+    const params = [req.user.id, req.user.id, req.user.id, req.user.id];
     if (device_id && device_id !== "all") {
       query += " AND r.device_id = ?";
       params.push(Number(device_id));
@@ -1738,7 +1757,36 @@ app.get(
       params.push(to_date);
     }
     query += " ORDER BY r.submitted_at DESC";
-    const [rows] = await pool.query(query, params);
+
+    let rows = [];
+    try {
+      [rows] = await pool.query(query, params);
+    } catch (err) {
+      let fallbackQuery = `
+        SELECT r.id, r.template_id, t.name AS template, t.questions AS template_questions, r.device_id, d.name AS device,
+               r.rating, r.answers, r.submitted_at, r.duration_seconds
+        FROM responses r
+        LEFT JOIN templates t ON t.id = r.template_id
+        LEFT JOIN devices d ON d.id = r.device_id
+        WHERE (d.owner_id = ? OR t.owner_id = ? OR r.template_id IN (SELECT id FROM templates WHERE owner_id = ?))
+      `;
+      const fallbackParams = [req.user.id, req.user.id, req.user.id];
+      if (device_id && device_id !== "all") {
+        fallbackQuery += " AND r.device_id = ?";
+        fallbackParams.push(Number(device_id));
+      }
+      if (from_date) {
+        fallbackQuery += " AND DATE(r.submitted_at) >= ?";
+        fallbackParams.push(from_date);
+      }
+      if (to_date) {
+        fallbackQuery += " AND DATE(r.submitted_at) <= ?";
+        fallbackParams.push(to_date);
+      }
+      fallbackQuery += " ORDER BY r.submitted_at DESC";
+      [rows] = await pool.query(fallbackQuery, fallbackParams);
+    }
+
     res.json({
       responses: rows.map((r) => ({
         ...r,
