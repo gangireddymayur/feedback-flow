@@ -112,16 +112,27 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   const items = NAV.filter((n) => n.roles.includes(auth.role));
 
+  React.useEffect(() => {
+    if (auth?.trial_info?.isExpired && auth.role !== "super" && pathname !== "/settings") {
+      router.navigate({ to: "/settings" });
+    }
+  }, [auth?.trial_info?.isExpired, auth?.role, pathname, router]);
+
   return (
-    <div className="min-h-screen flex text-foreground">
-      <aside className="hidden lg:flex w-64 shrink-0 flex-col p-4 gap-2 sticky top-0 h-screen">
-        <div className="glass-strong rounded-2xl p-4 flex items-center gap-3">
-          <div className="size-9 rounded-xl bg-gradient-to-br from-[oklch(0.82_0.16_200)] to-[oklch(0.78_0.18_300)] grid place-items-center">
-            <Sparkles className="size-4 text-background" />
+    <div className="min-h-screen bg-background text-foreground font-sans flex flex-col lg:flex-row antialiased select-none">
+      <aside className="w-full lg:w-64 p-4 lg:p-6 flex flex-col gap-4 shrink-0">
+        <div className="flex items-center gap-3 px-2">
+          <div className="size-10 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-accent grid place-items-center text-primary-foreground font-bold text-lg shadow-lg shadow-primary/20">
+            R
           </div>
           <div>
-            <div className="font-semibold tracking-tight">ReviewOS</div>
-            <div className="text-[11px] text-muted-foreground capitalize">
+            <div className="font-semibold text-sm tracking-tight flex items-center gap-1.5">
+              <span>ReviewOS</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary border border-primary/20">
+                v2.4
+              </span>
+            </div>
+            <div className="text-[11px] text-muted-foreground">
               {auth.role === "super" ? "Super Admin" : "Sub Admin"}
             </div>
           </div>
@@ -130,6 +141,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {items.map((it) => {
             const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
             const Icon = it.icon;
+            const isLocked = auth?.trial_info?.isExpired && auth.role !== "super" && it.to !== "/settings";
+
+            if (isLocked) {
+              return (
+                <div
+                  key={it.to}
+                  className="flex items-center justify-between rounded-xl px-3 py-2.5 text-sm text-muted-foreground/40 cursor-not-allowed select-none opacity-50"
+                  title="Trial Expired — Contact Administrator to Unlock"
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="size-4 opacity-40" />
+                    <span>{it.label}</span>
+                  </div>
+                  <span className="text-[9px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.5 rounded">Locked</span>
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={it.to}
