@@ -1675,6 +1675,14 @@ app.post(
     if (!template_id) return res.status(400).json({ error: "template_id required" });
     const ownerId = req.device ? req.device.owner_id : req.user.id;
 
+    let validDeviceId = req.device ? req.device.id : null;
+    if (validDeviceId) {
+      const [dRows] = await pool.query("SELECT id FROM devices WHERE id = ? LIMIT 1", [validDeviceId]);
+      if (dRows.length === 0) {
+        validDeviceId = null;
+      }
+    }
+
     let validTemplateId = Number(template_id) || null;
     if (validTemplateId) {
       const [tRows] = await pool.query("SELECT id FROM templates WHERE id = ? LIMIT 1", [validTemplateId]);
@@ -1688,16 +1696,18 @@ app.post(
       "INSERT INTO responses (template_id, device_id, owner_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, NOW())",
       [
         validTemplateId,
-        req.device.id,
+        validDeviceId,
         ownerId,
         rating,
         JSON.stringify(answers || {}),
         Number(duration_seconds) || 0,
       ],
     );
-    await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
-      req.device.id,
-    ]);
+    if (validDeviceId) {
+      await pool.query("UPDATE devices SET last_sync = NOW(), status = 'online' WHERE id = ?", [
+        validDeviceId,
+      ]);
+    }
     res.json({ ok: true });
   }),
 );
