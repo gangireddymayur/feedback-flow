@@ -156,7 +156,7 @@ function DevicesPage() {
               </DialogTrigger>
               <DialogContent className="glass-strong border-white/10 sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Pair Review OS Device</DialogTitle>
+                  <DialogTitle>Pair FAM Device</DialogTitle>
                   <DialogDescription>
                     Enter the 6-digit pairing code shown on the tablet, and give this device a friendly name.
                   </DialogDescription>

@@ -122,12 +122,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col lg:flex-row antialiased select-none">
       <aside className="w-full lg:w-64 p-4 lg:p-6 flex flex-col gap-4 shrink-0">
         <div className="flex items-center gap-3 px-2">
-          <div className="size-10 rounded-2xl bg-gradient-to-br from-primary via-primary/80 to-accent grid place-items-center text-primary-foreground font-bold text-lg shadow-lg shadow-primary/20">
-            R
-          </div>
+          <img src="/logo.png" className="h-10 rounded-lg shadow-md object-contain" alt="FAM Logo" />
           <div>
             <div className="font-semibold text-sm tracking-tight flex items-center gap-1.5">
-              <span>ReviewOS</span>
+              <span>FAM</span>
               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary border border-primary/20">
                 v2.4
               </span>

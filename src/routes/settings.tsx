@@ -155,7 +155,7 @@ function SettingsPage() {
       const link = document.createElement("a");
       const dateStr = new Date().toISOString().slice(0, 10);
       link.href = url;
-      link.download = `reviewos_backup_${dateStr}.json`;
+      link.download = `fam_backup_${dateStr}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

@@ -40,12 +40,10 @@ function LoginPage() {
     <div className="min-h-screen grid place-items-center px-4">
       <div className="w-full max-w-md glass-strong rounded-3xl p-8 shadow-2xl">
         <div className="flex items-center gap-3 mb-8">
-          <div className="size-11 rounded-2xl bg-gradient-to-br from-[oklch(0.82_0.16_200)] to-[oklch(0.78_0.18_300)] grid place-items-center">
-            <Sparkles className="size-5 text-background" />
-          </div>
+          <img src="/logo.png" className="h-11 rounded-xl shadow-md object-contain" alt="FAM Logo" />
           <div>
-            <div className="text-lg font-semibold tracking-tight">ReviewOS</div>
-            <div className="text-xs text-muted-foreground">Review Management Platform</div>
+            <div className="text-lg font-semibold tracking-tight">Feedback Action Management</div>
+            <div className="text-xs text-muted-foreground">Action Management Platform</div>
           </div>
         </div>
 

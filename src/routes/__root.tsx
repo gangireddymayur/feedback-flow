@@ -76,16 +76,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ReviewOS — Modern Review Management Platform" },
+      { title: "Feedback Action Management — Action Management Platform" },
       {
         name: "description",
         content:
-          "Premium review & feedback management with device pairing, dynamic templates, and real-time analytics.",
+          "Premium feedback action management with device pairing, dynamic templates, and real-time analytics.",
       },
-      { property: "og:title", content: "ReviewOS — Review Management Platform" },
+      { property: "og:title", content: "Feedback Action Management — Action Management Platform" },
       {
         property: "og:description",
-        content: "Manage reviews, devices, and analytics in one premium dashboard.",
+        content: "Manage actions, devices, and analytics in one premium dashboard.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

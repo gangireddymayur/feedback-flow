@@ -713,7 +713,7 @@ function ReportsPage() {
       <div className="offscreen-print-container bg-white text-black p-8 space-y-6">
           <div className="flex items-center justify-between pb-4 border-b border-gray-300">
             <div>
-              <h1 className="text-2xl font-bold text-black uppercase tracking-tight">ReviewOS Performance Summary</h1>
+              <h1 className="text-2xl font-bold text-black uppercase tracking-tight">FAM Performance Summary</h1>
               <p className="text-xs text-gray-500 mt-1">
                 Report generated on: {new Date().toLocaleString()} | Device: {pdfDevice === "all" ? "All Connected" : pdfDevice}
               </p>
