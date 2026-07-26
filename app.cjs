@@ -1126,10 +1126,11 @@ app.post(
     if (!u || !ok || u.status === "disabled")
       return res.status(401).json({ error: "Invalid credentials" });
       
-    // Local server login restrictions: Only local Network sub-admins (role === 'sub', local_mode === 'multi') are permitted to log in.
+    // Local server login restrictions: Only sub-admins in solo or network local mode are permitted.
     if (useSqlite) {
-      if (u.role !== "sub" || u.local_mode !== "multi") {
-        return res.status(403).json({ error: "Only local network sub-admins are permitted to log in on this local server." });
+      const allowedModes = ["single", "multi"];
+      if (u.role !== "sub" || !allowedModes.includes(u.local_mode)) {
+        return res.status(403).json({ error: "Only local sub-admins (solo or network mode) are permitted to log in on this server." });
       }
       localLoginPasswords.set(String(u.id), String(password));
     }
