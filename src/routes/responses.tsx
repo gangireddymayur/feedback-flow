@@ -51,8 +51,8 @@ function ResponsesPage() {
     queryFn: () => Templates.list(),
   });
 
-  const [selectedDeviceId, setSelectedDeviceId] = React.useState<number | null>(null);
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<number | null>(null);
+  const [selectedDeviceId, setSelectedDeviceId] = React.useState<number | "all">("all");
+  const [selectedTemplateId, setSelectedTemplateId] = React.useState<number | "all">("all");
   const [viewMode, setViewMode] = React.useState<ViewMode>("explorer");
   const [q, setQ] = React.useState("");
   const [dynamicFilters, setDynamicFilters] = React.useState<Record<string, string>>({});
@@ -83,21 +83,46 @@ function ResponsesPage() {
 
   // 2. Calculate templates that have been linked/used by the selected device
   const deviceTemplates = React.useMemo(() => {
-    if (selectedDeviceId === null) return [];
+    const templatesMap = new Map<
+      number | "all",
+      { id: number | "all"; name: string; isActive: boolean; responseCount: number }
+    >();
+
+    templatesMap.set("all", {
+      id: "all",
+      name: "All Templates",
+      isActive: selectedTemplateId === "all",
+      responseCount: allResponses.length,
+    });
+
+    if (selectedDeviceId === "all") {
+      allResponses.forEach((r) => {
+        if (r.template_id) {
+          const existing = templatesMap.get(r.template_id);
+          if (existing) {
+            existing.responseCount++;
+          } else {
+            templatesMap.set(r.template_id, {
+              id: r.template_id,
+              name: r.template || `Template #${r.template_id}`,
+              isActive: r.template_id === selectedTemplateId,
+              responseCount: 1,
+            });
+          }
+        }
+      });
+      return Array.from(templatesMap.values());
+    }
+
     const device = devices.find((d) => d.id === selectedDeviceId);
     const activeTemplateId = device?.template_id;
-
-    const templatesMap = new Map<
-      number,
-      { id: number; name: string; isActive: boolean; responseCount: number }
-    >();
 
     if (activeTemplateId) {
       const activeTpl = templates.find((t) => t.id === activeTemplateId);
       templatesMap.set(activeTemplateId, {
         id: activeTemplateId,
         name: activeTpl?.name || `Template #${activeTemplateId}`,
-        isActive: true,
+        isActive: activeTemplateId === selectedTemplateId,
         responseCount: 0,
       });
     }
@@ -111,7 +136,7 @@ function ResponsesPage() {
           templatesMap.set(r.template_id, {
             id: r.template_id,
             name: r.template || `Template #${r.template_id}`,
-            isActive: r.template_id === activeTemplateId,
+            isActive: r.template_id === selectedTemplateId,
             responseCount: 1,
           });
         }
@@ -119,11 +144,21 @@ function ResponsesPage() {
     });
 
     return Array.from(templatesMap.values());
-  }, [selectedDeviceId, devices, allResponses, templates]);
+  }, [selectedDeviceId, devices, allResponses, templates, selectedTemplateId]);
 
   // Resolve dynamic questions list for the selected template
   const selectedTemplateQuestions = React.useMemo(() => {
-    if (selectedTemplateId === null) return [];
+    if (selectedTemplateId === "all") {
+      // Gather all distinct questions from all templates/responses
+      const questionsMap = new Map<string, any>();
+      templates.forEach((t) => {
+        t.questions?.forEach((q) => questionsMap.set(q.id, q));
+      });
+      allResponses.forEach((r) => {
+        r.template_questions?.forEach((q) => questionsMap.set(q.id, q));
+      });
+      return Array.from(questionsMap.values());
+    }
 
     // Look up in loaded templates list first
     const tpl = templates.find((t) => t.id === selectedTemplateId);
@@ -135,17 +170,6 @@ function ResponsesPage() {
     const match = allResponses.find((r) => r.template_id === selectedTemplateId);
     return match?.template_questions || [];
   }, [selectedTemplateId, templates, allResponses]);
-
-  // Auto-select the first device and its active template
-  React.useEffect(() => {
-    if (selectedDeviceId === null && devices.length > 0) {
-      const firstDev = devices[0];
-      setSelectedDeviceId(firstDev.id);
-      if (firstDev.template_id) {
-        setSelectedTemplateId(firstDev.template_id);
-      }
-    }
-  }, [devices, selectedDeviceId]);
 
   const handleDeviceSelect = (devId: number) => {
     setSelectedDeviceId(devId);
@@ -161,16 +185,16 @@ function ResponsesPage() {
 
   // 3. Filter responses based on selected device, template, search query, and dynamic filters
   const list = React.useMemo(() => {
-    if (selectedDeviceId === null || selectedTemplateId === null) return [];
     return allResponses.filter((r) => {
-      if (r.device_id !== selectedDeviceId || r.template_id !== selectedTemplateId) return false;
+      if (selectedDeviceId !== "all" && r.device_id !== selectedDeviceId) return false;
+      if (selectedTemplateId !== "all" && r.template_id !== selectedTemplateId) return false;
 
       // Text search match
       if (q.trim()) {
         const needle = q.toLowerCase();
         const matchesSearch =
-          r.template.toLowerCase().includes(needle) ||
-          r.device.toLowerCase().includes(needle) ||
+          (r.template || "").toLowerCase().includes(needle) ||
+          (r.device || "").toLowerCase().includes(needle) ||
           (r.answers && JSON.stringify(r.answers).toLowerCase().includes(needle));
         if (!matchesSearch) return false;
       }
@@ -204,7 +228,7 @@ function ResponsesPage() {
         }
         // Emojis options
         else if (qDef.type === "emoji") {
-          const ansStr = String(ans);
+          const ansStr = String(ans).trim();
           if (filterVal === "5" && ansStr !== "5" && ansStr !== "😍") return false;
           if (filterVal === "4" && ansStr !== "4" && ansStr !== "🙂") return false;
           if (filterVal === "3" && ansStr !== "3" && ansStr !== "😐") return false;
@@ -257,8 +281,8 @@ function ResponsesPage() {
 
   function exportCsv() {
     if (list.length === 0) return toast.error("Nothing to export");
-    const activeDevice = devices.find((d) => d.id === selectedDeviceId);
-    const activeTpl = deviceTemplates.find((t) => t.id === selectedTemplateId);
+    const activeDevice = selectedDeviceId === "all" ? { name: "All Tablets" } : devices.find((d) => d.id === selectedDeviceId);
+    const activeTpl = selectedTemplateId === "all" ? { name: "All Templates" } : deviceTemplates.find((t) => t.id === selectedTemplateId);
 
     const header = [
       "id",
@@ -272,8 +296,8 @@ function ResponsesPage() {
     const rows = list.map((r) =>
       [
         r.id,
-        esc(r.template),
-        esc(r.device),
+        esc(r.template || ""),
+        esc(r.device || "Unpaired Terminal"),
         r.rating ?? "",
         new Date(r.submitted_at).toISOString(),
         r.duration_seconds,
@@ -294,8 +318,8 @@ function ResponsesPage() {
     toast.success(`Exported ${list.length} responses to CSV`);
   }
 
-  const selectedDeviceObj = devices.find((d) => d.id === selectedDeviceId);
-  const selectedTemplateObj = deviceTemplates.find((t) => t.id === selectedTemplateId);
+  const selectedDeviceObj = selectedDeviceId === "all" ? { name: "All Tablets" } : devices.find((d) => d.id === selectedDeviceId);
+  const selectedTemplateObj = selectedTemplateId === "all" ? { name: "All Templates" } : deviceTemplates.find((t) => t.id === selectedTemplateId);
 
   // Renders dynamic selector dropdowns for the selected template's questions
   const renderDynamicFilters = () => {
@@ -559,6 +583,49 @@ function ResponsesPage() {
                   </Badge>
                 </div>
                 <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
+                  {/* Virtual "All Tablets" selector */}
+                  <div
+                    onClick={() => {
+                      setSelectedDeviceId("all");
+                      setSelectedTemplateId("all");
+                      setQ("");
+                      setDynamicFilters({});
+                    }}
+                    className={cn(
+                      "group p-3 rounded-2xl cursor-pointer border transition-all duration-200 select-none",
+                      selectedDeviceId === "all"
+                        ? "border-primary/30 bg-primary/[0.06] shadow-md shadow-primary/5"
+                        : "border-white/5 bg-white/[0.01] hover:border-white/10 hover:bg-white/[0.03]",
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div
+                        className={cn(
+                          "size-8 rounded-xl grid place-items-center shrink-0 transition-colors",
+                          selectedDeviceId === "all"
+                            ? "bg-primary/20 text-primary"
+                            : "bg-white/5 text-muted-foreground group-hover:text-foreground",
+                        )}
+                      >
+                        <Database className="size-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm truncate">All Tablets</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          Including logged out/unpaired terminals
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5 text-[10px]">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active Database
+                      </span>
+                      <span className="text-muted-foreground font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded">
+                        <MessageSquare className="size-2.5" /> {allResponses.length} reviews
+                      </span>
+                    </div>
+                  </div>
+
                   {devices.length === 0 && (
                     <GlassCard className="py-8 text-center text-xs text-muted-foreground italic">
                       No tablets paired. Go to Devices tab to pair one.
@@ -1049,6 +1116,12 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
             <span className="flex items-center gap-1">
               <Clock className="size-3 text-muted-foreground/75" /> Completed in{" "}
               {r.duration_seconds}s
+            </span>
+            <span className="flex items-center gap-1 truncate max-w-[150px]">
+              <Smartphone className="size-3 text-muted-foreground/75" /> {r.device || "Logged Out Terminal"}
+            </span>
+            <span className="flex items-center gap-1 truncate max-w-[150px]">
+              <FileText className="size-3 text-muted-foreground/75" /> {r.template || "Draft Survey"}
             </span>
           </div>
         </div>
