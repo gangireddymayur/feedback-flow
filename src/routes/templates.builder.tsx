@@ -171,7 +171,7 @@ function BuilderPage() {
     offsetY: number;
     brandColor?: string;
     fontFamily?: string;
-    backgroundStyle?: "solid" | "gradient";
+    backgroundStyle?: "solid" | "gradient" | "default";
     themeMode?: "light" | "dark";
     fontSize?: "normal" | "large" | "xlarge";
     textColor?: string;
@@ -185,7 +185,7 @@ function BuilderPage() {
     offsetY: 16,
     brandColor: "#0F766E",
     fontFamily: "Inter",
-    backgroundStyle: "gradient",
+    backgroundStyle: "default",
     themeMode: "dark",
     fontSize: "normal",
     textColor: "",
@@ -224,7 +224,7 @@ function BuilderPage() {
           offsetY: existingTemplate.branding.offsetY ?? 16,
           brandColor: existingTemplate.branding.brandColor || "#0F766E",
           fontFamily: existingTemplate.branding.fontFamily || "Inter",
-          backgroundStyle: existingTemplate.branding.backgroundStyle || "gradient",
+          backgroundStyle: existingTemplate.branding.backgroundStyle || "default",
           themeMode: existingTemplate.branding.themeMode || "dark",
           fontSize: (existingTemplate.branding as any)?.fontSize || "normal",
           textColor: (existingTemplate.branding as any)?.textColor || "",
@@ -240,7 +240,7 @@ function BuilderPage() {
           offsetY: 16,
           brandColor: "#0F766E",
           fontFamily: "Inter",
-          backgroundStyle: "gradient",
+          backgroundStyle: "default",
           themeMode: "dark",
           fontSize: "normal",
           textColor: "",
@@ -798,13 +798,17 @@ function Canvas({
   const canvasBgStyle = React.useMemo(() => {
     if (branding.backgroundStyle === "solid") {
       return { background: branding.brandColor || "#0F766E" };
-    } else {
+    } else if (branding.backgroundStyle === "gradient") {
       const baseColor = branding.brandColor || "#0F766E";
       return {
         background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.9) 100%)`,
       };
+    } else {
+      return branding.themeMode === "light"
+        ? { background: "#F8FAFC" }
+        : { background: "#0b0f19" };
     }
-  }, [branding.backgroundStyle, branding.brandColor]);
+  }, [branding.backgroundStyle, branding.brandColor, branding.themeMode]);
 
   return (
     <div
@@ -1594,7 +1598,7 @@ function BrandingInspector({
     offsetY: number;
     brandColor?: string;
     fontFamily?: string;
-    backgroundStyle?: "solid" | "gradient";
+    backgroundStyle?: "solid" | "gradient" | "default";
     themeMode?: "light" | "dark";
   };
   onChange: React.Dispatch<React.SetStateAction<{
@@ -1607,7 +1611,7 @@ function BrandingInspector({
     offsetY: number;
     brandColor?: string;
     fontFamily?: string;
-    backgroundStyle?: "solid" | "gradient";
+    backgroundStyle?: "solid" | "gradient" | "default";
     themeMode?: "light" | "dark";
   }>>;
 }) {
@@ -1797,8 +1801,8 @@ function BrandingInspector({
           <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
             Background Style
           </Label>
-          <div className="grid grid-cols-2 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
-            {(["solid", "gradient"] as const).map((style) => (
+          <div className="grid grid-cols-3 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
+            {(["default", "solid", "gradient"] as const).map((style) => (
               <Button
                 key={style}
                 variant={branding.backgroundStyle === style ? "secondary" : "ghost"}
@@ -1853,7 +1857,7 @@ function SurveyTabletPreview({
   branding: {
     brandColor?: string;
     fontFamily?: string;
-    backgroundStyle?: "solid" | "gradient";
+    backgroundStyle?: "solid" | "gradient" | "default";
     themeMode?: "light" | "dark";
     fontSize?: string;
     textColor?: string;
@@ -1879,11 +1883,16 @@ function SurveyTabletPreview({
   const bgStyle = React.useMemo(() => {
     if (branding.backgroundStyle === "solid") {
       return { background: baseColor };
+    } else if (branding.backgroundStyle === "gradient") {
+      return {
+        background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.95) 100%)`,
+      };
+    } else {
+      return branding.themeMode === "light"
+        ? { background: "#F8FAFC" }
+        : { background: "#0b0f19" };
     }
-    return {
-      background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.95) 100%)`,
-    };
-  }, [branding.backgroundStyle, baseColor]);
+  }, [branding.backgroundStyle, baseColor, branding.themeMode]);
 
   const isLight = branding.themeMode === "light";
   const textColor = isLight ? "text-zinc-900" : "text-white";
