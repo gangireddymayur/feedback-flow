@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "build:vercel": "vite build",
     "build:dev": "vite build --mode development",
     "build:windows": "npm run build && npx --yes pkg . --targets node18-win-x64 --output local-server.exe",
     "preview": "vite preview",
