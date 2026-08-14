@@ -502,7 +502,14 @@ export const Screensavers = {
       body: JSON.stringify(body),
     });
   },
-  activate: async (body: { id: number; timeout_seconds: number }) => {
+  activate: async (body: {
+    id: number;
+    timeout_seconds: number;
+    marquee_text?: string;
+    marquee_bg_color?: string;
+    marquee_text_color?: string;
+    marquee_font_size?: number;
+  }) => {
     return await http<{ ok: boolean }>("/screensavers/activate", {
       method: "POST",
       body: JSON.stringify(body),

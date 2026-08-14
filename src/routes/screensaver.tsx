@@ -48,18 +48,32 @@ function ScreensaverPage() {
   const screensavers = listQ.data?.screensavers ?? [];
   const activeScreensaver = screensavers.find((s) => s.is_active === 1);
   const [timeoutSeconds, setTimeoutSeconds] = React.useState(300);
+  const [marqueeText, setMarqueeText] = React.useState("");
+  const [marqueeBgColor, setMarqueeBgColor] = React.useState("#ffffff");
+  const [marqueeTextColor, setMarqueeTextColor] = React.useState("#000000");
+  const [marqueeFontSize, setMarqueeFontSize] = React.useState(22);
 
   // Sync state timeout when active screensaver is loaded
   React.useEffect(() => {
     if (activeScreensaver) {
       setTimeoutSeconds(activeScreensaver.timeout_seconds);
+      setMarqueeText(activeScreensaver.marquee_text || "");
+      setMarqueeBgColor(activeScreensaver.marquee_bg_color || "#ffffff");
+      setMarqueeTextColor(activeScreensaver.marquee_text_color || "#000000");
+      setMarqueeFontSize(activeScreensaver.marquee_font_size || 22);
     }
   }, [activeScreensaver]);
 
   // Activate / Save timeout mutation
   const activateMut = useMutation({
-    mutationFn: (payload: { id: number; timeout_seconds: number }) =>
-      Screensavers.activate(payload),
+    mutationFn: (payload: {
+      id: number;
+      timeout_seconds: number;
+      marquee_text?: string;
+      marquee_bg_color?: string;
+      marquee_text_color?: string;
+      marquee_font_size?: number;
+    }) => Screensavers.activate(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["screensavers"] });
       toast.success("Screensaver settings updated successfully!");
@@ -141,13 +155,30 @@ function ScreensaverPage() {
 
   const handleTimeoutChange = (seconds: number) => {
     setTimeoutSeconds(seconds);
+  };
+
+  const handleSaveSettings = () => {
     if (activeScreensaver) {
-      activateMut.mutate({ id: activeScreensaver.id, timeout_seconds: seconds });
+      activateMut.mutate({
+        id: activeScreensaver.id,
+        timeout_seconds: timeoutSeconds,
+        marquee_text: marqueeText,
+        marquee_bg_color: marqueeBgColor,
+        marquee_text_color: marqueeTextColor,
+        marquee_font_size: marqueeFontSize,
+      });
     }
   };
 
   const handleActivate = (id: number) => {
-    activateMut.mutate({ id, timeout_seconds: timeoutSeconds });
+    activateMut.mutate({
+      id,
+      timeout_seconds: timeoutSeconds,
+      marquee_text: marqueeText,
+      marquee_bg_color: marqueeBgColor,
+      marquee_text_color: marqueeTextColor,
+      marquee_font_size: marqueeFontSize,
+    });
   };
 
   return (
@@ -207,16 +238,16 @@ function ScreensaverPage() {
             </div>
           </GlassCard>
 
-          {/* Section: Timeout Selector */}
+          {/* Section: Standby Settings */}
           <GlassCard className="border border-white/5 space-y-4">
             <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-              <Clock className="size-4.5 text-emerald-400" /> Standby Timeout
+              <Clock className="size-4.5 text-emerald-400" /> Standby Settings
             </h2>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Select how much time of inactivity must pass before the screen saver automatically starts playing.
+              Configure standby inactivity timeout and bottom marquee scrolling message styles.
             </p>
 
-            <div className="space-y-3 pt-2">
+            <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground font-semibold">Inactivity Delay</Label>
                 <select
@@ -232,6 +263,76 @@ function ScreensaverPage() {
                 </select>
               </div>
 
+              {activeScreensaver && (
+                <>
+                  <div className="border-t border-white/5 my-2 pt-2 space-y-3">
+                    <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <Tv className="size-3.5 text-primary" /> Scrolling Marquee Message
+                    </h3>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground font-semibold">Message Text</Label>
+                      <Input
+                        placeholder="e.g. Tap the screen to give review"
+                        value={marqueeText}
+                        onChange={(e) => setMarqueeText(e.target.value)}
+                        className="bg-white/5 border-white/10 text-xs h-9"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground font-semibold">Bg Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="color"
+                            value={marqueeBgColor}
+                            onChange={(e) => setMarqueeBgColor(e.target.value)}
+                            className="bg-white/5 border-white/10 p-0 h-9 w-10 cursor-pointer"
+                          />
+                          <Input
+                            type="text"
+                            value={marqueeBgColor}
+                            onChange={(e) => setMarqueeBgColor(e.target.value)}
+                            className="bg-white/5 border-white/10 text-xs h-9 flex-1"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground font-semibold">Text Color</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            type="color"
+                            value={marqueeTextColor}
+                            onChange={(e) => setMarqueeTextColor(e.target.value)}
+                            className="bg-white/5 border-white/10 p-0 h-9 w-10 cursor-pointer"
+                          />
+                          <Input
+                            type="text"
+                            value={marqueeTextColor}
+                            onChange={(e) => setMarqueeTextColor(e.target.value)}
+                            className="bg-white/5 border-white/10 text-xs h-9 flex-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground font-semibold">Font Size (sp)</Label>
+                      <Input
+                        type="number"
+                        min="12"
+                        max="48"
+                        value={marqueeFontSize}
+                        onChange={(e) => setMarqueeFontSize(Number(e.target.value) || 22)}
+                        className="bg-white/5 border-white/10 text-xs h-9"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
               {activeScreensaver ? (
                 <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400 leading-relaxed flex items-start gap-2">
                   <Check className="size-4 shrink-0 mt-0.5" />
@@ -246,15 +347,24 @@ function ScreensaverPage() {
               )}
 
               {activeScreensaver && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full text-xs border-white/10 h-8"
-                  onClick={() => deactivateMut.mutate()}
-                  disabled={deactivateMut.isPending}
-                >
-                  Disable Standby Mode
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSaveSettings}
+                    className="flex-1 text-xs font-semibold h-8"
+                    disabled={activateMut.isPending}
+                  >
+                    {activateMut.isPending ? "Saving..." : "Save Settings"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs border-white/10 h-8"
+                    onClick={() => deactivateMut.mutate()}
+                    disabled={deactivateMut.isPending}
+                  >
+                    Disable
+                  </Button>
+                </div>
               )}
             </div>
           </GlassCard>

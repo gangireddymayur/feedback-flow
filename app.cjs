@@ -447,6 +447,18 @@ async function initializeSqliteDb(sqlitePool) {
   try {
     await sqlitePool.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL");
   } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE screensavers ADD COLUMN marquee_text TEXT NULL");
+  } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE screensavers ADD COLUMN marquee_bg_color TEXT NULL");
+  } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE screensavers ADD COLUMN marquee_text_color TEXT NULL");
+  } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE screensavers ADD COLUMN marquee_font_size INTEGER NULL");
+  } catch (e) {}
 
   const tables = [
     `CREATE TABLE IF NOT EXISTS users (
@@ -555,6 +567,10 @@ async function initializeSqliteDb(sqlitePool) {
       type            TEXT NOT NULL DEFAULT 'image',
       is_active       INTEGER DEFAULT 0,
       timeout_seconds INTEGER DEFAULT 300,
+      marquee_text    TEXT NULL,
+      marquee_bg_color TEXT NULL,
+      marquee_text_color TEXT NULL,
+      marquee_font_size INTEGER NULL,
       created_at      TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
     )`,
@@ -825,9 +841,23 @@ if (useSqlite) {
           type            VARCHAR(64) NOT NULL DEFAULT 'image',
           is_active       TINYINT(1) DEFAULT 0,
           timeout_seconds INT DEFAULT 300,
+          marquee_text    VARCHAR(255) DEFAULT NULL,
+          marquee_bg_color VARCHAR(32) DEFAULT NULL,
+          marquee_text_color VARCHAR(32) DEFAULT NULL,
+          marquee_font_size INT DEFAULT NULL,
           created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT fk_screensavers_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    // Check if marquee settings exist in screensavers table
+    const [ssCols] = await pool.query("SHOW COLUMNS FROM screensavers LIKE 'marquee_text'");
+    if (ssCols.length === 0) {
+      await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_text VARCHAR(255) DEFAULT NULL");
+      await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_bg_color VARCHAR(32) DEFAULT NULL");
+      await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_text_color VARCHAR(32) DEFAULT NULL");
+      await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_font_size INT DEFAULT NULL");
+      console.log("[db] Added marquee customization columns to screensavers table.");
+    }
       `);
     }
 
@@ -1460,7 +1490,7 @@ app.get(
 
     // Fetch active screensaver for this device owner
     const [ssRows] = await pool.query(
-      "SELECT url, type, timeout_seconds FROM screensavers WHERE owner_id = ? AND is_active = 1 LIMIT 1",
+      "SELECT url, type, timeout_seconds, marquee_text, marquee_bg_color, marquee_text_color, marquee_font_size FROM screensavers WHERE owner_id = ? AND is_active = 1 LIMIT 1",
       [rows[0].owner_id]
     );
 
@@ -3436,7 +3466,7 @@ app.post(
   "/api/screensavers/activate",
   auth(),
   asyncH(async (req, res) => {
-    const { id, timeout_seconds } = req.body || {};
+    const { id, timeout_seconds, marquee_text = null, marquee_bg_color = null, marquee_text_color = null, marquee_font_size = null } = req.body || {};
     if (!id) return res.status(400).json({ error: "id required" });
 
     // Set all screensavers for this user as inactive
@@ -3444,8 +3474,16 @@ app.post(
 
     // Set selected screensaver as active and update timeout
     await pool.query(
-      "UPDATE screensavers SET is_active = 1, timeout_seconds = ? WHERE id = ? AND owner_id = ?",
-      [Number(timeout_seconds) || 300, Number(id), req.user.id]
+      "UPDATE screensavers SET is_active = 1, timeout_seconds = ?, marquee_text = ?, marquee_bg_color = ?, marquee_text_color = ?, marquee_font_size = ? WHERE id = ? AND owner_id = ?",
+      [
+        Number(timeout_seconds) || 300,
+        marquee_text,
+        marquee_bg_color,
+        marquee_text_color,
+        marquee_font_size ? Number(marquee_font_size) : null,
+        Number(id),
+        req.user.id
+      ]
     );
 
     res.json({ ok: true });
