@@ -262,7 +262,7 @@ function ReportsPage() {
           csvRows.push(rowData);
         });
 
-        downloadCSV(`Feedback_Responses_Aligned_${new Date().toISOString().slice(0, 10)}.csv`, csvRows);
+        downloadCSV(`Feedback_Responses_Aligned_${new Date().toISOString().replace(/[:.]/g, "-")}.csv`, csvRows);
       } else {
         const deviceGroups: Record<string, typeof list> = {};
         list.forEach((r) => {
@@ -337,7 +337,7 @@ function ReportsPage() {
           csvRows.push([]);
         });
 
-        downloadCSV(`Feedback_Responses_DeviceGrouped_${new Date().toISOString().slice(0, 10)}.csv`, csvRows);
+        downloadCSV(`Feedback_Responses_DeviceGrouped_${new Date().toISOString().replace(/[:.]/g, "-")}.csv`, csvRows);
       }
 
       toast.success("CSV report downloaded successfully!");
