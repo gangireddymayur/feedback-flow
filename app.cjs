@@ -848,6 +848,8 @@ if (useSqlite) {
           created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
           CONSTRAINT fk_screensavers_owner FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    }
 
     // Check if marquee settings exist in screensavers table
     const [ssCols] = await pool.query("SHOW COLUMNS FROM screensavers LIKE 'marquee_text'");
@@ -857,8 +859,6 @@ if (useSqlite) {
       await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_text_color VARCHAR(32) DEFAULT NULL");
       await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_font_size INT DEFAULT NULL");
       console.log("[db] Added marquee customization columns to screensavers table.");
-    }
-      `);
     }
 
     // Scheduling Module tables initialization
