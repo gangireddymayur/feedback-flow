@@ -291,6 +291,9 @@ function ResponsesPage() {
       "rating",
       "submitted_at",
       "duration_seconds",
+      "customer_name",
+      "customer_email",
+      "customer_phone",
       "answers_json",
     ];
     const rows = list.map((r) =>
@@ -301,6 +304,9 @@ function ResponsesPage() {
         r.rating ?? "",
         new Date(r.submitted_at).toISOString(),
         r.duration_seconds,
+        esc(r.answers?.customer_name || r.answers?.name || r.answers?.customerName || ""),
+        esc(r.answers?.customer_email || r.answers?.email || r.answers?.customerEmail || ""),
+        esc(r.answers?.customer_phone || r.answers?.phone || r.answers?.customerPhone || ""),
         esc(JSON.stringify(r.answers || {})),
       ].join(","),
     );

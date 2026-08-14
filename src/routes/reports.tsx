@@ -275,12 +275,21 @@ function ReportsPage() {
           });
           const questionList = Array.from(uniqueQuestions);
 
+          const hasRatingQuestion = resList.some((r) =>
+            (r.template_questions || []).some(
+              (q: any) => q.type === "rating" || q.type === "emoji"
+            )
+          );
+
           const headers = [
             "Response ID",
             "Template Name",
             "Submitted At",
             "Duration (sec)",
-            "Rating (Stars)",
+            ...(hasRatingQuestion ? ["Rating (Stars)"] : []),
+            "Customer Name",
+            "Customer Email",
+            "Customer Phone",
             ...questionList,
           ];
           csvRows.push(headers);
@@ -291,7 +300,10 @@ function ReportsPage() {
               r.template || "Unknown",
               r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "N/A",
               String(r.duration_seconds || 0),
-              r.rating !== null ? String(r.rating) : "N/A",
+              ...(hasRatingQuestion ? [r.rating !== null ? String(r.rating) : "N/A"] : []),
+              r.answers?.customer_name || r.answers?.name || r.answers?.customerName || "",
+              r.answers?.customer_email || r.answers?.email || r.answers?.customerEmail || "",
+              r.answers?.customer_phone || r.answers?.phone || r.answers?.customerPhone || "",
             ];
 
             questionList.forEach((qLabel) => {
