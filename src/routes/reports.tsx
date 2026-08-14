@@ -203,7 +203,9 @@ function ReportsPage() {
         const uniqueQuestions = new Set<string>();
         list.forEach((r) => {
           (r.template_questions || []).forEach((q: any) => {
-            if (q.label) uniqueQuestions.add(q.label.trim());
+            if (q.label && q.type !== "customer_info") {
+              uniqueQuestions.add(q.label.trim());
+            }
           });
         });
         const questionList = Array.from(uniqueQuestions);
@@ -282,7 +284,9 @@ function ReportsPage() {
           const uniqueQuestions = new Set<string>();
           resList.forEach((r) => {
             (r.template_questions || []).forEach((q: any) => {
-              if (q.label) uniqueQuestions.add(q.label.trim());
+              if (q.label && q.type !== "customer_info") {
+                uniqueQuestions.add(q.label.trim());
+              }
             });
           });
           const questionList = Array.from(uniqueQuestions);
