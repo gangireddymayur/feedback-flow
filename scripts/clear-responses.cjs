@@ -2,7 +2,7 @@
  * clear-responses.cjs
  * Safely deletes all submitted responses from the database.
  * Run with: node scripts/clear-responses.cjs
- * 
+ *
  * SAFE: Does NOT delete templates, devices, or admin accounts.
  * Only clears the responses table so you can test fresh data.
  */
@@ -12,10 +12,17 @@ const mysql = require("mysql2/promise");
 const { DB_HOST = "localhost", DB_PORT = "3306", DB_USER, DB_PASSWORD, DB_NAME } = process.env;
 
 (async () => {
-  console.log("[clear-responses] Connecting to DB:", { host: DB_HOST, port: DB_PORT, database: DB_NAME, user: DB_USER });
+  console.log("[clear-responses] Connecting to DB:", {
+    host: DB_HOST,
+    port: DB_PORT,
+    database: DB_NAME,
+    user: DB_USER,
+  });
 
   if (!DB_USER || !DB_PASSWORD || !DB_NAME) {
-    console.error("[clear-responses] ERROR: DB environment variables not set. Create a .env file first.");
+    console.error(
+      "[clear-responses] ERROR: DB environment variables not set. Create a .env file first.",
+    );
     process.exit(1);
   }
 

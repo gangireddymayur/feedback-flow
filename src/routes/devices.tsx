@@ -1,7 +1,17 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MapPin, Smartphone, Trash2, Pause, Play, Calendar, Settings, RefreshCw } from "lucide-react";
+import {
+  Plus,
+  MapPin,
+  Smartphone,
+  Trash2,
+  Pause,
+  Play,
+  Calendar,
+  Settings,
+  RefreshCw,
+} from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,7 +131,8 @@ function DevicesPage() {
       await refreshAuth();
       await qc.invalidateQueries({ queryKey: ["devices"] });
       toast.success(`Maximum devices updated to ${result.max_devices}`, {
-        description: "Local devices, templates, responses, schedules, and files were left unchanged.",
+        description:
+          "Local devices, templates, responses, schedules, and files were left unchanged.",
       });
     } catch (error) {
       toast.error((error as Error).message || "Cloud entitlement sync failed");
@@ -139,82 +150,79 @@ function DevicesPage() {
           isSoloMode ? null : (
             <div className="flex items-center gap-2">
               {isLocalNetworkServer && (
-                <Button
-                  variant="outline"
-                  onClick={handleCloudSync}
-                  disabled={syncingCloud}
-                >
+                <Button variant="outline" onClick={handleCloudSync} disabled={syncingCloud}>
                   <RefreshCw className={cn("size-4 mr-2", syncingCloud && "animate-spin")} />
                   {syncingCloud ? "Syncing..." : "Sync from Cloud"}
                 </Button>
               )}
               <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="size-4 mr-2" /> Pair Device
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="glass-strong border-white/10 sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Pair FAM Device</DialogTitle>
-                  <DialogDescription>
-                    Enter the 6-digit pairing code shown on the tablet, and give this device a friendly name.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="pair-code">Pairing Code</Label>
-                    <Input
-                      id="pair-code"
-                      placeholder="123 456"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                      className="bg-white/5 border-white/10 text-center text-lg font-semibold tracking-widest uppercase"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="device-name">Device Name</Label>
-                    <Input
-                      id="device-name"
-                      placeholder="Front Desk Tablet"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="bg-white/5 border-white/10"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="device-loc">Location / Department</Label>
-                    <Input
-                      id="device-loc"
-                      placeholder="Lobby / Reception"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      className="bg-white/5 border-white/10"
-                    />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    className="w-full"
-                    onClick={async () => {
-                      if (!code || !name) return toast.error("Code and Name are required");
-                      try {
-                        await Devices.pair(code, name, location);
-                        toast.success("Device paired successfully!");
-                        qc.invalidateQueries({ queryKey: ["devices"] });
-                        setCode("");
-                        setName("");
-                        setLocation("");
-                        setOpen(false);
-                      } catch (e) {
-                        toast.error((e as Error).message);
-                      }
-                    }}
-                  >
-                    Pair Device
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="size-4 mr-2" /> Pair Device
                   </Button>
-                </DialogFooter>
-              </DialogContent>
+                </DialogTrigger>
+                <DialogContent className="glass-strong border-white/10 sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Pair FAM Device</DialogTitle>
+                    <DialogDescription>
+                      Enter the 6-digit pairing code shown on the tablet, and give this device a
+                      friendly name.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pair-code">Pairing Code</Label>
+                      <Input
+                        id="pair-code"
+                        placeholder="123 456"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        className="bg-white/5 border-white/10 text-center text-lg font-semibold tracking-widest uppercase"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="device-name">Device Name</Label>
+                      <Input
+                        id="device-name"
+                        placeholder="Front Desk Tablet"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="bg-white/5 border-white/10"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="device-loc">Location / Department</Label>
+                      <Input
+                        id="device-loc"
+                        placeholder="Lobby / Reception"
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="bg-white/5 border-white/10"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      className="w-full"
+                      onClick={async () => {
+                        if (!code || !name) return toast.error("Code and Name are required");
+                        try {
+                          await Devices.pair(code, name, location);
+                          toast.success("Device paired successfully!");
+                          qc.invalidateQueries({ queryKey: ["devices"] });
+                          setCode("");
+                          setName("");
+                          setLocation("");
+                          setOpen(false);
+                        } catch (e) {
+                          toast.error((e as Error).message);
+                        }
+                      }}
+                    >
+                      Pair Device
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
               </Dialog>
             </div>
           )
@@ -332,8 +340,8 @@ function DevicesPage() {
               <DialogHeader>
                 <DialogTitle>Device Settings</DialogTitle>
                 <DialogDescription>
-                  {isSoloMode 
-                    ? "Modify device configuration name and location." 
+                  {isSoloMode
+                    ? "Modify device configuration name and location."
                     : "Modify configurations, pause surveys, or unpair this tablet device."}
                 </DialogDescription>
               </DialogHeader>
@@ -367,15 +375,18 @@ function DevicesPage() {
                       type="button"
                       className="w-full text-xs h-9 font-semibold"
                       onClick={() => {
-                        updateMut.mutate({
-                          id: editDevice.id,
-                          name: editName,
-                          location: editLocation || null,
-                        }, {
-                          onSuccess: () => {
-                            setEditOpen(false);
-                          }
-                        });
+                        updateMut.mutate(
+                          {
+                            id: editDevice.id,
+                            name: editName,
+                            location: editLocation || null,
+                          },
+                          {
+                            onSuccess: () => {
+                              setEditOpen(false);
+                            },
+                          },
+                        );
                       }}
                       disabled={updateMut.isPending || !editName}
                     >
@@ -389,20 +400,24 @@ function DevicesPage() {
                           variant={editDevice.status === "paused" ? "default" : "outline"}
                           className={cn(
                             "w-full text-xs h-9 font-semibold",
-                            editDevice.status !== "paused" && "text-amber-300 hover:text-amber-400 border-amber-500/20 hover:bg-amber-500/10"
+                            editDevice.status !== "paused" &&
+                              "text-amber-300 hover:text-amber-400 border-amber-500/20 hover:bg-amber-500/10",
                           )}
                           onClick={() => {
                             const newStatus = editDevice.status === "paused" ? "online" : "paused";
-                            updateMut.mutate({
-                              id: editDevice.id,
-                              name: editName,
-                              location: editLocation || null,
-                              status: newStatus,
-                            }, {
-                              onSuccess: () => {
-                                setEditOpen(false);
-                              }
-                            });
+                            updateMut.mutate(
+                              {
+                                id: editDevice.id,
+                                name: editName,
+                                location: editLocation || null,
+                                status: newStatus,
+                              },
+                              {
+                                onSuccess: () => {
+                                  setEditOpen(false);
+                                },
+                              },
+                            );
                           }}
                           disabled={updateMut.isPending}
                         >
@@ -422,11 +437,15 @@ function DevicesPage() {
                           variant="destructive"
                           className="w-full text-xs h-9 font-semibold"
                           onClick={() => {
-                            if (confirm(`WARNING: Deleting device ${editDevice.name} will unpair it and clear all its schedules. This cannot be undone. Do you want to proceed?`)) {
+                            if (
+                              confirm(
+                                `WARNING: Deleting device ${editDevice.name} will unpair it and clear all its schedules. This cannot be undone. Do you want to proceed?`,
+                              )
+                            ) {
                               del.mutate(editDevice.id, {
                                 onSuccess: () => {
                                   setEditOpen(false);
-                                }
+                                },
                               });
                             }
                           }}

@@ -16,17 +16,13 @@ import {
   Tv,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getAuth, useAuth, logout } from "@/lib/auth-store";
+import { getAuth, useAuth, logout, refreshAuth } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery } from "@tanstack/react-query";
-import { Templates, Devices } from "@/lib/api";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Templates, Devices, Auth } from "@/lib/api";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 type NavItem = {
   to: string;
@@ -87,13 +83,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const templates = tData?.templates ?? [];
   const devices = dData?.devices ?? [];
 
-  const filteredTemplates = templates.filter((t) =>
-    t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (t.description || "").toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredTemplates = templates.filter(
+    (t) =>
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (t.description || "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
-  const filteredDevices = devices.filter((d) =>
-    d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (d.location || "").toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredDevices = devices.filter(
+    (d) =>
+      d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (d.location || "").toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const navigateTo = (to: string, search?: any) => {
@@ -122,7 +120,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col lg:flex-row antialiased select-none">
       <aside className="w-full lg:w-64 p-4 lg:p-6 flex flex-col gap-4 shrink-0">
         <div className="flex items-center gap-3 px-2">
-          <img src="/logo.png" className="h-10 rounded-lg shadow-md object-contain" alt="FAM Logo" />
+          <img
+            src="/logo.png"
+            className="h-10 rounded-lg shadow-md object-contain"
+            alt="FAM Logo"
+          />
           <div>
             <div className="font-semibold text-sm tracking-tight flex items-center gap-1.5">
               <span>FAM</span>
@@ -139,7 +141,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           {items.map((it) => {
             const active = pathname === it.to || (it.to !== "/" && pathname.startsWith(it.to));
             const Icon = it.icon;
-            const isLocked = auth?.trial_info?.isExpired && auth.role !== "super" && it.to !== "/settings";
+            const isLocked =
+              auth?.trial_info?.isExpired && auth.role !== "super" && it.to !== "/settings";
 
             if (isLocked) {
               return (
@@ -152,7 +155,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     <Icon className="size-4 opacity-40" />
                     <span>{it.label}</span>
                   </div>
-                  <span className="text-[9px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.5 rounded">Locked</span>
+                  <span className="text-[9px] bg-rose-500/20 text-rose-300 font-bold px-1.5 py-0.5 rounded">
+                    Locked
+                  </span>
                 </div>
               );
             }
@@ -191,11 +196,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 min-w-0 p-4 lg:p-6 lg:pl-0">
         <header className="glass rounded-2xl px-4 py-3 flex items-center gap-3 mb-6">
-          <div className="relative flex-1 max-w-xl cursor-pointer" onClick={() => setSearchOpen(true)}>
+          <div
+            className="relative flex-1 max-w-xl cursor-pointer"
+            onClick={() => setSearchOpen(true)}
+          >
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
             <Input
               readOnly
-              placeholder={auth.role === "sub" ? "Search templates, devices… (⌘K)" : "Search analytics & reports… (⌘K)"}
+              placeholder={
+                auth.role === "sub"
+                  ? "Search templates, devices… (⌘K)"
+                  : "Search analytics & reports… (⌘K)"
+              }
               className="pl-9 bg-white/5 border-white/10 focus-visible:ring-primary/40 cursor-pointer text-xs h-9"
             />
           </div>
@@ -217,15 +229,42 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <div>
                   <div className="font-semibold text-sm text-rose-100 flex items-center gap-2">
                     <span>7-Day Free Trial Expired</span>
-                    <span className="text-[10px] bg-rose-500/30 text-rose-200 px-2 py-0.5 rounded-full font-bold">Limit Reached</span>
+                    <span className="text-[10px] bg-rose-500/30 text-rose-200 px-2 py-0.5 rounded-full font-bold">
+                      Limit Reached
+                    </span>
                   </div>
                   <div className="text-xs text-rose-300/90 mt-0.5">
-                    Your 7-day free trial period has ended. Please contact your system administrator to grant full access for your account.
+                    Your 7-day free trial period has ended. Please contact your system administrator
+                    to grant full access for your account.
                   </div>
                 </div>
               </div>
-              <div className="text-xs font-semibold bg-rose-500/20 px-3 py-1.5 rounded-lg border border-rose-500/40 shrink-0">
-                Contact Admin to Unlock
+              <div className="flex items-center gap-2 shrink-0">
+                {auth?.local_mode !== "none" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                      try {
+                        toast.loading("Syncing status...", { id: "sync-sub" });
+                        await Auth.syncCloudEntitlements();
+                        await refreshAuth();
+                        toast.success("Subscription synced successfully!", { id: "sync-sub" });
+                        window.location.reload();
+                      } catch (err) {
+                        toast.error((err as Error).message || "Sync failed", {
+                          id: "sync-sub",
+                        });
+                      }
+                    }}
+                    className="h-8 text-xs bg-rose-500/10 border-rose-500/30 text-rose-200 hover:bg-rose-500/20 hover:text-rose-100"
+                  >
+                    Sync Status
+                  </Button>
+                )}
+                <div className="text-xs font-semibold bg-rose-500/20 px-3 py-1.5 rounded-lg border border-rose-500/40">
+                  Contact Admin to Unlock
+                </div>
               </div>
             </div>
           )}
@@ -233,10 +272,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      <Dialog open={searchOpen} onOpenChange={(openVal) => {
-        setSearchOpen(openVal);
-        if (!openVal) setSearchQuery("");
-      }}>
+      <Dialog
+        open={searchOpen}
+        onOpenChange={(openVal) => {
+          setSearchOpen(openVal);
+          if (!openVal) setSearchQuery("");
+        }}
+      >
         <DialogContent className="max-w-lg bg-zinc-950 border-zinc-800 text-foreground p-0 overflow-hidden">
           <div className="flex items-center border-b border-white/10 px-3 py-3">
             <Search className="size-4 text-muted-foreground mr-2 shrink-0" />
@@ -271,7 +313,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                           <FileText className="size-3.5 text-primary shrink-0" />
                           <span className="font-medium truncate">{t.name}</span>
                         </div>
-                        <span className="text-[10px] text-muted-foreground uppercase bg-white/5 px-1.5 py-0.5 rounded">{t.category}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase bg-white/5 px-1.5 py-0.5 rounded">
+                          {t.category}
+                        </span>
                       </button>
                     ))
                   )}
@@ -297,7 +341,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                           <span className="font-medium truncate">{d.name}</span>
                         </div>
                         {d.location && (
-                          <span className="text-[10px] text-muted-foreground truncate">{d.location}</span>
+                          <span className="text-[10px] text-muted-foreground truncate">
+                            {d.location}
+                          </span>
                         )}
                       </button>
                     ))

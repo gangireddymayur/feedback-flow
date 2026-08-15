@@ -197,12 +197,15 @@ function ScreensaverPage() {
               <Upload className="size-4.5 text-primary" /> Upload Standby Media
             </h2>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Upload images or short videos to use as screen savers on connected devices. (Max size 20MB)
+              Upload images or short videos to use as screen savers on connected devices. (Max size
+              20MB)
             </p>
 
             <div className="space-y-3 pt-2">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground font-semibold">Media Label / Name</Label>
+                <Label className="text-xs text-muted-foreground font-semibold">
+                  Media Label / Name
+                </Label>
                 <Input
                   placeholder="e.g. Welcome Promo Video"
                   value={uploadName}
@@ -249,7 +252,9 @@ function ScreensaverPage() {
 
             <div className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground font-semibold">Inactivity Delay</Label>
+                <Label className="text-xs text-muted-foreground font-semibold">
+                  Inactivity Delay
+                </Label>
                 <select
                   value={timeoutSeconds}
                   onChange={(e) => handleTimeoutChange(Number(e.target.value))}
@@ -271,7 +276,9 @@ function ScreensaverPage() {
                     </h3>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground font-semibold">Message Text</Label>
+                      <Label className="text-xs text-muted-foreground font-semibold">
+                        Message Text
+                      </Label>
                       <Input
                         placeholder="e.g. Tap the screen to give review"
                         value={marqueeText}
@@ -282,7 +289,9 @@ function ScreensaverPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground font-semibold">Bg Color</Label>
+                        <Label className="text-xs text-muted-foreground font-semibold">
+                          Bg Color
+                        </Label>
                         <div className="flex gap-2">
                           <Input
                             type="color"
@@ -300,7 +309,9 @@ function ScreensaverPage() {
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground font-semibold">Text Color</Label>
+                        <Label className="text-xs text-muted-foreground font-semibold">
+                          Text Color
+                        </Label>
                         <div className="flex gap-2">
                           <Input
                             type="color"
@@ -319,7 +330,9 @@ function ScreensaverPage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground font-semibold">Font Size (sp)</Label>
+                      <Label className="text-xs text-muted-foreground font-semibold">
+                        Font Size (sp)
+                      </Label>
                       <Input
                         type="number"
                         min="12"
@@ -337,12 +350,20 @@ function ScreensaverPage() {
                 <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-[11px] text-emerald-400 leading-relaxed flex items-start gap-2">
                   <Check className="size-4 shrink-0 mt-0.5" />
                   <div>
-                    Active screensaver: <strong className="font-semibold text-foreground">{activeScreensaver.name}</strong>. Plays after {TIMEOUT_OPTIONS.find(o => o.value === timeoutSeconds)?.label.toLowerCase() || `${timeoutSeconds} seconds`} of inactivity.
+                    Active screensaver:{" "}
+                    <strong className="font-semibold text-foreground">
+                      {activeScreensaver.name}
+                    </strong>
+                    . Plays after{" "}
+                    {TIMEOUT_OPTIONS.find((o) => o.value === timeoutSeconds)?.label.toLowerCase() ||
+                      `${timeoutSeconds} seconds`}{" "}
+                    of inactivity.
                   </div>
                 </div>
               ) : (
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 text-[11px] text-muted-foreground leading-relaxed">
-                  Screen saver is currently disabled. Select a media card from the playlist to enable.
+                  Screen saver is currently disabled. Select a media card from the playlist to
+                  enable.
                 </div>
               )}
 
@@ -388,7 +409,8 @@ function ScreensaverPage() {
                   <Sparkles className="size-8 text-muted-foreground mx-auto mb-3 opacity-40 animate-pulse" />
                   <h3 className="text-sm font-semibold text-foreground">No Media Uploaded</h3>
                   <p className="text-xs text-muted-foreground max-w-xs mt-1">
-                    Upload image or video files using the upload panel on the left to start configuring your screen saver.
+                    Upload image or video files using the upload panel on the left to start
+                    configuring your screen saver.
                   </p>
                 </div>
               </div>
@@ -401,7 +423,9 @@ function ScreensaverPage() {
                       key={item.id}
                       className={cn(
                         "relative group flex flex-col justify-between overflow-hidden rounded-2xl border transition-all duration-200 bg-white/[0.02]",
-                        isActive ? "border-primary shadow-lg shadow-primary/5" : "border-white/5 hover:border-white/10",
+                        isActive
+                          ? "border-primary shadow-lg shadow-primary/5"
+                          : "border-white/5 hover:border-white/10",
                       )}
                     >
                       {/* Media Preview Box */}
@@ -443,7 +467,9 @@ function ScreensaverPage() {
                       {/* Footer Info */}
                       <div className="p-3.5 flex flex-col gap-3">
                         <div className="min-w-0">
-                          <h3 className="text-xs font-semibold text-foreground truncate">{item.name}</h3>
+                          <h3 className="text-xs font-semibold text-foreground truncate">
+                            {item.name}
+                          </h3>
                           <span className="text-[10px] text-muted-foreground font-mono">
                             Added {new Date(item.created_at).toLocaleDateString()}
                           </span>
@@ -455,7 +481,9 @@ function ScreensaverPage() {
                             size="icon"
                             className="size-8 bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20"
                             onClick={() => {
-                              if (confirm("Are you sure you want to delete this screensaver media?")) {
+                              if (
+                                confirm("Are you sure you want to delete this screensaver media?")
+                              ) {
                                 deleteMut.mutate(item.id);
                               }
                             }}

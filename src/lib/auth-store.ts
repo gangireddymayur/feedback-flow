@@ -46,15 +46,19 @@ function persist(a: AuthState | null) {
 }
 
 function toState(u: Me): AuthState {
-  const isLocalServer = typeof window !== "undefined" &&
-    (window.location.port === "3000" || window.location.port === "8080" || window.location.hostname === "localhost");
-  const localMode = u.local_mode === "single"
-    ? "solo"
-    : u.local_mode === "multi"
-      ? "network"
-      : isLocalServer && (u.local_mode === "none" || !u.local_mode)
-        ? "solo"
-        : u.local_mode;
+  const isLocalServer =
+    typeof window !== "undefined" &&
+    (window.location.port === "3000" ||
+      window.location.port === "8080" ||
+      window.location.hostname === "localhost");
+  const localMode =
+    u.local_mode === "single"
+      ? "solo"
+      : u.local_mode === "multi"
+        ? "network"
+        : isLocalServer && (u.local_mode === "none" || !u.local_mode)
+          ? "solo"
+          : u.local_mode;
   return {
     id: u.id,
     name: u.name,
@@ -98,7 +102,7 @@ export function useAuth() {
   const [auth, setState] = React.useState<AuthState | null>(null);
   React.useEffect(() => {
     setState(getAuth());
-    
+
     // Refresh session on mount to sync local_mode
     refreshAuth().then((updated) => {
       if (updated) setState(updated);

@@ -178,9 +178,7 @@ function CustomersPage() {
               </span>
             </div>
             {label && (
-              <span className="text-[10px] text-amber-200/90 italic -mt-0.5">
-                Label: {label}
-              </span>
+              <span className="text-[10px] text-amber-200/90 italic -mt-0.5">Label: {label}</span>
             )}
           </div>
         );
@@ -208,7 +206,7 @@ function CustomersPage() {
           (item: any) =>
             item.emoji === valStr ||
             item.label === valStr ||
-            String(customEmojis.indexOf(item) + 1) === valStr
+            String(customEmojis.indexOf(item) + 1) === valStr,
         );
         if (found) {
           return (
@@ -350,7 +348,9 @@ function CustomersPage() {
                     <tr>
                       <th className="text-left font-semibold px-3 py-3">Customer</th>
                       <th className="text-left font-semibold px-3 py-3">Contact</th>
-                      <th className="text-left font-semibold px-3 py-3 hidden sm:table-cell">Survey Info</th>
+                      <th className="text-left font-semibold px-3 py-3 hidden sm:table-cell">
+                        Survey Info
+                      </th>
                       <th className="text-left font-semibold px-3 py-3 w-16">Score</th>
                       <th className="text-right font-semibold px-3 py-3">Submitted</th>
                     </tr>
@@ -358,7 +358,10 @@ function CustomersPage() {
                   <tbody>
                     {filteredCustomers.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground italic">
+                        <td
+                          colSpan={5}
+                          className="px-3 py-8 text-center text-muted-foreground italic"
+                        >
                           No customer contact details found matching criteria.
                         </td>
                       </tr>
@@ -458,7 +461,9 @@ function CustomersPage() {
 
                 <div>
                   <h3 className="font-semibold text-base text-foreground">Review Details</h3>
-                  <p className="text-xs text-muted-foreground">Review session #{selectedCustomer.id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Review session #{selectedCustomer.id}
+                  </p>
                 </div>
 
                 {/* Customer contact card */}
@@ -484,16 +489,21 @@ function CustomersPage() {
                 {/* Device & session metadata */}
                 <div className="grid grid-cols-2 gap-3 text-xs border-t border-b border-white/5 py-3">
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">Terminal Tablet</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                      Terminal Tablet
+                    </span>
                     <span className="font-medium text-foreground flex items-center gap-1">
-                      <Smartphone className="size-3.5 text-muted-foreground" /> {selectedCustomer.device}
+                      <Smartphone className="size-3.5 text-muted-foreground" />{" "}
+                      {selectedCustomer.device}
                     </span>
                     <span className="text-[10px] text-muted-foreground block truncate">
                       <MapPin className="size-3 inline" /> {selectedCustomer.deviceLocation}
                     </span>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">Date & Time</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase block">
+                      Date & Time
+                    </span>
                     <span className="font-medium text-foreground flex items-center gap-1">
                       <Calendar className="size-3.5 text-muted-foreground" />
                       {new Date(selectedCustomer.submittedAt).toLocaleDateString()}
@@ -508,7 +518,8 @@ function CustomersPage() {
                 {/* Responses list */}
                 <div className="space-y-4 pt-1">
                   <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                    <CheckCircle2 className="size-3.5 text-primary" /> Survey Questionnaire Responses
+                    <CheckCircle2 className="size-3.5 text-primary" /> Survey Questionnaire
+                    Responses
                   </div>
 
                   <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
@@ -518,7 +529,10 @@ function CustomersPage() {
                       if (["customer_info"].includes(qItem.type)) return null; // skip contact info card rendering
 
                       return (
-                        <div key={qItem.id} className="space-y-1 bg-white/[0.01] border border-white/5 rounded-xl p-3">
+                        <div
+                          key={qItem.id}
+                          className="space-y-1 bg-white/[0.01] border border-white/5 rounded-xl p-3"
+                        >
                           <label className="text-xs font-semibold text-muted-foreground block leading-normal">
                             {qItem.label}
                           </label>

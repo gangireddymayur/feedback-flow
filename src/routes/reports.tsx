@@ -10,6 +10,15 @@ import {
   ArrowUpRight,
   Info,
   Clock,
+  Printer,
+  FileSpreadsheet,
+  Star,
+  TrendingUp,
+  Award,
+  BarChart3,
+  PieChart as PieIcon,
+  MessageSquare,
+  AlertCircle,
 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -26,24 +35,6 @@ import {
 import { Responses, Devices, Templates } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-import {
-  Printer,
-  FileSpreadsheet,
-  Star,
-  Clock,
-  TrendingUp,
-  Award,
-  Calendar,
-  Sparkles,
-  BarChart3,
-  PieChart as PieIcon,
-  MessageSquare,
-  AlertCircle,
-  FileText,
-  Download,
-  Info
-} from "lucide-react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -57,7 +48,7 @@ import {
   Legend,
   PieChart,
   Pie,
-  Cell
+  Cell,
 } from "recharts";
 
 export const Route = createFileRoute("/reports")({ component: ReportsPage });
@@ -174,7 +165,7 @@ function ReportsPage() {
     setPdfCompiling(true);
     // 1. Close the modal first to unmount the portal elements from DOM
     setPdfModalOpen(false);
-    
+
     // 2. Wait for modal unmount transition to complete, then print
     setTimeout(() => {
       window.print();
@@ -211,9 +202,7 @@ function ReportsPage() {
         const questionList = Array.from(uniqueQuestions);
 
         const hasRatingQuestion = list.some((r) =>
-          (r.template_questions || []).some(
-            (q: any) => q.type === "rating" || q.type === "emoji"
-          )
+          (r.template_questions || []).some((q: any) => q.type === "rating" || q.type === "emoji"),
         );
 
         const headers = [
@@ -235,7 +224,7 @@ function ReportsPage() {
           ["Filter Device ID", csvDevice],
           ["Filter Date Range", `${csvFromDate || "Start"} to ${csvToDate || "End"}`],
           [],
-          headers
+          headers,
         ];
 
         list.forEach((r) => {
@@ -262,7 +251,10 @@ function ReportsPage() {
           csvRows.push(rowData);
         });
 
-        downloadCSV(`Feedback_Responses_Aligned_${new Date().toISOString().replace(/[:.]/g, "-")}.csv`, csvRows);
+        downloadCSV(
+          `Feedback_Responses_Aligned_${new Date().toISOString().replace(/[:.]/g, "-")}.csv`,
+          csvRows,
+        );
       } else {
         const deviceGroups: Record<string, typeof list> = {};
         list.forEach((r) => {
@@ -280,7 +272,7 @@ function ReportsPage() {
 
         Object.entries(deviceGroups).forEach(([deviceName, resList]) => {
           csvRows.push([`DEVICE SURVEYS SUMMARY: ${deviceName.toUpperCase()}`]);
-          
+
           const uniqueQuestions = new Set<string>();
           resList.forEach((r) => {
             (r.template_questions || []).forEach((q: any) => {
@@ -293,8 +285,8 @@ function ReportsPage() {
 
           const hasRatingQuestion = resList.some((r) =>
             (r.template_questions || []).some(
-              (q: any) => q.type === "rating" || q.type === "emoji"
-            )
+              (q: any) => q.type === "rating" || q.type === "emoji",
+            ),
           );
 
           const headers = [
@@ -337,7 +329,10 @@ function ReportsPage() {
           csvRows.push([]);
         });
 
-        downloadCSV(`Feedback_Responses_DeviceGrouped_${new Date().toISOString().replace(/[:.]/g, "-")}.csv`, csvRows);
+        downloadCSV(
+          `Feedback_Responses_DeviceGrouped_${new Date().toISOString().replace(/[:.]/g, "-")}.csv`,
+          csvRows,
+        );
       }
 
       toast.success("CSV report downloaded successfully!");
@@ -354,7 +349,9 @@ function ReportsPage() {
   const ratedResponses = pdfData.filter((r) => r.rating !== null);
   const avgStars =
     ratedResponses.length > 0
-      ? (ratedResponses.reduce((sum, r) => sum + (r.rating || 0), 0) / ratedResponses.length).toFixed(1)
+      ? (
+          ratedResponses.reduce((sum, r) => sum + (r.rating || 0), 0) / ratedResponses.length
+        ).toFixed(1)
       : "0.0";
   const avgDuration =
     pdfData.length > 0
@@ -435,7 +432,13 @@ function ReportsPage() {
         const answer = r.answers?.[q.id];
         if (answer === undefined || answer === null || answer === "") return;
 
-        if (q.type === "multiple_choice" || q.type === "emoji" || q.type === "nps" || q.type === "rating" || q.type === "star_rating") {
+        if (
+          q.type === "multiple_choice" ||
+          q.type === "emoji" ||
+          q.type === "nps" ||
+          q.type === "rating" ||
+          q.type === "star_rating"
+        ) {
           const ansKey = String(answer);
           questionsMap[qLabel].answers[ansKey] = (questionsMap[qLabel].answers[ansKey] || 0) + 1;
         } else if (q.type === "long_text" || q.type === "short_text") {
@@ -451,7 +454,9 @@ function ReportsPage() {
     <DashboardLayout>
       {/* Styles to place printable summary offscreen under normal state and display on print */}
       {/* Styles to cleanly hide sidebar and top menu headers during reports print */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         .offscreen-print-container {
           position: absolute !important;
           left: -9999px !important;
@@ -479,7 +484,9 @@ function ReportsPage() {
             width: 100% !important;
           }
         }
-      `}} />
+      `,
+        }}
+      />
 
       {/* Reports Control Center Screen Header */}
       <div className="print:hidden">
@@ -503,7 +510,8 @@ function ReportsPage() {
                 </span>
               </h2>
               <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                Download a clean raw dataset of user feedback. Supports aligned unified columns for multi-tablet comparisons, or device-grouped vertical tables.
+                Download a clean raw dataset of user feedback. Supports aligned unified columns for
+                multi-tablet comparisons, or device-grouped vertical tables.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
@@ -533,7 +541,8 @@ function ReportsPage() {
                 </span>
               </h2>
               <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                Build an elegant graphical executive overview. Includes response trends, NPS index distributions, star breakdown charts, and text comment logs.
+                Build an elegant graphical executive overview. Includes response trends, NPS index
+                distributions, star breakdown charts, and text comment logs.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
@@ -572,7 +581,9 @@ function ReportsPage() {
                 onChange={(e) => setCsvDevice(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
               >
-                <option value="all" className="bg-[#0d0f12]">All Connected Devices</option>
+                <option value="all" className="bg-[#0d0f12]">
+                  All Connected Devices
+                </option>
                 {devices.map((d) => (
                   <option key={d.id} value={d.id} className="bg-[#0d0f12]">
                     {d.name}
@@ -603,7 +614,9 @@ function ReportsPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground font-semibold">Report Columns Format</Label>
+              <Label className="text-xs text-muted-foreground font-semibold">
+                Report Columns Format
+              </Label>
               <div className="grid grid-cols-1 gap-2.5">
                 <button
                   type="button"
@@ -619,7 +632,8 @@ function ReportsPage() {
                     Format 1: Unified Aligned Questions
                   </span>
                   <span className="text-[10px] leading-relaxed text-muted-foreground">
-                    Matches similar question labels across different templates into clean aligned columns. Perfect for global cross-tablet aggregates.
+                    Matches similar question labels across different templates into clean aligned
+                    columns. Perfect for global cross-tablet aggregates.
                   </span>
                 </button>
 
@@ -637,7 +651,8 @@ function ReportsPage() {
                     Format 2: Device-wise Grouped Sections
                   </span>
                   <span className="text-[10px] leading-relaxed text-muted-foreground">
-                    Groups survey reviews vertically by device. Outputs specific columns for each device's template questions. Prevents sparse spreadsheets.
+                    Groups survey reviews vertically by device. Outputs specific columns for each
+                    device's template questions. Prevents sparse spreadsheets.
                   </span>
                 </button>
               </div>
@@ -684,7 +699,9 @@ function ReportsPage() {
                 onChange={(e) => setPdfDevice(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
               >
-                <option value="all" className="bg-[#0d0f12]">All Connected Devices</option>
+                <option value="all" className="bg-[#0d0f12]">
+                  All Connected Devices
+                </option>
                 {devices.map((d) => (
                   <option key={d.id} value={d.id} className="bg-[#0d0f12]">
                     {d.name}
@@ -739,190 +756,243 @@ function ReportsPage() {
       {/* OFF-SCREEN PRINT CONTAINER                               */}
       {/* ======================================================== */}
       <div className="offscreen-print-container bg-white text-black p-8 space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-gray-300">
-            <div>
-              <h1 className="text-2xl font-bold text-black uppercase tracking-tight">FAM Performance Summary</h1>
-              <p className="text-xs text-gray-500 mt-1">
-                Report generated on: {new Date().toLocaleString()} | Device: {pdfDevice === "all" ? "All Connected" : pdfDevice}
-              </p>
-            </div>
-            <div className="text-right">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2.5 py-1 rounded">
-                Executive Report
-              </span>
+        <div className="flex items-center justify-between pb-4 border-b border-gray-300">
+          <div>
+            <h1 className="text-2xl font-bold text-black uppercase tracking-tight">
+              FAM Performance Summary
+            </h1>
+            <p className="text-xs text-gray-500 mt-1">
+              Report generated on: {new Date().toLocaleString()} | Device:{" "}
+              {pdfDevice === "all" ? "All Connected" : pdfDevice}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-100 px-2.5 py-1 rounded">
+              Executive Report
+            </span>
+          </div>
+        </div>
+
+        {/* KPI summaries row */}
+        <div className="grid grid-cols-4 gap-4">
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <span className="text-[10px] uppercase font-bold text-gray-400">Total Feedbacks</span>
+            <h2 className="text-xl font-bold text-black mt-1">{totalCount}</h2>
+          </div>
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <span className="text-[10px] uppercase font-bold text-gray-400">Avg Rating Stars</span>
+            <h2 className="text-xl font-bold text-black mt-1">{avgStars} / 5</h2>
+          </div>
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <span className="text-[10px] uppercase font-bold text-gray-400">NPS Score Index</span>
+            <h2 className="text-xl font-bold text-black mt-1">
+              {npsScore !== null ? `${npsScore > 0 ? "+" : ""}${npsScore}` : "N/A"}
+            </h2>
+          </div>
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <span className="text-[10px] uppercase font-bold text-gray-400">
+              Avg Session Duration
+            </span>
+            <h2 className="text-xl font-bold text-black mt-1">{avgDuration} sec</h2>
+          </div>
+        </div>
+
+        {/* Core Analytics Visual Trends */}
+        <div className="grid grid-cols-3 gap-6">
+          <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
+            <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">
+              Response Volumes Trend
+            </h3>
+            <div className="h-56 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                  <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} />
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#000000"
+                    strokeWidth={1.5}
+                    fill="#f1f5f9"
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
 
-          {/* KPI summaries row */}
-          <div className="grid grid-cols-4 gap-4">
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <span className="text-[10px] uppercase font-bold text-gray-400">Total Feedbacks</span>
-              <h2 className="text-xl font-bold text-black mt-1">{totalCount}</h2>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <span className="text-[10px] uppercase font-bold text-gray-400">Avg Rating Stars</span>
-              <h2 className="text-xl font-bold text-black mt-1">{avgStars} / 5</h2>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <span className="text-[10px] uppercase font-bold text-gray-400">NPS Score Index</span>
-              <h2 className="text-xl font-bold text-black mt-1">
-                {npsScore !== null ? `${npsScore > 0 ? "+" : ""}${npsScore}` : "N/A"}
-              </h2>
-            </div>
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <span className="text-[10px] uppercase font-bold text-gray-400">Avg Session Duration</span>
-              <h2 className="text-xl font-bold text-black mt-1">{avgDuration} sec</h2>
-            </div>
-          </div>
-
-          {/* Core Analytics Visual Trends */}
-          <div className="grid grid-cols-3 gap-6">
-            <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
-              <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Response Volumes Trend</h3>
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} />
-                    <Area type="monotone" dataKey="count" stroke="#000000" strokeWidth={1.5} fill="#f1f5f9" isAnimationActive={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
+          <div className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between">
+            <h3 className="text-xs font-bold text-gray-600 uppercase mb-2">Sentiment Split</h3>
+            {totalNps === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-xs text-gray-400 italic">
+                No NPS scores.
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="flex-1 min-h-[140px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={npsPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={55}
+                        paddingAngle={3}
+                        dataKey="value"
+                        isAnimationActive={false}
+                      >
+                        {npsPieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-1 border-t border-gray-200 pt-2 text-[10px]">
+                  {npsPieData.map((d, idx) => (
+                    <div key={idx} className="flex items-center justify-between">
+                      <span className="text-gray-400 flex items-center gap-1.5">
+                        <span
+                          className="size-2 rounded-full"
+                          style={{ backgroundColor: d.color }}
+                        />
+                        {d.name}
+                      </span>
+                      <span className="font-bold text-black">{d.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
-            <div className="p-4 border border-gray-200 rounded-lg flex flex-col justify-between">
-              <h3 className="text-xs font-bold text-gray-600 uppercase mb-2">Sentiment Split</h3>
-              {totalNps === 0 ? (
-                <div className="flex-1 flex items-center justify-center text-xs text-gray-400 italic">
-                  No NPS scores.
+        <div className="grid grid-cols-3 gap-6">
+          <div className="p-4 border border-gray-200 rounded-lg">
+            <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Stars Split</h3>
+            <div className="h-56 w-full">
+              {ratedResponses.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-xs text-gray-400 italic">
+                  No stars rating.
                 </div>
               ) : (
-                <>
-                  <div className="flex-1 min-h-[140px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={npsPieData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={55}
-                          paddingAngle={3}
-                          dataKey="value"
-                          isAnimationActive={false}
-                        >
-                          {npsPieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-1 border-t border-gray-200 pt-2 text-[10px]">
-                    {npsPieData.map((d, idx) => (
-                      <div key={idx} className="flex items-center justify-between">
-                        <span className="text-gray-400 flex items-center gap-1.5">
-                          <span className="size-2 rounded-full" style={{ backgroundColor: d.color }} />
-                          {d.name}
-                        </span>
-                        <span className="font-bold text-black">{d.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={starsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="stars" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} allowDecimals={false} />
+                    <Bar
+                      dataKey="count"
+                      fill="#475569"
+                      radius={[2, 2, 0, 0]}
+                      isAnimationActive={false}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-6">
-            <div className="p-4 border border-gray-200 rounded-lg">
-              <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Stars Split</h3>
-              <div className="h-56 w-full">
-                {ratedResponses.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-xs text-gray-400 italic">
-                    No stars rating.
-                  </div>
-                ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={starsData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="stars" stroke="#94a3b8" fontSize={9} tickLine={false} />
-                      <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} allowDecimals={false} />
-                      <Bar dataKey="count" fill="#475569" radius={[2, 2, 0, 0]} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </div>
-
-            <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
-              <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Unified Survey Questions Split</h3>
-              <div className="grid grid-cols-2 gap-4 print:grid-cols-1">
-                {parsedQuestions.filter((q) => Object.keys(q.answers).length > 0).length === 0 ? (
-                  <div className="col-span-2 text-xs text-gray-400 italic text-center py-8">
-                    No question distributions.
-                  </div>
-                ) : (
-                  parsedQuestions
-                    .filter((q) => Object.keys(q.answers).length > 0)
-                    .map((q, idx) => {
-                      const chartData = Object.entries(q.answers).map(([option, count]) => ({
-                        option: option.length > 20 ? option.slice(0, 18) + ".." : option,
-                        count,
-                      }));
-                      return (
-                        <div key={idx} className="p-3 bg-gray-50 border border-gray-100 rounded-lg space-y-1.5 break-inside-avoid">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-gray-700">Q: {q.label}</span>
-                            <span className="text-[8px] uppercase px-1.5 py-0.5 rounded bg-gray-200/60 font-semibold text-gray-500">
-                              {q.type.replace("_", " ")}
-                            </span>
-                          </div>
-                          <div className="h-24 w-full font-sans">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart layout="vertical" data={chartData} margin={{ top: 0, right: 10, left: 10, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis type="number" stroke="#94a3b8" fontSize={8} tickLine={false} allowDecimals={false} />
-                                <YAxis dataKey="option" type="category" stroke="#94a3b8" fontSize={8} tickLine={false} width={80} />
-                                <Bar dataKey="count" fill="#3b82f6" radius={[0, 2, 2, 0]} isAnimationActive={false} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                      );
-                    })
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Text feedback lists */}
-          <div className="p-4 border border-gray-200 rounded-lg">
-            <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">Customer Written Comments</h3>
-            <div className="grid grid-cols-2 gap-4 max-h-[180px] overflow-y-auto pr-1">
-              {parsedQuestions
-                .filter((q) => q.type === "long_text" || q.type === "short_text")
-                .flatMap((q) => q.textAnswers)
-                .length === 0 ? (
-                <div className="col-span-2 text-xs text-gray-400 italic">No written feedback.</div>
+          <div className="col-span-2 p-4 border border-gray-200 rounded-lg">
+            <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">
+              Unified Survey Questions Split
+            </h3>
+            <div className="grid grid-cols-2 gap-4 print:grid-cols-1">
+              {parsedQuestions.filter((q) => Object.keys(q.answers).length > 0).length === 0 ? (
+                <div className="col-span-2 text-xs text-gray-400 italic text-center py-8">
+                  No question distributions.
+                </div>
               ) : (
                 parsedQuestions
-                  .filter((q) => q.type === "long_text" || q.type === "short_text")
-                  .flatMap((q) =>
-                    q.textAnswers.map((txt, idx) => (
-                      <div key={idx} className="p-2.5 bg-gray-50 rounded border border-gray-100 text-[10px] text-gray-700 italic">
-                        "{txt}"
-                        <span className="block mt-1.5 not-italic text-[8px] font-semibold text-gray-400 uppercase">
-                          Source Context: {q.label}
-                        </span>
+                  .filter((q) => Object.keys(q.answers).length > 0)
+                  .map((q, idx) => {
+                    const chartData = Object.entries(q.answers).map(([option, count]) => ({
+                      option: option.length > 20 ? option.slice(0, 18) + ".." : option,
+                      count,
+                    }));
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3 bg-gray-50 border border-gray-100 rounded-lg space-y-1.5 break-inside-avoid"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-gray-700">Q: {q.label}</span>
+                          <span className="text-[8px] uppercase px-1.5 py-0.5 rounded bg-gray-200/60 font-semibold text-gray-500">
+                            {q.type.replace("_", " ")}
+                          </span>
+                        </div>
+                        <div className="h-24 w-full font-sans">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              layout="vertical"
+                              data={chartData}
+                              margin={{ top: 0, right: 10, left: 10, bottom: 5 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                              <XAxis
+                                type="number"
+                                stroke="#94a3b8"
+                                fontSize={8}
+                                tickLine={false}
+                                allowDecimals={false}
+                              />
+                              <YAxis
+                                dataKey="option"
+                                type="category"
+                                stroke="#94a3b8"
+                                fontSize={8}
+                                tickLine={false}
+                                width={80}
+                              />
+                              <Bar
+                                dataKey="count"
+                                fill="#3b82f6"
+                                radius={[0, 2, 2, 0]}
+                                isAnimationActive={false}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
                       </div>
-                    ))
-                  )
+                    );
+                  })
               )}
             </div>
           </div>
         </div>
+
+        {/* Text feedback lists */}
+        <div className="p-4 border border-gray-200 rounded-lg">
+          <h3 className="text-xs font-bold text-gray-600 uppercase mb-3">
+            Customer Written Comments
+          </h3>
+          <div className="grid grid-cols-2 gap-4 max-h-[180px] overflow-y-auto pr-1">
+            {parsedQuestions
+              .filter((q) => q.type === "long_text" || q.type === "short_text")
+              .flatMap((q) => q.textAnswers).length === 0 ? (
+              <div className="col-span-2 text-xs text-gray-400 italic">No written feedback.</div>
+            ) : (
+              parsedQuestions
+                .filter((q) => q.type === "long_text" || q.type === "short_text")
+                .flatMap((q) =>
+                  q.textAnswers.map((txt, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 bg-gray-50 rounded border border-gray-100 text-[10px] text-gray-700 italic"
+                    >
+                      "{txt}"
+                      <span className="block mt-1.5 not-italic text-[8px] font-semibold text-gray-400 uppercase">
+                        Source Context: {q.label}
+                      </span>
+                    </div>
+                  )),
+                )
+            )}
+          </div>
+        </div>
+      </div>
     </DashboardLayout>
   );
 }

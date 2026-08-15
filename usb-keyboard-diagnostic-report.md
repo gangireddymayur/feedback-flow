@@ -23,29 +23,29 @@ The timing reported by the user (onset after a BIOS update) keeps BIOS involveme
 
 ## 1. System and firmware
 
-| Item | Finding |
-|---|---|
-| Manufacturer | Dell Inc. |
-| Exact model | Dell G15 5511 |
-| System family / SKU | GSeries / 0A71 |
-| Baseboard | Dell 0746J2, revision A05 |
-| BIOS | Dell 1.43.0 |
-| BIOS build date reported by SMBIOS | 2026-04-24 |
-| Dell public release date | 2026-06-08 |
-| Windows | Windows 11 Home Single Language, version 25H2 |
-| OS build | 26200.8875, 64-bit |
-| Active power plan | Balanced |
+| Item                               | Finding                                       |
+| ---------------------------------- | --------------------------------------------- |
+| Manufacturer                       | Dell Inc.                                     |
+| Exact model                        | Dell G15 5511                                 |
+| System family / SKU                | GSeries / 0A71                                |
+| Baseboard                          | Dell 0746J2, revision A05                     |
+| BIOS                               | Dell 1.43.0                                   |
+| BIOS build date reported by SMBIOS | 2026-04-24                                    |
+| Dell public release date           | 2026-06-08                                    |
+| Windows                            | Windows 11 Home Single Language, version 25H2 |
+| OS build                           | 26200.8875, 64-bit                            |
+| Active power plan                  | Balanced                                      |
 
 The Dell firmware driver package is `0.1.43.0`, dated 2026-04-27. Older packages 1.42.0 and 1.40.0 remain in the Windows driver store; their presence is historical and does not mean they are active.
 
 ## 2. USB controllers and root hubs
 
-| Device | Driver provider | Driver package version | INF | Status |
-|---|---|---:|---|---|
-| Intel USB 3.10 eXtensible Host Controller, PCI `8086:9A17` | Microsoft | 10.0.26100.8875 | `usbxhci.inf` | OK, code 0 |
-| Intel USB 3.20 eXtensible Host Controller, PCI `8086:43ED` | Microsoft | 10.0.26100.8875 | `usbxhci.inf` | OK, code 0 |
-| USB Root Hub (USB 3.0), controller `9A17` | Microsoft | 10.0.26100.8737 | `usbhub3.inf` | OK, code 0 |
-| USB Root Hub (USB 3.0), controller `43ED` | Microsoft | 10.0.26100.8737 | `usbhub3.inf` | OK, code 0 |
+| Device                                                     | Driver provider | Driver package version | INF           | Status     |
+| ---------------------------------------------------------- | --------------- | ---------------------: | ------------- | ---------- |
+| Intel USB 3.10 eXtensible Host Controller, PCI `8086:9A17` | Microsoft       |        10.0.26100.8875 | `usbxhci.inf` | OK, code 0 |
+| Intel USB 3.20 eXtensible Host Controller, PCI `8086:43ED` | Microsoft       |        10.0.26100.8875 | `usbxhci.inf` | OK, code 0 |
+| USB Root Hub (USB 3.0), controller `9A17`                  | Microsoft       |        10.0.26100.8737 | `usbhub3.inf` | OK, code 0 |
+| USB Root Hub (USB 3.0), controller `43ED`                  | Microsoft       |        10.0.26100.8737 | `usbhub3.inf` | OK, code 0 |
 
 Both controllers use the standard Microsoft Windows xHCI stack rather than an Intel/OEM USB host-controller driver. This is normal on modern Windows.
 
@@ -62,13 +62,13 @@ Package versions and individual binary versions can differ because Windows compo
 
 ## 3. Chipset and platform drivers
 
-| Component | Provider | Version | INF |
-|---|---|---:|---|
-| Intel HM570 LPC Controller `438B` | Intel | 10.1.34.13 | `oem78.inf` |
-| Intel SMBus `43A3` | Intel | 10.1.34.13 | `oem78.inf` |
-| Intel Management Engine Interface | Intel | 2540.8.7.0 | `oem5.inf` |
-| Intel Serial IO I2C `43E8` / `43E9` | Intel | 30.100.2104.1 | `oem69.inf` |
-| Intel HID Event Filter | Intel | 2.2.2.18 | `oem195.inf` |
+| Component                           | Provider |       Version | INF          |
+| ----------------------------------- | -------- | ------------: | ------------ |
+| Intel HM570 LPC Controller `438B`   | Intel    |    10.1.34.13 | `oem78.inf`  |
+| Intel SMBus `43A3`                  | Intel    |    10.1.34.13 | `oem78.inf`  |
+| Intel Management Engine Interface   | Intel    |    2540.8.7.0 | `oem5.inf`   |
+| Intel Serial IO I2C `43E8` / `43E9` | Intel    | 30.100.2104.1 | `oem69.inf`  |
+| Intel HID Event Filter              | Intel    |      2.2.2.18 | `oem195.inf` |
 
 The chipset/platform devices use Intel/OEM packages. USB host controllers and hubs use Microsoft packages.
 
@@ -79,13 +79,13 @@ USB hardware ID: `USB\VID_258A&PID_013B&REV_5002`
 Current composite instance: `USB\VID_258A&PID_013B\5&3A098C8F&0&4`  
 Current path: `PCIROOT(0)#PCI(1400)#USBROOT(0)#USB(4)` / ACPI `XHCI/RHUB/HS04`
 
-| Layer | Service / INF | Provider | Version | Status |
-|---|---|---|---:|---|
-| USB composite parent | `usbccgp` / `usb.inf` | Microsoft | 10.0.26100.8737 | OK |
-| USB HID interfaces MI_00 and MI_01 | `HidUsb` / `input.inf` | Microsoft | 10.0.26100.8875 | OK |
-| Two keyboard collections | `kbdhid` / `keyboard.inf` | Microsoft | 10.0.26100.8521 | OK |
-| Consumer-control collection | `hidserv.inf` | Microsoft | 10.0.26100.1 | OK |
-| Other HID collections | `input.inf` or standard HID services | Microsoft | 10.0.26100.8875 where applicable | OK |
+| Layer                              | Service / INF                        | Provider  |                          Version | Status |
+| ---------------------------------- | ------------------------------------ | --------- | -------------------------------: | ------ |
+| USB composite parent               | `usbccgp` / `usb.inf`                | Microsoft |                  10.0.26100.8737 | OK     |
+| USB HID interfaces MI_00 and MI_01 | `HidUsb` / `input.inf`               | Microsoft |                  10.0.26100.8875 | OK     |
+| Two keyboard collections           | `kbdhid` / `keyboard.inf`            | Microsoft |                  10.0.26100.8521 | OK     |
+| Consumer-control collection        | `hidserv.inf`                        | Microsoft |                     10.0.26100.1 | OK     |
+| Other HID collections              | `input.inf` or standard HID services | Microsoft | 10.0.26100.8875 where applicable | OK     |
 
 The keyboard exposes two keyboard collections plus consumer, mouse, system-control, and vendor-defined HID collections. That is a normal pattern for a feature-rich composite keyboard and is not evidence of duplicate installation.
 
@@ -119,23 +119,23 @@ After explicit user authorization and administrator elevation, this diagnostic s
 
 Historical enumeration proves that this same keyboard has been recognized at four USB topology locations:
 
-| USB path | First/current install evidence |
-|---|---|
-| PCH root hub `HS01` | Seen 2026-06-26 |
+| USB path            | First/current install evidence                |
+| ------------------- | --------------------------------------------- |
+| PCH root hub `HS01` | Seen 2026-06-26                               |
 | PCH root hub `HS03` | First seen 2025-08-28; reinstalled 2026-05-17 |
-| PCH root hub `HS04` | First seen 2025-08-28; currently attached |
-| PCH root hub `HS06` | Seen 2026-07-12 |
+| PCH root hub `HS04` | First seen 2025-08-28; currently attached     |
+| PCH root hub `HS06` | Seen 2026-07-12                               |
 
 This shows successful enumeration at four logical ports, including multiple Type-A/topology locations, but it does not record whether missed/double keys occurred at each port. A controlled port-by-port functional test is still required.
 
 ## 7. Power management
 
-| Setting | AC | Battery |
-|---|---|---|
-| USB selective suspend | Enabled | Enabled |
-| Hub selective-suspend timeout | 50 ms | 50 ms |
-| USB 3 link power management | Moderate power savings | Moderate power savings |
-| IOC on all transfer descriptors | Enabled | Disabled |
+| Setting                         | AC                     | Battery                |
+| ------------------------------- | ---------------------- | ---------------------- |
+| USB selective suspend           | Enabled                | Enabled                |
+| Hub selective-suspend timeout   | 50 ms                  | 50 ms                  |
+| USB 3 link power management     | Moderate power savings | Moderate power savings |
+| IOC on all transfer descriptors | Enabled                | Disabled               |
 
 WMI reports device power management enabled (`MSPower_DeviceEnable=True`) for:
 
@@ -147,16 +147,16 @@ This corresponds to Windows being allowed to manage/turn off these USB devices. 
 
 ## 8. Windows keyboard configuration
 
-| Check | Finding |
-|---|---|
-| Filter Keys | Off (`Flags=114`, on-bit not set) |
-| Sticky Keys | Off (`Flags=498`, on-bit not set) |
-| Toggle Keys | Off (`Flags=50`, on-bit not set) |
-| Keyboard repeat delay | Registry value 1 |
-| Keyboard repeat speed | 31 (fastest) |
-| Filter-key bounce time | 0; inactive because Filter Keys is off |
-| Layouts | English (India) and English (United States), both using `00004009` |
-| Keyboard class filters | Standard `kbdclass` only |
+| Check                  | Finding                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| Filter Keys            | Off (`Flags=114`, on-bit not set)                                  |
+| Sticky Keys            | Off (`Flags=498`, on-bit not set)                                  |
+| Toggle Keys            | Off (`Flags=50`, on-bit not set)                                   |
+| Keyboard repeat delay  | Registry value 1                                                   |
+| Keyboard repeat speed  | 31 (fastest)                                                       |
+| Filter-key bounce time | 0; inactive because Filter Keys is off                             |
+| Layouts                | English (India) and English (United States), both using `00004009` |
+| Keyboard class filters | Standard `kbdclass` only                                           |
 
 No incorrect accessibility, language, registry repeat, or keyboard-filter configuration was found. No configuration correction has been made.
 
@@ -213,15 +213,15 @@ These commands have not been run because this VS Code/PowerShell session is not 
 
 This is not the final root-cause determination.
 
-| Candidate | Current likelihood | Evidence |
-|---|---|---|
-| Windows USB power management | Plausible / leading test target | Selective suspend and USB 3 link power savings enabled; root hubs and HID interfaces power-manageable |
-| BIOS regression | Plausible but unproven | User reports onset after BIOS update; no release-note or event evidence; current BIOS is latest |
-| Windows USB/HID driver corruption | Lower after clean re-enumeration | Standard signed Microsoft stack, all nodes healthy, recent successful keyboard-node reinstall |
-| USB controller/chipset fault | Possible but unsupported so far | Works only on this laptop, but no controller errors/resets and device enumerates on four paths |
-| Keyboard hardware fault | Lower | User reports it works on other computers |
-| Accessibility/repeat/language setting | Unlikely | Settings are normal/off |
-| Third-party input software | Low but testable | G HUB virtual keyboard exists; no third-party keyboard class filter or direct evidence |
+| Candidate                             | Current likelihood               | Evidence                                                                                              |
+| ------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Windows USB power management          | Plausible / leading test target  | Selective suspend and USB 3 link power savings enabled; root hubs and HID interfaces power-manageable |
+| BIOS regression                       | Plausible but unproven           | User reports onset after BIOS update; no release-note or event evidence; current BIOS is latest       |
+| Windows USB/HID driver corruption     | Lower after clean re-enumeration | Standard signed Microsoft stack, all nodes healthy, recent successful keyboard-node reinstall         |
+| USB controller/chipset fault          | Possible but unsupported so far  | Works only on this laptop, but no controller errors/resets and device enumerates on four paths        |
+| Keyboard hardware fault               | Lower                            | User reports it works on other computers                                                              |
+| Accessibility/repeat/language setting | Unlikely                         | Settings are normal/off                                                                               |
+| Third-party input software            | Low but testable                 | G HUB virtual keyboard exists; no third-party keyboard class filter or direct evidence                |
 
 Current confidence in the leading hypothesis: **Low to Medium**, pending controlled tests.
 

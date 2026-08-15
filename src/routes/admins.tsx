@@ -1,7 +1,20 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, MoreHorizontal, Mail, Copy, Power, PowerOff, Download, Pencil, ShieldCheck, Clock, AlertTriangle, RotateCcw } from "lucide-react";
+import {
+  Plus,
+  MoreHorizontal,
+  Mail,
+  Copy,
+  Power,
+  PowerOff,
+  Download,
+  Pencil,
+  ShieldCheck,
+  Clock,
+  AlertTriangle,
+  RotateCcw,
+} from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,7 +146,10 @@ function AdminsPage() {
               variant="outline"
               onClick={() => {
                 const token = getToken();
-                window.open(`/api/downloads/local-server-pkg?token=${encodeURIComponent(token || "")}`, "_blank");
+                window.open(
+                  `/api/downloads/local-server-pkg?token=${encodeURIComponent(token || "")}`,
+                  "_blank",
+                );
               }}
             >
               Download Local Server Package
@@ -173,9 +189,7 @@ function AdminsPage() {
                   <select
                     className="w-full h-10 px-3 rounded-md bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-white"
                     value={form.local_mode}
-                    onChange={(e) =>
-                      setForm({ ...form, local_mode: e.target.value as any })
-                    }
+                    onChange={(e) => setForm({ ...form, local_mode: e.target.value as any })}
                   >
                     <option value="none" className="bg-[#18181b]">
                       Cloud Mode (Standard)
@@ -196,9 +210,7 @@ function AdminsPage() {
                         min={1}
                         className="bg-white/5 border-white/10"
                         value={form.max_devices}
-                        onChange={(e) =>
-                          setForm({ ...form, max_devices: Number(e.target.value) })
-                        }
+                        onChange={(e) => setForm({ ...form, max_devices: Number(e.target.value) })}
                       />
                     </>
                   )}
@@ -322,7 +334,11 @@ function AdminsPage() {
                 <div>
                   <div className="text-[10px] uppercase text-muted-foreground">Mode</div>
                   <div className="font-semibold mt-0.5 text-[10px] truncate uppercase">
-                    {a.local_mode === "single" ? "Solo" : a.local_mode === "multi" ? "Network" : "Cloud"}
+                    {a.local_mode === "single"
+                      ? "Solo"
+                      : a.local_mode === "multi"
+                        ? "Network"
+                        : "Cloud"}
                   </div>
                 </div>
               </div>
@@ -345,7 +361,9 @@ function AdminsPage() {
 
               <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
                 <div>
-                  <div className="text-[10px] uppercase text-muted-foreground font-semibold">Access Level</div>
+                  <div className="text-[10px] uppercase text-muted-foreground font-semibold">
+                    Access Level
+                  </div>
                   {a.subscription_status === "active" ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mt-1">
                       <ShieldCheck className="size-3" /> Full Access
@@ -394,9 +412,11 @@ function AdminsPage() {
           </DialogHeader>
           <div className="space-y-3 pt-2">
             <div className="text-xs text-muted-foreground mb-2">
-              Generate a pre-configured local server package for <strong>{selectedSubAdmin?.name}</strong>. The user's account details and device limit will be securely hardcoded into the setup database package.
+              Generate a pre-configured local server package for{" "}
+              <strong>{selectedSubAdmin?.name}</strong>. The user's account details and device limit
+              will be securely hardcoded into the setup database package.
             </div>
-            
+
             <Label>Email / Username</Label>
             <Input
               type="email"
@@ -404,7 +424,7 @@ function AdminsPage() {
               value={downloadForm.email}
               onChange={(e) => setDownloadForm({ ...downloadForm, email: e.target.value })}
             />
-            
+
             <Label>New Password (Optional override)</Label>
             <Input
               type="password"
@@ -413,14 +433,16 @@ function AdminsPage() {
               value={downloadForm.password}
               onChange={(e) => setDownloadForm({ ...downloadForm, password: e.target.value })}
             />
-            
+
             <Label>Max Allowed Tablets</Label>
             <Input
               type="number"
               min={1}
               className="bg-white/5 border-white/10"
               value={downloadForm.max_devices}
-              onChange={(e) => setDownloadForm({ ...downloadForm, max_devices: Number(e.target.value) })}
+              onChange={(e) =>
+                setDownloadForm({ ...downloadForm, max_devices: Number(e.target.value) })
+              }
             />
           </div>
           <DialogFooter>
@@ -484,9 +506,7 @@ function AdminsPage() {
             <select
               className="w-full h-10 px-3 rounded-md bg-white/5 border border-white/10 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-white"
               value={editForm.local_mode}
-              onChange={(e) =>
-                setEditForm({ ...editForm, local_mode: e.target.value as any })
-              }
+              onChange={(e) => setEditForm({ ...editForm, local_mode: e.target.value as any })}
             >
               <option value="none" className="bg-[#18181b]">
                 Cloud Mode (Standard)

@@ -40,7 +40,11 @@ function LoginPage() {
     <div className="min-h-screen grid place-items-center px-4">
       <div className="w-full max-w-md glass-strong rounded-3xl p-8 shadow-2xl">
         <div className="flex items-center gap-3 mb-8">
-          <img src="/logo.png" className="h-11 rounded-xl shadow-md object-contain" alt="FAM Logo" />
+          <img
+            src="/logo.png"
+            className="h-11 rounded-xl shadow-md object-contain"
+            alt="FAM Logo"
+          />
           <div>
             <div className="text-lg font-semibold tracking-tight">Feedback Action Management</div>
             <div className="text-xs text-muted-foreground">Action Management Platform</div>
@@ -97,7 +101,6 @@ function LoginPage() {
               Sign-in failed: {error}
             </p>
           )}
-
         </form>
       </div>
     </div>

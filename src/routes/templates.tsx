@@ -157,11 +157,21 @@ function TemplatesPage() {
                 onChange={(e) => setNewCat(e.target.value)}
                 className="w-full bg-white/5 border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
               >
-                <option value="General" className="bg-[#0d0f12]">General</option>
-                <option value="F&B" className="bg-[#0d0f12]">F&B (Dining)</option>
-                <option value="Retail" className="bg-[#0d0f12]">Retail / Shopping</option>
-                <option value="Hospitality" className="bg-[#0d0f12]">Hospitality / Hotel</option>
-                <option value="Services" className="bg-[#0d0f12]">Services / Salon</option>
+                <option value="General" className="bg-[#0d0f12]">
+                  General
+                </option>
+                <option value="F&B" className="bg-[#0d0f12]">
+                  F&B (Dining)
+                </option>
+                <option value="Retail" className="bg-[#0d0f12]">
+                  Retail / Shopping
+                </option>
+                <option value="Hospitality" className="bg-[#0d0f12]">
+                  Hospitality / Hotel
+                </option>
+                <option value="Services" className="bg-[#0d0f12]">
+                  Services / Salon
+                </option>
               </select>
             </div>
 
@@ -179,10 +189,20 @@ function TemplatesPage() {
             </div>
 
             <div className="flex justify-end gap-2 border-t border-white/5 pt-3 mt-4">
-              <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)} className="h-8 text-xs border-white/10">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setOpen(false)}
+                className="h-8 text-xs border-white/10"
+              >
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="h-8 text-xs font-semibold bg-primary hover:bg-primary/95 text-primary-foreground">
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 text-xs font-semibold bg-primary hover:bg-primary/95 text-primary-foreground"
+              >
                 Start Building
               </Button>
             </div>

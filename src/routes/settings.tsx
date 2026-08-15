@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button";
 import { useAuth, logout } from "@/lib/auth-store";
 import { Auth, Profile, Upload, Backup } from "@/lib/api";
 import { toast } from "sonner";
-import { LogOut, Edit2, X, Save, Image as ImageIcon, Loader2, SlidersHorizontal } from "lucide-react";
+import {
+  LogOut,
+  Edit2,
+  X,
+  Save,
+  Image as ImageIcon,
+  Loader2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -171,7 +179,7 @@ function SettingsPage() {
     if (!file) return;
 
     const ok = window.confirm(
-      "WARNING: Restoring backup will import all templates, devices, responses, and schedules from the file. Do you want to proceed?"
+      "WARNING: Restoring backup will import all templates, devices, responses, and schedules from the file. Do you want to proceed?",
     );
     if (!ok) return;
 
@@ -206,28 +214,40 @@ function SettingsPage() {
           <div className="flex items-center justify-between border-b border-white/5 pb-3">
             <div>
               <h3 className="font-semibold text-lg">Profile & Branding</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">Manage organization info and logo asset settings.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Manage organization info and logo asset settings.
+              </p>
             </div>
             {!isEditing ? (
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="h-8 border-white/10 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(true)}
+                className="h-8 border-white/10 text-xs"
+              >
                 <Edit2 className="size-3.5 mr-1.5" /> Edit Info
               </Button>
             ) : (
               <div className="flex gap-2">
-                <Button variant="ghost" size="sm" onClick={() => {
-                  setIsEditing(false);
-                  if (originalState) {
-                    setFormState((prev) => ({
-                      ...prev,
-                      organization: originalState.organization,
-                      timezone: "IST",
-                      avatar_url: originalState.avatar_url,
-                      show_brand_header: originalState.show_brand_header,
-                      brand_header_placement: originalState.brand_header_placement,
-                    }));
-                    setShowPlacementSettings(false);
-                  }
-                }} className="h-8 text-xs text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIsEditing(false);
+                    if (originalState) {
+                      setFormState((prev) => ({
+                        ...prev,
+                        organization: originalState.organization,
+                        timezone: "IST",
+                        avatar_url: originalState.avatar_url,
+                        show_brand_header: originalState.show_brand_header,
+                        brand_header_placement: originalState.brand_header_placement,
+                      }));
+                      setShowPlacementSettings(false);
+                    }
+                  }}
+                  className="h-8 text-xs text-muted-foreground"
+                >
                   <X className="size-3.5 mr-1.5" /> Cancel
                 </Button>
                 <Button
@@ -249,7 +269,12 @@ function SettingsPage() {
               disabled
               className="bg-white/5 border-white/5 opacity-70"
             />
-            <Field label="Email Address" value={auth.email} disabled className="bg-white/5 border-white/5 opacity-70" />
+            <Field
+              label="Email Address"
+              value={auth.email}
+              disabled
+              className="bg-white/5 border-white/5 opacity-70"
+            />
             <Field
               label="Organization Name"
               value={formState.organization}
@@ -311,8 +336,12 @@ function SettingsPage() {
           <div className="space-y-3 border-t border-white/5 pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <Label className="text-sm font-semibold text-foreground">Show Brand Header on Devices</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Display logo, organization name, and local clock on tablet screens.</p>
+                <Label className="text-sm font-semibold text-foreground">
+                  Show Brand Header on Devices
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Display logo, organization name, and local clock on tablet screens.
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 {formState.show_brand_header === 1 && (
@@ -324,7 +353,9 @@ function SettingsPage() {
                     onClick={() => setShowPlacementSettings(!showPlacementSettings)}
                     className={cn(
                       "h-8 w-8 rounded-full border border-white/5 transition-colors",
-                      showPlacementSettings ? "bg-white/10 text-primary" : "text-muted-foreground hover:text-foreground"
+                      showPlacementSettings
+                        ? "bg-white/10 text-primary"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <SlidersHorizontal className="h-4 w-4" />
@@ -348,7 +379,9 @@ function SettingsPage() {
                   <select
                     disabled={!isEditing}
                     value={formState.brand_header_placement}
-                    onChange={(e) => setFormState((prev) => ({ ...prev, brand_header_placement: e.target.value }))}
+                    onChange={(e) =>
+                      setFormState((prev) => ({ ...prev, brand_header_placement: e.target.value }))
+                    }
                     className="w-full bg-background border border-white/10 rounded-xl h-9 px-3 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
                   >
                     <option value="top">Top (Default)</option>
@@ -389,7 +422,11 @@ function SettingsPage() {
                 value={pw.confirm}
                 onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
               />
-              <Button className="w-full mt-2 h-9 text-xs" onClick={onChangePassword} disabled={changePw.isPending}>
+              <Button
+                className="w-full mt-2 h-9 text-xs"
+                onClick={onChangePassword}
+                disabled={changePw.isPending}
+              >
                 {changePw.isPending ? "Updating…" : "Update Password"}
               </Button>
             </div>
@@ -398,9 +435,15 @@ function SettingsPage() {
           {/* Backup & Restore Card */}
           <GlassCard>
             <h3 className="font-semibold text-lg mb-1">Backup & Restore</h3>
-            <p className="text-xs text-muted-foreground mb-4">Export or import your complete account data (templates, devices, and responses).</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              Export or import your complete account data (templates, devices, and responses).
+            </p>
             <div className="space-y-3">
-              <Button variant="outline" className="w-full h-9 text-xs border-white/10" onClick={handleDownloadBackup}>
+              <Button
+                variant="outline"
+                className="w-full h-9 text-xs border-white/10"
+                onClick={handleDownloadBackup}
+              >
                 Download Backup
               </Button>
               <div className="relative">
@@ -412,7 +455,11 @@ function SettingsPage() {
                   className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
                   id="backup-file-input"
                 />
-                <Button variant="outline" className="w-full h-9 text-xs border-white/10" disabled={restoring}>
+                <Button
+                  variant="outline"
+                  className="w-full h-9 text-xs border-white/10"
+                  disabled={restoring}
+                >
                   {restoring ? "Restoring Data…" : "Upload Backup File"}
                 </Button>
               </div>
@@ -422,8 +469,14 @@ function SettingsPage() {
           {/* Session Management / Log Out Card */}
           <GlassCard className="border-red-500/20 bg-red-500/[0.01]">
             <h3 className="font-semibold text-red-400 text-lg mb-1">Session</h3>
-            <p className="text-xs text-muted-foreground mb-4">Log out of your current session on this device.</p>
-            <Button variant="destructive" className="w-full h-9 text-xs" onClick={() => setLogoutOpen(true)}>
+            <p className="text-xs text-muted-foreground mb-4">
+              Log out of your current session on this device.
+            </p>
+            <Button
+              variant="destructive"
+              className="w-full h-9 text-xs"
+              onClick={() => setLogoutOpen(true)}
+            >
               <LogOut className="size-4 mr-2" /> Log Out
             </Button>
           </GlassCard>
@@ -436,14 +489,25 @@ function SettingsPage() {
           <DialogHeader>
             <DialogTitle>Confirm Log Out</DialogTitle>
             <DialogDescription className="text-muted-foreground text-xs pt-1">
-              Are you sure you want to log out? You will need to enter your credentials to access the dashboard again.
+              Are you sure you want to log out? You will need to enter your credentials to access
+              the dashboard again.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-3 border-t border-white/5 mt-4">
-            <Button variant="outline" size="sm" onClick={() => setLogoutOpen(false)} className="h-8 text-xs border-white/10">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLogoutOpen(false)}
+              className="h-8 text-xs border-white/10"
+            >
               Cancel
             </Button>
-            <Button variant="destructive" size="sm" onClick={handleLogout} className="h-8 text-xs font-semibold">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleLogout}
+              className="h-8 text-xs font-semibold"
+            >
               Log Out
             </Button>
           </div>
@@ -453,7 +517,11 @@ function SettingsPage() {
   );
 }
 
-function Field({ label, className, ...props }: { label: string } & React.ComponentProps<typeof Input>) {
+function Field({
+  label,
+  className,
+  ...props
+}: { label: string } & React.ComponentProps<typeof Input>) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium text-muted-foreground">{label}</Label>

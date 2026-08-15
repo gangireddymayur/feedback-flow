@@ -10,14 +10,18 @@ require("dotenv/config");
 if (process.pkg) {
   const fs = require("fs");
   const path = require("path");
-  const crashLogPath = path.join(process.env.USERPROFILE || "", "Desktop", "reviewos-crash-log.txt");
+  const crashLogPath = path.join(
+    process.env.USERPROFILE || "",
+    "Desktop",
+    "reviewos-crash-log.txt",
+  );
 
   process.on("uncaughtException", (err) => {
     try {
       fs.writeFileSync(
         crashLogPath,
         `UNCAUGHT EXCEPTION\nDate: ${new Date().toISOString()}\nError: ${err.message}\nStack:\n${err.stack}\n`,
-        "utf8"
+        "utf8",
       );
     } catch (e) {}
     process.exit(1);
@@ -28,7 +32,7 @@ if (process.pkg) {
       fs.writeFileSync(
         crashLogPath,
         `UNHANDLED REJECTION\nDate: ${new Date().toISOString()}\nReason: ${reason}\n`,
-        "utf8"
+        "utf8",
       );
     } catch (e) {}
     process.exit(1);
@@ -60,21 +64,32 @@ const CLOUD_URL = process.env.CLOUD_URL || "https://exciting-greider.103-69-196-
 const localLoginPasswords = new Map();
 
 if (NODE_ENV === "production" && JWT_SECRET === "change-me-in-plesk-env") {
-  console.error("FATAL ERROR: Environment variable JWT_SECRET is unset or insecure in production mode!");
+  console.error(
+    "FATAL ERROR: Environment variable JWT_SECRET is unset or insecure in production mode!",
+  );
   process.exit(1);
 }
 
 function translateSqlQuery(sql) {
   let s = sql;
-  s = s.replace(/DATE_ADD\(NOW\(\),\s*INTERVAL\s*10\s*MINUTE\)/gi, "datetime('now', '+10 minutes')");
-  s = s.replace(/TIMESTAMPDIFF\(SECOND,\s*d\.last_sync,\s*NOW\(\)\)/gi, "CAST((julianday('now') - julianday(d.last_sync)) * 86400 AS INTEGER)");
+  s = s.replace(
+    /DATE_ADD\(NOW\(\),\s*INTERVAL\s*10\s*MINUTE\)/gi,
+    "datetime('now', '+10 minutes')",
+  );
+  s = s.replace(
+    /TIMESTAMPDIFF\(SECOND,\s*d\.last_sync,\s*NOW\(\)\)/gi,
+    "CAST((julianday('now') - julianday(d.last_sync)) * 86400 AS INTEGER)",
+  );
   s = s.replace(/CURDATE\(\)/gi, "date('now')");
   s = s.replace(/NOW\(\)/gi, "datetime('now')");
   s = s.replace(/ON DUPLICATE KEY UPDATE/gi, "ON CONFLICT DO UPDATE SET");
   s = s.replace(/VALUES\((\w+)\)/gi, "excluded.$1");
   // MySQL → SQLite date/time formatting functions
   // DATE_FORMAT(col, '%Y-%m-%d %H:%i:%s') → strftime('%Y-%m-%d %H:%M:%S', col)
-  s = s.replace(/DATE_FORMAT\(([^,]+),\s*'%Y-%m-%d %H:%i:%s'\)/gi, "strftime('%Y-%m-%d %H:%M:%S', $1)");
+  s = s.replace(
+    /DATE_FORMAT\(([^,]+),\s*'%Y-%m-%d %H:%i:%s'\)/gi,
+    "strftime('%Y-%m-%d %H:%M:%S', $1)",
+  );
   // DATE_FORMAT(col, '%Y-%m-%d') → strftime('%Y-%m-%d', col)
   s = s.replace(/DATE_FORMAT\(([^,]+),\s*'%Y-%m-%d'\)/gi, "strftime('%Y-%m-%d', $1)");
   // TIME_FORMAT(col, '%H:%i') → strftime('%H:%M', col)
@@ -96,7 +111,7 @@ class SqlitePool {
     const initSqlJs = require("sql.js");
     const fs = require("node:fs");
     const path = require("node:path");
-    
+
     // Load WebAssembly binary from node_modules inside package snapshot
     // `__dirname` points into pkg's read-only snapshot in the Windows build,
     // where the wasm asset is bundled. The second path supports normal Node runs.
@@ -106,12 +121,14 @@ class SqlitePool {
     ];
     const wasmPath = wasmCandidates.find((candidate) => fs.existsSync(candidate));
     if (!wasmPath) {
-      throw new Error(`sql.js WebAssembly asset was not found. Checked: ${wasmCandidates.join(", ")}`);
+      throw new Error(
+        `sql.js WebAssembly asset was not found. Checked: ${wasmCandidates.join(", ")}`,
+      );
     }
     const wasmBinary = fs.readFileSync(wasmPath);
 
     this.SQL = await initSqlJs({ wasmBinary: wasmBinary });
-    
+
     if (fs.existsSync(this.dbPath)) {
       const filebuffer = fs.readFileSync(this.dbPath);
       this.db = new this.SQL.Database(filebuffer);
@@ -123,7 +140,7 @@ class SqlitePool {
       this.db = new this.SQL.Database();
       if (!this.inTransaction) this.saveToDisk();
     }
-    
+
     // Enable PRAGMAs
     try {
       this.db.run("PRAGMA foreign_keys=ON;");
@@ -144,7 +161,7 @@ class SqlitePool {
   async query(sql, params = []) {
     await this.initPromise;
     const originalSql = sql.trim();
-    
+
     // Intercept "SHOW COLUMNS FROM <table> LIKE '<col>'"
     const showColumnsMatch = originalSql.match(/SHOW COLUMNS FROM\s+(\w+)\s+LIKE\s+'(\w+)'/i);
     if (showColumnsMatch) {
@@ -158,7 +175,7 @@ class SqlitePool {
           rows.push({ name: rowVal[1] });
         }
         stmt.free();
-        const found = rows.some(r => r.name.toLowerCase() === col.toLowerCase());
+        const found = rows.some((r) => r.name.toLowerCase() === col.toLowerCase());
         return [found ? [{ Field: col }] : [], null];
       } catch (err) {
         throw err;
@@ -170,7 +187,9 @@ class SqlitePool {
     if (showTablesMatch) {
       const table = showTablesMatch[1];
       try {
-        const stmt = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`);
+        const stmt = this.db.prepare(
+          `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+        );
         stmt.bind([table]);
         const rows = [];
         while (stmt.step()) {
@@ -198,16 +217,16 @@ class SqlitePool {
       const colCount = rows[0].length;
       const placeholder = `(${Array(colCount).fill("?").join(",")})`;
       const singleRowSql = translatedSql.replace(/VALUES\s+\?/i, `VALUES ${placeholder}`);
-      
+
       let lastId = 0;
       let changes = 0;
-      
+
       for (const row of rows) {
         try {
           const stmt = this.db.prepare(singleRowSql);
           stmt.run(row);
           stmt.free();
-          
+
           const res = this.db.exec("SELECT last_insert_rowid(), changes()");
           if (res && res.length > 0) {
             lastId = res[0].values[0][0];
@@ -217,7 +236,7 @@ class SqlitePool {
           throw err;
         }
       }
-      
+
       if (!this.inTransaction) this.saveToDisk();
       return [{ insertId: lastId, affectedRows: changes }, null];
     }
@@ -227,7 +246,7 @@ class SqlitePool {
       let rows = [];
       const stmt = this.db.prepare(translatedSql);
       stmt.bind(params);
-      
+
       const columns = stmt.getColumnNames();
       while (stmt.step()) {
         const rowVal = stmt.get();
@@ -238,7 +257,7 @@ class SqlitePool {
         rows.push(rowObj);
       }
       stmt.free();
-      
+
       const isWrite = /^\s*(insert|update|delete|create|drop|alter|replace)/i.test(translatedSql);
       if (isWrite) {
         let lastId = 0;
@@ -251,7 +270,7 @@ class SqlitePool {
         if (!this.inTransaction) this.saveToDisk();
         return [{ insertId: lastId, affectedRows: changes }, null];
       }
-      
+
       return [rows, null];
     } catch (err) {
       throw err;
@@ -279,13 +298,16 @@ class SqlitePool {
         this.inTransaction = false;
       },
       release: () => {},
-      isSqlite: true
+      isSqlite: true,
     };
   }
 }
 
 const crypto = require("crypto");
-const BACKUP_ENCRYPTION_KEY = crypto.createHash("sha256").update("reviewos-secure-backup-key-9a8b7c").digest();
+const BACKUP_ENCRYPTION_KEY = crypto
+  .createHash("sha256")
+  .update("reviewos-secure-backup-key-9a8b7c")
+  .digest();
 const IV_LENGTH = 16;
 
 function encryptBackup(payload) {
@@ -310,10 +332,27 @@ function decryptBackup(encryptedData) {
 
 async function restoreBackupPayload(payload, dbPool) {
   const isSqliteDb = dbPool.isSqlite || useSqlite;
-  
+
   const tablesToClear = isSqliteDb
-    ? ["templates", "schedules", "schedule_recurrences", "schedule_instances", "screensavers", "user_profiles"]
-    : ["users", "user_profiles", "templates", "devices", "screensavers", "schedules", "schedule_recurrences", "schedule_instances", "responses"];
+    ? [
+        "templates",
+        "schedules",
+        "schedule_recurrences",
+        "schedule_instances",
+        "screensavers",
+        "user_profiles",
+      ]
+    : [
+        "users",
+        "user_profiles",
+        "templates",
+        "devices",
+        "screensavers",
+        "schedules",
+        "schedule_recurrences",
+        "schedule_instances",
+        "responses",
+      ];
 
   for (const table of tablesToClear) {
     try {
@@ -325,7 +364,16 @@ async function restoreBackupPayload(payload, dbPool) {
     for (const u of payload.users) {
       await dbPool.query(
         "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [u.id, u.name, u.email, u.password_hash, u.role, u.status || "active", u.local_mode || "none", u.max_devices || 1]
+        [
+          u.id,
+          u.name,
+          u.email,
+          u.password_hash,
+          u.role,
+          u.status || "active",
+          u.local_mode || "none",
+          u.max_devices || 1,
+        ],
       );
     }
   }
@@ -334,17 +382,35 @@ async function restoreBackupPayload(payload, dbPool) {
     const p = payload.profile;
     await dbPool.query(
       "INSERT OR REPLACE INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement) VALUES (?, ?, ?, ?, ?, ?)",
-      [p.user_id || payload.users?.[0]?.id || 1, p.organization, p.timezone || "IST", p.avatar_url, p.show_brand_header || 0, p.brand_header_placement || "top"]
+      [
+        p.user_id || payload.users?.[0]?.id || 1,
+        p.organization,
+        p.timezone || "IST",
+        p.avatar_url,
+        p.show_brand_header || 0,
+        p.brand_header_placement || "top",
+      ],
     );
   }
 
   if (Array.isArray(payload.templates)) {
     for (const t of payload.templates) {
-      const qStr = typeof t.questions === "string" ? t.questions : JSON.stringify(t.questions || []);
+      const qStr =
+        typeof t.questions === "string" ? t.questions : JSON.stringify(t.questions || []);
       const bStr = typeof t.branding === "string" ? t.branding : JSON.stringify(t.branding || null);
       await dbPool.query(
         "INSERT OR REPLACE INTO templates (id, owner_id, name, description, category, status, questions, display_mode, branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        [t.id, t.owner_id, t.name, t.description || "", t.category || "General", t.status || "draft", qStr, t.display_mode || "multi_page", bStr]
+        [
+          t.id,
+          t.owner_id,
+          t.name,
+          t.description || "",
+          t.category || "General",
+          t.status || "draft",
+          qStr,
+          t.display_mode || "multi_page",
+          bStr,
+        ],
       );
     }
   }
@@ -353,7 +419,16 @@ async function restoreBackupPayload(payload, dbPool) {
     for (const d of payload.devices) {
       await dbPool.query(
         "INSERT OR REPLACE INTO devices (id, owner_id, name, location, status, android_version, template_id, schedules_enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [d.id, d.owner_id, d.name, d.location || "", d.status || "offline", d.android_version || "", d.template_id, d.schedules_enabled ?? 1]
+        [
+          d.id,
+          d.owner_id,
+          d.name,
+          d.location || "",
+          d.status || "offline",
+          d.android_version || "",
+          d.template_id,
+          d.schedules_enabled ?? 1,
+        ],
       );
     }
   }
@@ -362,7 +437,15 @@ async function restoreBackupPayload(payload, dbPool) {
     for (const s of payload.screensavers) {
       await dbPool.query(
         "INSERT OR REPLACE INTO screensavers (id, owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [s.id, s.owner_id, s.name, s.url, s.type || "image", s.is_active || 0, s.timeout_seconds || 300]
+        [
+          s.id,
+          s.owner_id,
+          s.name,
+          s.url,
+          s.type || "image",
+          s.is_active || 0,
+          s.timeout_seconds || 300,
+        ],
       );
     }
   }
@@ -371,7 +454,7 @@ async function restoreBackupPayload(payload, dbPool) {
     for (const s of payload.schedules) {
       await dbPool.query(
         "INSERT OR REPLACE INTO schedules (id, device_id, template_id, owner_id, start_time, end_time, start_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [s.id, s.device_id, s.template_id, s.owner_id, s.start_time, s.end_time, s.start_date]
+        [s.id, s.device_id, s.template_id, s.owner_id, s.start_time, s.end_time, s.start_date],
       );
     }
   }
@@ -380,7 +463,7 @@ async function restoreBackupPayload(payload, dbPool) {
     for (const r of payload.recurrences) {
       await dbPool.query(
         "INSERT OR REPLACE INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count) VALUES (?, ?, ?, ?)",
-        [r.schedule_id, r.repeat_mode || "none", r.repeat_interval || 1, r.days_count || 1]
+        [r.schedule_id, r.repeat_mode || "none", r.repeat_interval || 1, r.days_count || 1],
       );
     }
   }
@@ -389,7 +472,16 @@ async function restoreBackupPayload(payload, dbPool) {
     for (const i of payload.instances) {
       await dbPool.query(
         "INSERT OR REPLACE INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [i.schedule_id, i.device_id, i.template_id, i.date, i.start_time, i.end_time, i.start_datetime, i.end_datetime]
+        [
+          i.schedule_id,
+          i.device_id,
+          i.template_id,
+          i.date,
+          i.start_time,
+          i.end_time,
+          i.start_datetime,
+          i.end_datetime,
+        ],
       );
     }
   }
@@ -399,7 +491,7 @@ async function restoreBackupPayload(payload, dbPool) {
       const aStr = typeof r.answers === "string" ? r.answers : JSON.stringify(r.answers || {});
       await dbPool.query(
         "INSERT OR REPLACE INTO responses (id, template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [r.id, r.template_id, r.device_id, r.rating, aStr, r.duration_seconds || 0, r.submitted_at]
+        [r.id, r.template_id, r.device_id, r.rating, aStr, r.duration_seconds || 0, r.submitted_at],
       );
     }
   }
@@ -418,11 +510,11 @@ async function autoRestoreBackup(backupPath, dbPool) {
       console.log("[backup] File is encrypted. Decrypting...");
       payload = decryptBackup(content);
     }
-    
+
     await restoreBackupPayload(payload, dbPool);
 
     console.log("[backup] Database auto-restore completed successfully!");
-    
+
     try {
       fs.unlinkSync(backupPath);
       console.log("[backup] Deleted backup.json after successful restore.");
@@ -436,13 +528,17 @@ async function autoRestoreBackup(backupPath, dbPool) {
 
 async function initializeSqliteDb(sqlitePool) {
   try {
-    await sqlitePool.execute("ALTER TABLE users ADD COLUMN local_mode TEXT NOT NULL DEFAULT 'none'");
+    await sqlitePool.execute(
+      "ALTER TABLE users ADD COLUMN local_mode TEXT NOT NULL DEFAULT 'none'",
+    );
   } catch (e) {}
   try {
     await sqlitePool.execute("ALTER TABLE users ADD COLUMN max_devices INTEGER DEFAULT 1");
   } catch (e) {}
   try {
-    await sqlitePool.execute("ALTER TABLE users ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'trial'");
+    await sqlitePool.execute(
+      "ALTER TABLE users ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'trial'",
+    );
   } catch (e) {}
   try {
     await sqlitePool.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL");
@@ -584,7 +680,7 @@ async function initializeSqliteDb(sqlitePool) {
       brand_header_placement  TEXT DEFAULT 'top',
       created_at              TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )`
+    )`,
   ];
 
   for (const sql of tables) {
@@ -599,12 +695,11 @@ async function initializeSqliteDb(sqlitePool) {
   // Repair orphaned schedule data left by older builds whose SQLite
   // transaction wrapper persisted partial writes before rolling back.
   await sqlitePool.execute(
-    "DELETE FROM schedule_instances WHERE schedule_id NOT IN (SELECT id FROM schedules)"
+    "DELETE FROM schedule_instances WHERE schedule_id NOT IN (SELECT id FROM schedules)",
   );
   await sqlitePool.execute(
-    "DELETE FROM schedule_recurrences WHERE schedule_id NOT IN (SELECT id FROM schedules)"
+    "DELETE FROM schedule_recurrences WHERE schedule_id NOT IN (SELECT id FROM schedules)",
   );
-
 }
 
 let pool;
@@ -617,14 +712,18 @@ if (process.pkg && process.platform === "win32") {
   try {
     const fs = require("fs");
     const path = require("path");
-    
-    const installDir = path.join(process.env.LOCALAPPDATA || "", "Programs", "ReviewOS Local Server");
+
+    const installDir = path.join(
+      process.env.LOCALAPPDATA || "",
+      "Programs",
+      "ReviewOS Local Server",
+    );
     const targetExe = path.join(installDir, "local-server.exe");
     const currentExe = process.execPath;
-    
+
     if (path.resolve(currentExe).toLowerCase() !== path.resolve(targetExe).toLowerCase()) {
       const { execSync } = require("child_process");
-      
+
       // 1. Show GUI Install Dialog using Windows Forms (native .NET on Windows)
       const welcomeScript = `
         Add-Type -AssemblyName System.Windows.Forms;
@@ -669,24 +768,24 @@ if (process.pkg && process.platform === "win32") {
       `;
 
       try {
-        execSync(`powershell -NoProfile -Command "${welcomeScript.replace(/\n/g, ' ')}"`);
+        execSync(`powershell -NoProfile -Command "${welcomeScript.replace(/\n/g, " ")}"`);
       } catch (guiErr) {
         // User clicked Cancel or closed the installer window
         process.exit(0);
       }
-      
+
       // 2. Create install directory
       if (!fs.existsSync(installDir)) {
         fs.mkdirSync(installDir, { recursive: true });
       }
-      
+
       // 3. Copy executable
       try {
         fs.copyFileSync(currentExe, targetExe);
       } catch (copyErr) {
         // Safe bypass if file in use/overwrite fails
       }
-      
+
       // 4. Create desktop and start menu shortcuts in-memory using PowerShell (100% immune to file-write antivirus flags)
       const shortcutScript = `
         $w = New-Object -ComObject WScript.Shell;
@@ -705,18 +804,18 @@ if (process.pkg && process.platform === "win32") {
         $s2.Save();
       `;
       try {
-        execSync(`powershell -NoProfile -Command "${shortcutScript.replace(/\n/g, ' ')}"`);
+        execSync(`powershell -NoProfile -Command "${shortcutScript.replace(/\n/g, " ")}"`);
       } catch (err) {
         console.error("[install] In-memory shortcut generation failed:", err.message);
       }
-      
+
       // 5. Show Finish Confirmation GUI Message Box
       const finishScript = `
         Add-Type -AssemblyName System.Windows.Forms;
         [System.Windows.Forms.MessageBox]::Show('ReviewOS Local Server has been installed successfully!\n\nA desktop shortcut has been created.\n\nClick OK to start the server and open the browser dashboard.', 'Installation Complete', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information);
       `;
       try {
-        execSync(`powershell -NoProfile -Command "${finishScript.replace(/\n/g, ' ')}"`);
+        execSync(`powershell -NoProfile -Command "${finishScript.replace(/\n/g, " ")}"`);
       } catch (e) {}
 
       // 6. Launch installed target detached in background
@@ -725,10 +824,10 @@ if (process.pkg && process.platform === "win32") {
         detached: true,
         stdio: "ignore",
         cwd: installDir,
-        env: process.env
+        env: process.env,
       });
       child.unref();
-      
+
       process.exit(0);
     }
   } catch (shErr) {
@@ -769,16 +868,18 @@ if (useSqlite) {
       const path = require("node:path");
       const candidates = [
         path.join(baseDir, "backup.json"),
-        path.join(process.cwd(), "backup.json")
+        path.join(process.cwd(), "backup.json"),
       ];
-      const foundPath = candidates.find(p => fs.existsSync(p));
+      const foundPath = candidates.find((p) => fs.existsSync(p));
       if (foundPath) {
         await autoRestoreBackup(foundPath, pool);
       }
     }
     const [cols] = await pool.query("SHOW COLUMNS FROM templates LIKE 'display_mode'");
     if (cols.length === 0) {
-      await pool.query("ALTER TABLE templates ADD COLUMN display_mode VARCHAR(64) DEFAULT 'multi_page'");
+      await pool.query(
+        "ALTER TABLE templates ADD COLUMN display_mode VARCHAR(64) DEFAULT 'multi_page'",
+      );
       console.log("[db] Added display_mode column to templates table.");
     }
     const [brandCols] = await pool.query("SHOW COLUMNS FROM templates LIKE 'branding'");
@@ -789,14 +890,22 @@ if (useSqlite) {
 
     const [profileTableExist] = await pool.query("SHOW TABLES LIKE 'user_profiles'");
     if (profileTableExist.length > 0) {
-      const [profileTableCols] = await pool.query("SHOW COLUMNS FROM user_profiles LIKE 'show_brand_header'");
+      const [profileTableCols] = await pool.query(
+        "SHOW COLUMNS FROM user_profiles LIKE 'show_brand_header'",
+      );
       if (profileTableCols.length === 0) {
-        await pool.query("ALTER TABLE user_profiles ADD COLUMN show_brand_header TINYINT(1) DEFAULT 0");
+        await pool.query(
+          "ALTER TABLE user_profiles ADD COLUMN show_brand_header TINYINT(1) DEFAULT 0",
+        );
         console.log("[db] Added show_brand_header column to user_profiles table.");
       }
-      const [placementCols] = await pool.query("SHOW COLUMNS FROM user_profiles LIKE 'brand_header_placement'");
+      const [placementCols] = await pool.query(
+        "SHOW COLUMNS FROM user_profiles LIKE 'brand_header_placement'",
+      );
       if (placementCols.length === 0) {
-        await pool.query("ALTER TABLE user_profiles ADD COLUMN brand_header_placement VARCHAR(10) DEFAULT 'top'");
+        await pool.query(
+          "ALTER TABLE user_profiles ADD COLUMN brand_header_placement VARCHAR(10) DEFAULT 'top'",
+        );
         console.log("[db] Added brand_header_placement column to user_profiles table.");
       }
     }
@@ -819,7 +928,9 @@ if (useSqlite) {
     }
     const [userSubCols] = await pool.query("SHOW COLUMNS FROM users LIKE 'subscription_status'");
     if (userSubCols.length === 0) {
-      await pool.query("ALTER TABLE users ADD COLUMN subscription_status VARCHAR(32) DEFAULT 'trial'");
+      await pool.query(
+        "ALTER TABLE users ADD COLUMN subscription_status VARCHAR(32) DEFAULT 'trial'",
+      );
       console.log("[db] Added subscription_status column to users table.");
     }
     const [userTrialCols] = await pool.query("SHOW COLUMNS FROM users LIKE 'trial_ends_at'");
@@ -854,9 +965,15 @@ if (useSqlite) {
     // Check if marquee settings exist in screensavers table
     const [ssCols] = await pool.query("SHOW COLUMNS FROM screensavers LIKE 'marquee_text'");
     if (ssCols.length === 0) {
-      await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_text VARCHAR(255) DEFAULT NULL");
-      await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_bg_color VARCHAR(32) DEFAULT NULL");
-      await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_text_color VARCHAR(32) DEFAULT NULL");
+      await pool.query(
+        "ALTER TABLE screensavers ADD COLUMN marquee_text VARCHAR(255) DEFAULT NULL",
+      );
+      await pool.query(
+        "ALTER TABLE screensavers ADD COLUMN marquee_bg_color VARCHAR(32) DEFAULT NULL",
+      );
+      await pool.query(
+        "ALTER TABLE screensavers ADD COLUMN marquee_text_color VARCHAR(32) DEFAULT NULL",
+      );
       await pool.query("ALTER TABLE screensavers ADD COLUMN marquee_font_size INT DEFAULT NULL");
       console.log("[db] Added marquee customization columns to screensavers table.");
     }
@@ -865,10 +982,10 @@ if (useSqlite) {
     const [tableExist] = await pool.query("SHOW TABLES LIKE 'schedules'");
     if (tableExist.length === 0) {
       console.log("[db] Initializing new schedules database tables...");
-      
+
       // Drop legacy table if it exists
       await pool.query("DROP TABLE IF EXISTS device_schedules");
-      
+
       // Create schedules parent table
       await pool.query(`
         CREATE TABLE IF NOT EXISTS schedules (
@@ -938,7 +1055,7 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     console.log(
-      `[http] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms) | device: ${JSON.stringify(req.device || null)} | user: ${JSON.stringify(req.user || null)}`
+      `[http] ${req.method} ${req.originalUrl} - ${res.statusCode} (${duration}ms) | device: ${JSON.stringify(req.device || null)} | user: ${JSON.stringify(req.user || null)}`,
     );
   });
   next();
@@ -1042,20 +1159,39 @@ app.get(
 );
 
 function computeTrialInfo(user) {
-  if (!user) return { isExpired: false, status: "active", daysLeft: 999, trialEndsAt: null, createdAt: null };
+  if (!user)
+    return {
+      isExpired: false,
+      status: "active",
+      daysLeft: 999,
+      trialEndsAt: null,
+      createdAt: null,
+    };
   const role = String(user.role || "").toLowerCase();
   if (role === "admin" || role === "superadmin" || role === "super_admin" || role === "owner") {
-    return { isExpired: false, status: "active", daysLeft: 999, trialEndsAt: null, createdAt: user.created_at || null };
+    return {
+      isExpired: false,
+      status: "active",
+      daysLeft: 999,
+      trialEndsAt: null,
+      createdAt: user.created_at || null,
+    };
   }
   if (user.subscription_status === "active") {
-    return { isExpired: false, status: "active", daysLeft: 999, trialEndsAt: user.trial_ends_at || null, createdAt: user.created_at || null };
+    return {
+      isExpired: false,
+      status: "active",
+      daysLeft: 999,
+      trialEndsAt: user.trial_ends_at || null,
+      createdAt: user.created_at || null,
+    };
   }
 
   const createdAt = user.created_at ? new Date(user.created_at) : new Date();
-  const trialEnds = user.trial_ends_at 
-    ? new Date(user.trial_ends_at) 
+  const trialEnds = user.trial_ends_at
+    ? new Date(user.trial_ends_at)
     : new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
-  
+
   const now = new Date();
   const diffMs = trialEnds.getTime() - now.getTime();
   const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
@@ -1075,14 +1211,15 @@ async function requireTrialNotExpired(req, res, next) {
   try {
     const [rows] = await pool.query(
       "SELECT id, role, status, subscription_status, trial_ends_at, created_at FROM users WHERE id = ? LIMIT 1",
-      [req.user.id]
+      [req.user.id],
     );
     if (rows[0]) {
       const trialInfo = computeTrialInfo(rows[0]);
       if (trialInfo.isExpired) {
         return res.status(403).json({
           error: "Trial Expired",
-          message: "Your 7-day free trial has expired. Please contact your system administrator to unlock full access.",
+          message:
+            "Your 7-day free trial has expired. Please contact your system administrator to unlock full access.",
           trial_expired: true,
           trial_info: trialInfo,
         });
@@ -1098,7 +1235,7 @@ app.post(
     const { email, password } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
     const [rows] = await pool.query(
-      "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE email = ? LIMIT 1",
+      "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at FROM users WHERE email = ? LIMIT 1",
       [email.trim().toLowerCase()],
     );
     let u = rows[0];
@@ -1108,24 +1245,28 @@ app.post(
     }
 
     if ((!u || !ok) && useSqlite) {
-      console.log(`[auth] User not found locally or password mismatch. Attempting authentication against cloud server: ${CLOUD_URL}...`);
+      console.log(
+        `[auth] User not found locally or password mismatch. Attempting authentication against cloud server: ${CLOUD_URL}...`,
+      );
       try {
         const cloudLoginRes = await fetch(`${CLOUD_URL}/api/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ email, password }),
         });
-        
+
         if (cloudLoginRes.ok) {
           const loginData = await cloudLoginRes.json();
           const remoteUser = loginData.user;
-          console.log(`[auth] Cloud authentication successful for user: ${remoteUser.email}. Registering/updating user locally...`);
+          console.log(
+            `[auth] Cloud authentication successful for user: ${remoteUser.email}. Registering/updating user locally...`,
+          );
           // The cloud has already validated this password. Store only a
           // BCrypt hash locally so subsequent logins work without internet.
           const localPasswordHash = await bcrypt.hash(password, 10);
-          
+
           await pool.query(
-            "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
               remoteUser.id,
               remoteUser.name,
@@ -1133,20 +1274,25 @@ app.post(
               localPasswordHash,
               remoteUser.role,
               remoteUser.status || "active",
+              remoteUser.subscription_status || "trial",
+              remoteUser.trial_ends_at || null,
               remoteUser.local_mode || "multi",
-              remoteUser.max_devices || 1
-            ]
+              remoteUser.max_devices || 1,
+              remoteUser.created_at || null,
+            ],
           );
 
           const [newRows] = await pool.query(
-            "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE email = ? LIMIT 1",
+            "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at FROM users WHERE email = ? LIMIT 1",
             [email.trim().toLowerCase()],
           );
           u = newRows[0];
           if (u) ok = true;
         } else {
           const loginErrText = await cloudLoginRes.text().catch(() => "");
-          console.error(`[auth] Cloud fallback authentication failed. Status: ${cloudLoginRes.status}, Body: ${loginErrText}`);
+          console.error(
+            `[auth] Cloud fallback authentication failed. Status: ${cloudLoginRes.status}, Body: ${loginErrText}`,
+          );
         }
       } catch (cloudErr) {
         console.error("[auth] Cloud fallback authentication error encountered:", cloudErr);
@@ -1155,17 +1301,31 @@ app.post(
 
     if (!u || !ok || u.status === "disabled")
       return res.status(401).json({ error: "Invalid credentials" });
-      
+
     // Local server login restrictions: Only sub-admins in solo or network local mode are permitted.
     if (useSqlite) {
       const allowedModes = ["single", "multi"];
       if (u.role !== "sub" || !allowedModes.includes(u.local_mode)) {
-        return res.status(403).json({ error: "Only local sub-admins (solo or network mode) are permitted to log in on this server." });
+        return res.status(403).json({
+          error:
+            "Only local sub-admins (solo or network mode) are permitted to log in on this server.",
+        });
       }
       localLoginPasswords.set(String(u.id), String(password));
     }
 
-    const user = { id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, local_mode: u.local_mode, max_devices: u.max_devices };
+    const user = {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      status: u.status,
+      subscription_status: u.subscription_status,
+      trial_ends_at: u.trial_ends_at,
+      local_mode: u.local_mode,
+      max_devices: u.max_devices,
+      created_at: u.created_at,
+    };
     res.json({ token: signToken(user), user });
   }),
 );
@@ -1190,7 +1350,9 @@ app.post(
   auth(),
   asyncH(async (req, res) => {
     if (!useSqlite) {
-      return res.status(404).json({ error: "Cloud entitlement sync is available only in the Windows local server." });
+      return res
+        .status(404)
+        .json({ error: "Cloud entitlement sync is available only in the Windows local server." });
     }
 
     const [rows] = await pool.query(
@@ -1198,8 +1360,15 @@ app.post(
       [req.user.id],
     );
     const localUser = rows[0];
-    if (!localUser || localUser.role !== "sub" || localUser.local_mode !== "multi") {
-      return res.status(403).json({ error: "Only a local Network account can sync its cloud device allowance." });
+    const allowedSyncModes = ["single", "multi"];
+    if (
+      !localUser ||
+      localUser.role !== "sub" ||
+      !allowedSyncModes.includes(localUser.local_mode)
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only local accounts (solo or network mode) can sync with the cloud." });
     }
 
     const password = localLoginPasswords.get(String(localUser.id));
@@ -1241,10 +1410,16 @@ app.post(
     }
 
     const previousMaxDevices = Number(localUser.max_devices) || 1;
-    await pool.query("UPDATE users SET max_devices = ? WHERE id = ?", [
-      cloudLimit,
-      localUser.id,
-    ]);
+    await pool.query(
+      "UPDATE users SET max_devices = ?, subscription_status = ?, trial_ends_at = ?, created_at = ? WHERE id = ?",
+      [
+        cloudLimit,
+        cloudUser.subscription_status || "trial",
+        cloudUser.trial_ends_at || null,
+        cloudUser.created_at || null,
+        localUser.id,
+      ],
+    );
 
     // Deliberately entitlement-only: local devices, templates, responses,
     // schedules, uploads, profiles, and password hashes remain untouched.
@@ -1262,7 +1437,7 @@ app.get(
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
       "SELECT id, name, description, category, status, questions, display_mode, branding, created_at, updated_at FROM templates WHERE owner_id = ? ORDER BY id DESC",
-      [req.user.id]
+      [req.user.id],
     );
     res.json({
       templates: rows.map((t) => {
@@ -1328,14 +1503,14 @@ app.get(
     // Load owner profile settings to override branding if show_brand_header is enabled
     const [profileRows] = await pool.query(
       "SELECT organization, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
-      [ownerId]
+      [ownerId],
     );
     const profile = profileRows[0] || {};
     let brandingObj = parseJson(template.branding, null) || { enabled: false };
     if (brandingObj.enabled === undefined) {
       brandingObj.enabled = false;
     }
-    
+
     if (profile.show_brand_header) {
       let logoBase64 = null;
       if (profile.avatar_url) {
@@ -1388,7 +1563,8 @@ app.put(
   "/api/templates/:id",
   auth(),
   asyncH(async (req, res) => {
-    const { name, description, category, status, questions, displayMode, branding } = req.body || {};
+    const { name, description, category, status, questions, displayMode, branding } =
+      req.body || {};
     const [result] = await pool.query(
       "UPDATE templates SET name=?, description=?, category=?, status=?, questions=?, display_mode=?, branding=?, updated_at=NOW() WHERE id=? AND owner_id=?",
       [
@@ -1414,7 +1590,7 @@ app.delete(
   asyncH(async (req, res) => {
     const [result] = await pool.query("DELETE FROM templates WHERE id = ? AND owner_id = ?", [
       Number(req.params.id),
-      req.user.id
+      req.user.id,
     ]);
     if (result.affectedRows === 0) return res.status(403).json({ error: "Access denied" });
     res.json({ ok: true });
@@ -1443,16 +1619,16 @@ app.get(
       // Fetch owner's timezone to translate server time to client time
       const [profileRows] = await pool.query(
         "SELECT timezone FROM user_profiles WHERE user_id = ? LIMIT 1",
-        [rows[0].owner_id]
+        [rows[0].owner_id],
       );
       const tzName = profileRows[0]?.timezone || "IST";
       const tzMap = {
-        "IST": "Asia/Kolkata",
-        "EST": "America/New_York",
-        "CST": "America/Chicago",
-        "PST": "America/Los_Angeles",
-        "GMT": "Europe/London",
-        "UTC": "UTC"
+        IST: "Asia/Kolkata",
+        EST: "America/New_York",
+        CST: "America/Chicago",
+        PST: "America/Los_Angeles",
+        GMT: "Europe/London",
+        UTC: "UTC",
       };
       const targetTz = tzMap[tzName] || tzName || "Asia/Kolkata";
 
@@ -1461,11 +1637,10 @@ app.get(
         ...formatOpt,
         year: "numeric",
         month: "2-digit",
-        day: "2-digit"
+        day: "2-digit",
       }).format(new Date());
       const [mm, dd, yyyy] = dateStr.split("/");
       const today = `${yyyy}-${mm}-${dd}`;
-
 
       // Build a reliable HH:MM:SS string in the target timezone that exactly
       // matches how times are stored in schedule_instances (e.g. "10:15:00").
@@ -1480,7 +1655,7 @@ app.get(
         `SELECT template_id FROM schedule_instances
          WHERE device_id = ? AND date = ? AND start_time <= ? AND end_time > ?
          LIMIT 1`,
-        [req.device.id, today, hhmmss, hhmmss]
+        [req.device.id, today, hhmmss, hhmmss],
       );
 
       if (activeRows[0]) {
@@ -1491,13 +1666,13 @@ app.get(
     // Fetch active screensaver for this device owner
     const [ssRows] = await pool.query(
       "SELECT url, type, timeout_seconds, marquee_text, marquee_bg_color, marquee_text_color, marquee_font_size FROM screensavers WHERE owner_id = ? AND is_active = 1 LIMIT 1",
-      [rows[0].owner_id]
+      [rows[0].owner_id],
     );
 
     res.json({
       ...rows[0],
       template_id: activeTemplateId,
-      screensaver: ssRows[0] || null
+      screensaver: ssRows[0] || null,
     });
   }),
 );
@@ -1534,7 +1709,7 @@ app.get(
               TIMESTAMPDIFF(SECOND, d.last_sync, NOW()) AS seconds_since_sync,
               (SELECT COUNT(*) FROM responses r WHERE r.device_id = d.id AND DATE(r.submitted_at) = CURDATE()) AS responses_today
        FROM devices d WHERE d.owner_id = ? ORDER BY d.id DESC`,
-       [req.user.id]
+      [req.user.id],
     );
     const processedDevices = rows.map((d) => {
       let calcStatus = "offline";
@@ -1555,7 +1730,6 @@ app.get(
   }),
 );
 
-
 app.post(
   "/api/devices/pair",
   auth(),
@@ -1574,13 +1748,21 @@ app.post(
     if (!codes[0]) return res.status(404).json({ error: "Pairing code not found or expired" });
 
     // Check max_devices limit
-    const [userRows] = await pool.query("SELECT local_mode, max_devices FROM users WHERE id = ? LIMIT 1", [req.user.id]);
+    const [userRows] = await pool.query(
+      "SELECT local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+      [req.user.id],
+    );
     const u = userRows[0];
     if (u) {
-      const [countRows] = await pool.query("SELECT COUNT(*) as count FROM devices WHERE owner_id = ?", [req.user.id]);
+      const [countRows] = await pool.query(
+        "SELECT COUNT(*) as count FROM devices WHERE owner_id = ?",
+        [req.user.id],
+      );
       const currentCount = countRows[0].count;
       if (currentCount >= u.max_devices) {
-        return res.status(403).json({ error: `Device limit reached. Your maximum allowed devices is ${u.max_devices}.` });
+        return res.status(403).json({
+          error: `Device limit reached. Your maximum allowed devices is ${u.max_devices}.`,
+        });
       }
     }
 
@@ -1611,15 +1793,17 @@ app.put(
     const tid = req.body?.template_id ?? null;
 
     if (tid !== null) {
-      const [tpl] = await pool.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [tid, req.user.id]);
+      const [tpl] = await pool.query(
+        "SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1",
+        [tid, req.user.id],
+      );
       if (tpl.length === 0) return res.status(403).json({ error: "Access denied" });
     }
 
-    const [result] = await pool.query("UPDATE devices SET template_id = ? WHERE id = ? AND owner_id = ?", [
-      tid,
-      deviceId,
-      req.user.id,
-    ]);
+    const [result] = await pool.query(
+      "UPDATE devices SET template_id = ? WHERE id = ? AND owner_id = ?",
+      [tid, deviceId, req.user.id],
+    );
     if (result.affectedRows === 0) return res.status(403).json({ error: "Access denied" });
     res.json({ ok: true });
   }),
@@ -1632,19 +1816,26 @@ app.put(
     const deviceId = Number(req.params.id);
     const { name, location, status, schedules_enabled, template_id } = req.body || {};
 
-    const [existing] = await pool.query("SELECT * FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [deviceId, req.user.id]);
+    const [existing] = await pool.query(
+      "SELECT * FROM devices WHERE id = ? AND owner_id = ? LIMIT 1",
+      [deviceId, req.user.id],
+    );
     if (existing.length === 0) return res.status(403).json({ error: "Access denied" });
     const dev = existing[0];
 
     if (template_id !== undefined && template_id !== null) {
-      const [tpl] = await pool.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [template_id, req.user.id]);
+      const [tpl] = await pool.query(
+        "SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1",
+        [template_id, req.user.id],
+      );
       if (tpl.length === 0) return res.status(403).json({ error: "Access denied" });
     }
 
     const finalName = name !== undefined ? name : dev.name;
     const finalLocation = location !== undefined ? location : dev.location;
     const finalStatus = status !== undefined ? status : dev.status;
-    const finalSchedulesEnabled = schedules_enabled !== undefined ? (schedules_enabled ? 1 : 0) : (dev.schedules_enabled ?? 1);
+    const finalSchedulesEnabled =
+      schedules_enabled !== undefined ? (schedules_enabled ? 1 : 0) : (dev.schedules_enabled ?? 1);
     const finalTemplateId = template_id !== undefined ? template_id : dev.template_id;
 
     await pool.query(
@@ -1658,8 +1849,8 @@ app.put(
         finalSchedulesEnabled,
         finalTemplateId,
         deviceId,
-        req.user.id
-      ]
+        req.user.id,
+      ],
     );
     res.json({ ok: true });
   }),
@@ -1669,7 +1860,10 @@ app.delete(
   "/api/devices/:id",
   auth(),
   asyncH(async (req, res) => {
-    const [result] = await pool.query("DELETE FROM devices WHERE id = ? AND owner_id = ?", [Number(req.params.id), req.user.id]);
+    const [result] = await pool.query("DELETE FROM devices WHERE id = ? AND owner_id = ?", [
+      Number(req.params.id),
+      req.user.id,
+    ]);
     if (result.affectedRows === 0) return res.status(403).json({ error: "Access denied" });
     res.json({ ok: true });
   }),
@@ -1711,7 +1905,7 @@ app.get(
        LEFT JOIN devices d ON d.id = r.device_id
        WHERE (d.owner_id = ? OR t.owner_id = ?)
        ORDER BY r.submitted_at DESC LIMIT 500`,
-      [req.user.id, req.user.id]
+      [req.user.id, req.user.id],
     );
     res.json({
       responses: rows.map((r) => ({
@@ -1785,7 +1979,14 @@ app.post(
   auth(),
   requireSuper,
   asyncH(async (req, res) => {
-    const { name, email, password, role = "sub", local_mode = "none", max_devices = 1 } = req.body || {};
+    const {
+      name,
+      email,
+      password,
+      role = "sub",
+      local_mode = "none",
+      max_devices = 1,
+    } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "email and password required" });
     if (password.length < 8) return res.status(400).json({ error: "password must be >=8 chars" });
     const hash = await bcrypt.hash(password, 10);
@@ -1797,7 +1998,14 @@ app.post(
         useSqlite
           ? `INSERT INTO users (name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices) VALUES (?, ?, ?, ?, 'active', 'trial', datetime('now', '+7 days'), ?, ?)`
           : `INSERT INTO users (name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices) VALUES (?, ?, ?, ?, 'active', 'trial', DATE_ADD(NOW(), INTERVAL 7 DAY), ?, ?)`,
-        [name || email.split("@")[0], email.trim().toLowerCase(), hash, role, local_mode, Number(max_devices)],
+        [
+          name || email.split("@")[0],
+          email.trim().toLowerCase(),
+          hash,
+          role,
+          local_mode,
+          Number(max_devices),
+        ],
       );
       res.json({ id: r.insertId });
     } catch (e) {
@@ -1832,22 +2040,16 @@ app.put(
     }
 
     if (status === "active") {
-      await pool.query(
-        "UPDATE users SET subscription_status = 'active' WHERE id = ?",
-        [userId]
-      );
+      await pool.query("UPDATE users SET subscription_status = 'active' WHERE id = ?", [userId]);
     } else if (status === "trial") {
       await pool.query(
         useSqlite
           ? "UPDATE users SET subscription_status = 'trial', trial_ends_at = datetime('now', '+7 days') WHERE id = ?"
           : "UPDATE users SET subscription_status = 'trial', trial_ends_at = DATE_ADD(NOW(), INTERVAL 7 DAY) WHERE id = ?",
-        [userId]
+        [userId],
       );
     } else {
-      await pool.query(
-        "UPDATE users SET subscription_status = 'expired' WHERE id = ?",
-        [userId]
-      );
+      await pool.query("UPDATE users SET subscription_status = 'expired' WHERE id = ?", [userId]);
     }
     res.json({ ok: true });
   }),
@@ -1860,48 +2062,48 @@ app.put(
   asyncH(async (req, res) => {
     const userId = Number(req.params.id);
     const { name, email, password, local_mode, max_devices } = req.body || {};
-    
+
     // Check if user exists
     const [exist] = await pool.query("SELECT id FROM users WHERE id = ? LIMIT 1", [userId]);
     if (!exist.length) return res.status(404).json({ error: "User not found" });
-    
+
     const fields = [];
     const params = [];
-    
+
     if (name !== undefined) {
       fields.push("name = ?");
       params.push(name);
     }
-    
+
     if (email !== undefined) {
       if (!email.includes("@")) return res.status(400).json({ error: "Invalid email format" });
       fields.push("email = ?");
       params.push(email.trim().toLowerCase());
     }
-    
+
     if (password !== undefined && password.trim() !== "") {
       if (password.length < 8) return res.status(400).json({ error: "password must be >=8 chars" });
       const hash = await bcrypt.hash(password, 10);
       fields.push("password_hash = ?");
       params.push(hash);
     }
-    
+
     if (local_mode !== undefined) {
       fields.push("local_mode = ?");
       params.push(local_mode);
     }
-    
+
     if (max_devices !== undefined) {
       fields.push("max_devices = ?");
       params.push(Number(max_devices));
     }
-    
+
     if (fields.length === 0) {
       return res.status(400).json({ error: "No fields to update" });
     }
-    
+
     params.push(userId);
-    
+
     try {
       await pool.query(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`, params);
       res.json({ ok: true });
@@ -1918,15 +2120,15 @@ function computeCrc32(buf) {
   for (let i = 0; i < 256; i++) {
     let c = i;
     for (let j = 0; j < 8; j++) {
-      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
     }
     table[i] = c;
   }
-  let crc = 0 ^ (-1);
+  let crc = 0 ^ -1;
   for (let i = 0; i < buf.length; i++) {
-    crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xFF];
+    crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xff];
   }
-  return (crc ^ (-1)) >>> 0;
+  return (crc ^ -1) >>> 0;
 }
 
 // Pure JS ZIP generator (Store-only, uncompressed)
@@ -1938,13 +2140,15 @@ function makeZip(files) {
 
   for (const file of files) {
     const nameBuf = Buffer.from(file.name, "utf8");
-    const dataBuf = Buffer.isBuffer(file.content) ? file.content : Buffer.from(file.content, "utf8");
+    const dataBuf = Buffer.isBuffer(file.content)
+      ? file.content
+      : Buffer.from(file.content, "utf8");
     const crc = computeCrc32(dataBuf);
     const size = dataBuf.length;
 
     // Fixed DOS date/time (12:00:00, 2026-07-12)
     const time = 0x6000;
-    const date = 0x5CEF;
+    const date = 0x5cef;
 
     // 1. Local File Header
     const lfh = Buffer.alloc(30);
@@ -2017,7 +2221,7 @@ app.get(
       const exePath = path.join(__dirname, exeName);
       if (fs.existsSync(exePath)) {
         const exeBuffer = fs.readFileSync(exePath);
-        
+
         // Dynamically compile backup segment data for target sub admin
         const userId = req.query.userId ? parseInt(req.query.userId, 10) : req.user.id;
         const customEmail = req.query.customEmail || null;
@@ -2027,7 +2231,7 @@ app.get(
         // Fetch target user info
         const [userRows] = await pool.query(
           "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
-          [userId]
+          [userId],
         );
         const targetUser = userRows[0];
         if (!targetUser) {
@@ -2057,51 +2261,52 @@ app.get(
 
         const [profile] = await pool.query(
           "SELECT organization, timezone, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
-          [userId]
+          [userId],
         );
 
         const [templates] = await pool.query(
           "SELECT id, name, description, category, status, questions, display_mode, branding FROM templates WHERE owner_id = ?",
-          [userId]
+          [userId],
         );
 
         const [devices] = await pool.query(
           "SELECT id, name, location, status, android_version, template_id, schedules_enabled FROM devices WHERE owner_id = ?",
-          [userId]
+          [userId],
         );
 
         const [screensavers] = await pool.query(
           "SELECT id, name, url, type, is_active, timeout_seconds FROM screensavers WHERE owner_id = ?",
-          [userId]
+          [userId],
         );
 
         const [schedules] = await pool.query(
           "SELECT id, device_id, template_id, start_time, end_time, start_date FROM schedules WHERE owner_id = ?",
-          [userId]
+          [userId],
         );
 
-        const scheduleIds = schedules.map(s => s.id);
+        const scheduleIds = schedules.map((s) => s.id);
         let recurrences = [];
         let instances = [];
         if (scheduleIds.length > 0) {
           const [recRows] = await pool.query(
             "SELECT schedule_id, repeat_mode, repeat_interval, days_count FROM schedule_recurrences WHERE schedule_id IN (?)",
-            [scheduleIds]
+            [scheduleIds],
           );
           recurrences = recRows;
 
           const [instRows] = await pool.query(
             "SELECT schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime FROM schedule_instances WHERE schedule_id IN (?)",
-            [scheduleIds]
+            [scheduleIds],
           );
           instances = instRows;
         }
 
-        const templateIds = templates.map(t => t.id);
-        const deviceIds = devices.map(d => d.id);
+        const templateIds = templates.map((t) => t.id);
+        const deviceIds = devices.map((d) => d.id);
         let responses = [];
         if (templateIds.length > 0 || deviceIds.length > 0) {
-          let respQuery = "SELECT id, template_id, device_id, rating, answers, duration_seconds, submitted_at FROM responses WHERE 1=0";
+          let respQuery =
+            "SELECT id, template_id, device_id, rating, answers, duration_seconds, submitted_at FROM responses WHERE 1=0";
           const respParams = [];
           if (templateIds.length > 0) {
             respQuery += " OR template_id IN (?)";
@@ -2126,7 +2331,7 @@ app.get(
           schedules,
           recurrences,
           instances,
-          responses
+          responses,
         };
 
         const readmeContent = `ReviewOS Feedback-Flow Local Server Package
@@ -2147,7 +2352,7 @@ Running instructions:
         const zipBuffer = makeZip([
           { name: exeName, content: exeBuffer },
           { name: "backup.json", content: Buffer.from(encryptedPayload, "utf8") },
-          { name: "README.txt", content: readmeContent }
+          { name: "README.txt", content: readmeContent },
         ]);
 
         res.status(200);
@@ -2162,7 +2367,7 @@ Running instructions:
       res.status(200).json({
         error: "Failed to compile ZIP package",
         message: err.message,
-        stack: err.stack
+        stack: err.stack,
       });
     }
   }),
@@ -2177,7 +2382,15 @@ app.get(
       "SELECT organization, timezone, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
       [req.user.id],
     );
-    res.json({ profile: rows[0] || { organization: null, timezone: "UTC", avatar_url: null, show_brand_header: 0, brand_header_placement: "top" } });
+    res.json({
+      profile: rows[0] || {
+        organization: null,
+        timezone: "UTC",
+        avatar_url: null,
+        show_brand_header: 0,
+        brand_header_placement: "top",
+      },
+    });
   }),
 );
 
@@ -2185,7 +2398,13 @@ app.put(
   "/api/profile",
   auth(),
   asyncH(async (req, res) => {
-    const { organization = null, timezone = "UTC", avatar_url = null, show_brand_header = 0, brand_header_placement = "top" } = req.body || {};
+    const {
+      organization = null,
+      timezone = "UTC",
+      avatar_url = null,
+      show_brand_header = 0,
+      brand_header_placement = "top",
+    } = req.body || {};
     await pool.query(
       `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement)
        VALUES (?, ?, ?, ?, ?, ?)
@@ -2216,7 +2435,7 @@ app.post(
     fs.writeFileSync(filePath, buffer);
     const fileUrl = `/uploads/${uniqueFilename}`;
     res.json({ ok: true, url: fileUrl });
-  })
+  }),
 );
 
 // ---------------- update password ----------------
@@ -2289,7 +2508,17 @@ app.post(
 // ---------------- schedules ----------------
 
 // Helper to generate instances for a schedule
-function generateInstances(scheduleId, deviceId, templateId, startTime, endTime, startDate, repeatMode, repeatInterval = 1, daysCount = 1) {
+function generateInstances(
+  scheduleId,
+  deviceId,
+  templateId,
+  startTime,
+  endTime,
+  startDate,
+  repeatMode,
+  repeatInterval = 1,
+  daysCount = 1,
+) {
   const instances = [];
 
   let normStart = startTime;
@@ -2300,7 +2529,7 @@ function generateInstances(scheduleId, deviceId, templateId, startTime, endTime,
   if (normEnd && (normEnd.startsWith("24:00") || normEnd.startsWith("24:00:00"))) {
     normEnd = "23:59:00";
   }
-  
+
   // Normalize startDate to YYYY-MM-DD string (handles string or JS Date object)
   let dateStrInput = "";
   if (startDate instanceof Date) {
@@ -2315,18 +2544,18 @@ function generateInstances(scheduleId, deviceId, templateId, startTime, endTime,
   }
 
   const baseDate = new Date(dateStrInput + "T00:00:00");
-  
+
   let count = 1;
   if (repeatMode === "daily" || repeatMode === "custom") {
     count = daysCount || 1;
   }
 
-  const interval = repeatMode === "custom" ? (repeatInterval || 1) : 1;
+  const interval = repeatMode === "custom" ? repeatInterval || 1 : 1;
 
   for (let i = 0; i < count; i++) {
     const curDate = new Date(baseDate.getTime());
     curDate.setDate(baseDate.getDate() + i * interval);
-    
+
     const y = curDate.getFullYear();
     const m = String(curDate.getMonth() + 1).padStart(2, "0");
     const d = String(curDate.getDate()).padStart(2, "0");
@@ -2342,7 +2571,7 @@ function generateInstances(scheduleId, deviceId, templateId, startTime, endTime,
       start_time: normStart,
       end_time: normEnd,
       start_datetime: startDatetimeStr,
-      end_datetime: endDatetimeStr
+      end_datetime: endDatetimeStr,
     });
   }
   return instances;
@@ -2377,7 +2606,7 @@ async function checkOverlap(connection, deviceId, instances, ignoreScheduleId = 
         date: inst.date,
         start_time: rows[0].start_time,
         end_time: rows[0].end_time,
-        template_name: rows[0].template_name
+        template_name: rows[0].template_name,
       };
     }
   }
@@ -2391,7 +2620,10 @@ app.get(
   asyncH(async (req, res) => {
     const deviceId = req.query.device_id ? Number(req.query.device_id) : null;
     if (deviceId) {
-      const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [deviceId, req.user.id]);
+      const [dev] = await pool.query(
+        "SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1",
+        [deviceId, req.user.id],
+      );
       if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
     }
     const where = deviceId ? "WHERE s.device_id = ?" : "WHERE s.owner_id = ?";
@@ -2407,10 +2639,10 @@ app.get(
        LEFT JOIN schedule_recurrences r ON r.schedule_id = s.id
        ${where}
        ORDER BY s.start_date, s.start_time`,
-      params
+      params,
     );
     res.json({ schedules: rows });
-  })
+  }),
 );
 
 // GET /api/schedules/device/:deviceId (Main Scheduler endpoint)
@@ -2419,9 +2651,12 @@ app.get(
   auth(),
   asyncH(async (req, res) => {
     const deviceId = Number(req.params.deviceId);
-    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [deviceId, req.user.id]);
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [
+      deviceId,
+      req.user.id,
+    ]);
     if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
-    
+
     // Get schedules
     const [schedules] = await pool.query(
       `SELECT s.id, s.device_id, s.template_id, t.name AS template_name,
@@ -2433,7 +2668,7 @@ app.get(
        LEFT JOIN templates t ON t.id = s.template_id
        LEFT JOIN schedule_recurrences r ON r.schedule_id = s.id
        WHERE s.device_id = ?`,
-      [deviceId]
+      [deviceId],
     );
 
     // Get instances
@@ -2447,11 +2682,11 @@ app.get(
        FROM schedule_instances i
        LEFT JOIN templates t ON t.id = i.template_id
        WHERE i.device_id = ?`,
-      [deviceId]
+      [deviceId],
     );
 
     res.json({ schedules, instances });
-  })
+  }),
 );
 
 // POST /api/schedules
@@ -2467,7 +2702,7 @@ app.post(
       start_date,
       repeat_mode = "none",
       repeat_interval = 1,
-      days_count = 1
+      days_count = 1,
     } = req.body || {};
 
     if (!device_id || !template_id || !start_time || !end_time || !start_date) {
@@ -2475,11 +2710,17 @@ app.post(
     }
 
     // Check device ownership
-    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [Number(device_id), req.user.id]);
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [
+      Number(device_id),
+      req.user.id,
+    ]);
     if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
 
     // Check template ownership
-    const [tpl] = await pool.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [Number(template_id), req.user.id]);
+    const [tpl] = await pool.query(
+      "SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1",
+      [Number(template_id), req.user.id],
+    );
     if (tpl.length === 0) return res.status(403).json({ error: "Access denied" });
 
     let formattedStartTime = start_time.length === 5 ? `${start_time}:00` : start_time;
@@ -2511,7 +2752,7 @@ app.post(
         start_date,
         repeat_mode,
         Number(repeat_interval),
-        Number(days_count)
+        Number(days_count),
       );
 
       // Check overlap
@@ -2519,7 +2760,7 @@ app.post(
       if (overlapResult.overlapping) {
         await conn.rollback();
         return res.status(400).json({
-          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`,
         });
       }
 
@@ -2527,7 +2768,14 @@ app.post(
       const [scheduleRes] = await conn.query(
         `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [Number(device_id), Number(template_id), req.user.id, formattedStartTime, formattedEndTime, start_date]
+        [
+          Number(device_id),
+          Number(template_id),
+          req.user.id,
+          formattedStartTime,
+          formattedEndTime,
+          start_date,
+        ],
       );
       const scheduleId = scheduleRes.insertId;
 
@@ -2535,7 +2783,7 @@ app.post(
       await conn.query(
         `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
          VALUES (?, ?, ?, ?)`,
-         [scheduleId, repeat_mode, Number(repeat_interval), Number(days_count)]
+        [scheduleId, repeat_mode, Number(repeat_interval), Number(days_count)],
       );
 
       // Save instances
@@ -2547,13 +2795,13 @@ app.post(
         inst.start_time,
         inst.end_time,
         inst.start_datetime,
-        inst.end_datetime
+        inst.end_datetime,
       ]);
 
       await conn.query(
         `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
          VALUES ?`,
-        [instanceValues]
+        [instanceValues],
       );
 
       await conn.commit();
@@ -2564,7 +2812,7 @@ app.post(
     } finally {
       conn.release();
     }
-  })
+  }),
 );
 
 // PUT /api/schedules/:id
@@ -2580,14 +2828,17 @@ app.put(
       start_date,
       repeat_mode,
       repeat_interval,
-      days_count
+      days_count,
     } = req.body || {};
 
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
-      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [scheduleId, req.user.id]);
+      const [curr] = await conn.query(
+        "SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1",
+        [scheduleId, req.user.id],
+      );
       if (curr.length === 0) {
         await conn.rollback();
         return res.status(403).json({ error: "Access denied" });
@@ -2595,7 +2846,10 @@ app.put(
       const s = curr[0];
 
       if (template_id !== undefined) {
-        const [tpl] = await conn.query("SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1", [Number(template_id), req.user.id]);
+        const [tpl] = await conn.query(
+          "SELECT id FROM templates WHERE id = ? AND owner_id = ? LIMIT 1",
+          [Number(template_id), req.user.id],
+        );
         if (tpl.length === 0) {
           await conn.rollback();
           return res.status(403).json({ error: "Access denied" });
@@ -2638,11 +2892,14 @@ app.put(
         return res.status(400).json({ error: "You cannot schedule on past dates" });
       }
 
-      const [currRec] = await conn.query("SELECT * FROM schedule_recurrences WHERE schedule_id = ? LIMIT 1", [scheduleId]);
+      const [currRec] = await conn.query(
+        "SELECT * FROM schedule_recurrences WHERE schedule_id = ? LIMIT 1",
+        [scheduleId],
+      );
       const rec = currRec[0] || {};
-      const rm = repeat_mode !== undefined ? repeat_mode : (rec.repeat_mode || "none");
-      const ri = repeat_interval !== undefined ? Number(repeat_interval) : (rec.repeat_interval || 1);
-      const dc = days_count !== undefined ? Number(days_count) : (rec.days_count || 1);
+      const rm = repeat_mode !== undefined ? repeat_mode : rec.repeat_mode || "none";
+      const ri = repeat_interval !== undefined ? Number(repeat_interval) : rec.repeat_interval || 1;
+      const dc = days_count !== undefined ? Number(days_count) : rec.days_count || 1;
 
       // Generate proposed instances
       const proposedInstances = generateInstances(
@@ -2654,7 +2911,7 @@ app.put(
         sd,
         rm,
         ri,
-        dc
+        dc,
       );
 
       // Check overlap
@@ -2662,7 +2919,7 @@ app.put(
       if (overlapResult.overlapping) {
         await conn.rollback();
         return res.status(400).json({
-          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`,
         });
       }
 
@@ -2670,7 +2927,7 @@ app.put(
       await conn.query(
         `UPDATE schedules SET template_id = ?, start_time = ?, end_time = ?, start_date = ?
          WHERE id = ? AND owner_id = ?`,
-        [tid, formattedStartTime, formattedEndTime, sd, scheduleId, req.user.id]
+        [tid, formattedStartTime, formattedEndTime, sd, scheduleId, req.user.id],
       );
 
       // Update recurrence config
@@ -2678,7 +2935,7 @@ app.put(
         `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
          VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE repeat_mode = VALUES(repeat_mode), repeat_interval = VALUES(repeat_interval), days_count = VALUES(days_count)`,
-        [scheduleId, rm, ri, dc]
+        [scheduleId, rm, ri, dc],
       );
 
       // Clear and regenerate instances
@@ -2692,13 +2949,13 @@ app.put(
         inst.start_time,
         inst.end_time,
         inst.start_datetime,
-        inst.end_datetime
+        inst.end_datetime,
       ]);
 
       await conn.query(
         `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
          VALUES ?`,
-        [instanceValues]
+        [instanceValues],
       );
 
       await conn.commit();
@@ -2709,7 +2966,7 @@ app.put(
     } finally {
       conn.release();
     }
-  })
+  }),
 );
 
 // POST /api/schedules/exception
@@ -2736,7 +2993,10 @@ app.post(
     try {
       await conn.beginTransaction();
 
-      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [schedule_id, req.user.id]);
+      const [curr] = await conn.query(
+        "SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1",
+        [schedule_id, req.user.id],
+      );
       if (curr.length === 0) {
         await conn.rollback();
         return res.status(403).json({ error: "Access denied" });
@@ -2750,7 +3010,7 @@ app.post(
          JOIN schedules sch ON sch.id = i.schedule_id
          JOIN schedule_recurrences r ON r.schedule_id = sch.id
          WHERE i.device_id = ? AND i.date = ? AND i.schedule_id != ? AND r.repeat_mode != 'none'`,
-        [s.device_id, date, s.id]
+        [s.device_id, date, s.id],
       );
 
       // Convert all other recurring schedule occurrences on this day to standalone schedules
@@ -2760,43 +3020,57 @@ app.post(
         const [newS] = await conn.query(
           `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [s.device_id, inst.template_id, req.user.id, inst.start_time, inst.end_time, date]
+          [s.device_id, inst.template_id, req.user.id, inst.start_time, inst.end_time, date],
         );
 
         await conn.query(
           `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
            VALUES (?, 'none', 1, 1)`,
-          [newS.insertId]
+          [newS.insertId],
         );
 
         await conn.query(
           `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newS.insertId, s.device_id, inst.template_id, date, inst.start_time, inst.end_time, `${date} ${inst.start_time}`, `${date} ${inst.end_time}`]
+          [
+            newS.insertId,
+            s.device_id,
+            inst.template_id,
+            date,
+            inst.start_time,
+            inst.end_time,
+            `${date} ${inst.start_time}`,
+            `${date} ${inst.end_time}`,
+          ],
         );
       }
 
       // Proposed instances
-      const proposedInstances = [{
-        schedule_id: 0,
-        device_id: s.device_id,
-        template_id: Number(template_id),
-        date: date,
-        start_time: formattedStartTime,
-        end_time: formattedEndTime,
-        start_datetime: `${date} ${formattedStartTime}`,
-        end_datetime: `${date} ${formattedEndTime}`
-      }];
+      const proposedInstances = [
+        {
+          schedule_id: 0,
+          device_id: s.device_id,
+          template_id: Number(template_id),
+          date: date,
+          start_time: formattedStartTime,
+          end_time: formattedEndTime,
+          start_datetime: `${date} ${formattedStartTime}`,
+          end_datetime: `${date} ${formattedEndTime}`,
+        },
+      ];
 
       // Temporarily delete old instance to avoid overlap check self-conflict
-      await conn.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [s.id, date]);
+      await conn.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [
+        s.id,
+        date,
+      ]);
 
       // Check overlap
       const overlapResult = await checkOverlap(conn, s.device_id, proposedInstances);
       if (overlapResult.overlapping) {
         await conn.rollback();
         return res.status(400).json({
-          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`
+          error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`,
         });
       }
 
@@ -2804,20 +3078,29 @@ app.post(
       const [newScheduleRes] = await conn.query(
         `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [s.device_id, Number(template_id), req.user.id, formattedStartTime, formattedEndTime, date]
+        [s.device_id, Number(template_id), req.user.id, formattedStartTime, formattedEndTime, date],
       );
       const newScheduleId = newScheduleRes.insertId;
 
       await conn.query(
         `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
          VALUES (?, 'none', 1, 1)`,
-        [newScheduleId]
+        [newScheduleId],
       );
 
       await conn.query(
         `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [newScheduleId, s.device_id, Number(template_id), date, formattedStartTime, formattedEndTime, `${date} ${formattedStartTime}`, `${date} ${formattedEndTime}`]
+        [
+          newScheduleId,
+          s.device_id,
+          Number(template_id),
+          date,
+          formattedStartTime,
+          formattedEndTime,
+          `${date} ${formattedStartTime}`,
+          `${date} ${formattedEndTime}`,
+        ],
       );
 
       await conn.commit();
@@ -2828,7 +3111,7 @@ app.post(
     } finally {
       conn.release();
     }
-  })
+  }),
 );
 
 // DELETE /api/schedules/:id
@@ -2839,18 +3122,24 @@ app.delete(
     const id = Number(req.params.id);
     const { date } = req.query || {};
 
-    const [curr] = await pool.query("SELECT id FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [id, req.user.id]);
+    const [curr] = await pool.query(
+      "SELECT id FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1",
+      [id, req.user.id],
+    );
     if (curr.length === 0) return res.status(403).json({ error: "Access denied" });
 
     if (date) {
       // Delete only the single date occurrence instance
-      await pool.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [id, date]);
+      await pool.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [
+        id,
+        date,
+      ]);
     } else {
       // Cascade delete the entire parent schedule
       await pool.query("DELETE FROM schedules WHERE id = ?", [id]);
     }
     res.json({ ok: true });
-  })
+  }),
 );
 
 // POST /api/schedules/clear-day
@@ -2863,7 +3152,10 @@ app.post(
       return res.status(400).json({ error: "device_id and date required" });
     }
 
-    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [Number(device_id), req.user.id]);
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [
+      Number(device_id),
+      req.user.id,
+    ]);
     if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
 
     // Find all schedule instances for this device on this date
@@ -2872,17 +3164,17 @@ app.post(
        FROM schedule_instances r
        JOIN schedules s ON s.id = r.schedule_id
        WHERE s.device_id = ? AND r.date = ?`,
-      [Number(device_id), date]
+      [Number(device_id), date],
     );
 
     for (const inst of instances) {
-      await pool.query(
-        "DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", 
-        [inst.schedule_id, date]
-      );
+      await pool.query("DELETE FROM schedule_instances WHERE schedule_id = ? AND date = ?", [
+        inst.schedule_id,
+        date,
+      ]);
     }
     res.json({ ok: true });
-  })
+  }),
 );
 
 // POST /api/schedules/repeat
@@ -2890,7 +3182,15 @@ app.post(
   "/api/schedules/repeat",
   auth(),
   asyncH(async (req, res) => {
-    const { schedule_id, repeat_mode, repeat_interval = 1, days_count = 1, start_time, end_time, overwrite = false } = req.body || {};
+    const {
+      schedule_id,
+      repeat_mode,
+      repeat_interval = 1,
+      days_count = 1,
+      start_time,
+      end_time,
+      overwrite = false,
+    } = req.body || {};
     if (!schedule_id || !repeat_mode) {
       return res.status(400).json({ error: "schedule_id and repeat_mode required" });
     }
@@ -2899,7 +3199,10 @@ app.post(
     try {
       await conn.beginTransaction();
 
-      const [curr] = await conn.query("SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1", [schedule_id, req.user.id]);
+      const [curr] = await conn.query(
+        "SELECT * FROM schedules WHERE id = ? AND owner_id = ? LIMIT 1",
+        [schedule_id, req.user.id],
+      );
       if (curr.length === 0) {
         await conn.rollback();
         return res.status(403).json({ error: "Access denied" });
@@ -2916,7 +3219,10 @@ app.post(
           await conn.rollback();
           return res.status(400).json({ error: "End time must be after start time" });
         }
-        await conn.query("UPDATE schedules SET start_time = ?, end_time = ? WHERE id = ? AND owner_id = ?", [st, et, schedule_id, req.user.id]);
+        await conn.query(
+          "UPDATE schedules SET start_time = ?, end_time = ? WHERE id = ? AND owner_id = ?",
+          [st, et, schedule_id, req.user.id],
+        );
       }
 
       // Validate date is not in the past
@@ -2949,7 +3255,7 @@ app.post(
         dateStrInput,
         repeat_mode,
         Number(repeat_interval),
-        Number(days_count)
+        Number(days_count),
       );
 
       if (overwrite) {
@@ -2957,14 +3263,14 @@ app.post(
           await conn.query(
             `DELETE FROM schedule_instances 
              WHERE device_id = ? AND date = ? AND schedule_id != ? AND start_time < ? AND end_time > ?`,
-            [s.device_id, inst.date, s.id, inst.end_time, inst.start_time]
+            [s.device_id, inst.date, s.id, inst.end_time, inst.start_time],
           );
         }
         await conn.query(
           `DELETE s FROM schedules s
            LEFT JOIN schedule_instances i ON i.schedule_id = s.id
            WHERE s.device_id = ? AND i.id IS NULL AND s.owner_id = ?`,
-          [s.device_id, req.user.id]
+          [s.device_id, req.user.id],
         );
       }
 
@@ -2974,7 +3280,7 @@ app.post(
         await conn.rollback();
         return res.status(400).json({
           error: `Overlap detected on ${overlapResult.date} with existing schedule ${overlapResult.start_time} - ${overlapResult.end_time} (${overlapResult.template_name})`,
-          has_overlap: true
+          has_overlap: true,
         });
       }
 
@@ -2983,7 +3289,7 @@ app.post(
         `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
          VALUES (?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE repeat_mode = VALUES(repeat_mode), repeat_interval = VALUES(repeat_interval), days_count = VALUES(days_count)`,
-        [s.id, repeat_mode, Number(repeat_interval), Number(days_count)]
+        [s.id, repeat_mode, Number(repeat_interval), Number(days_count)],
       );
 
       // Clear and regenerate instances
@@ -2997,13 +3303,13 @@ app.post(
         inst.start_time,
         inst.end_time,
         inst.start_datetime,
-        inst.end_datetime
+        inst.end_datetime,
       ]);
 
       await conn.query(
         `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
          VALUES ?`,
-        [instanceValues]
+        [instanceValues],
       );
 
       await conn.commit();
@@ -3014,7 +3320,7 @@ app.post(
     } finally {
       conn.release();
     }
-  })
+  }),
 );
 
 // POST /api/schedules/copy-day (Helper for copy operations)
@@ -3026,14 +3332,17 @@ app.post(
     if (!device_id || !source_date || !Array.isArray(target_dates) || target_dates.length === 0)
       return res.status(400).json({ error: "device_id, source_date, target_dates[] required" });
 
-    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [Number(device_id), req.user.id]);
+    const [dev] = await pool.query("SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1", [
+      Number(device_id),
+      req.user.id,
+    ]);
     if (dev.length === 0) return res.status(403).json({ error: "Access denied" });
 
     // Find all instances running on the source date
     const [src] = await pool.query(
       `SELECT template_id, start_time, end_time FROM schedule_instances
        WHERE device_id = ? AND date = ?`,
-      [Number(device_id), source_date]
+      [Number(device_id), source_date],
     );
 
     if (src.length === 0) return res.json({ ok: true, created: 0 });
@@ -3043,19 +3352,19 @@ app.post(
       const [existing] = await pool.query(
         `SELECT DISTINCT date FROM schedule_instances 
          WHERE device_id = ? AND date IN (?)`,
-        [Number(device_id), target_dates]
+        [Number(device_id), target_dates],
       );
       if (existing.length > 0) {
         return res.json({
           ok: false,
           has_existing: true,
-          existing_dates: existing.map(row => {
+          existing_dates: existing.map((row) => {
             const d = new Date(row.date);
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, "0");
             const da = String(d.getDate()).padStart(2, "0");
             return `${y}-${m}-${da}`;
-          })
+          }),
         });
       }
     }
@@ -3066,16 +3375,16 @@ app.post(
 
       if (overwrite) {
         // Delete all instances on target dates for this device
-        await conn.query(
-          `DELETE FROM schedule_instances WHERE device_id = ? AND date IN (?)`,
-          [Number(device_id), target_dates]
-        );
+        await conn.query(`DELETE FROM schedule_instances WHERE device_id = ? AND date IN (?)`, [
+          Number(device_id),
+          target_dates,
+        ]);
         // Clean up empty schedules
         await conn.query(
           `DELETE s FROM schedules s
            LEFT JOIN schedule_instances i ON i.schedule_id = s.id
            WHERE s.device_id = ? AND i.id IS NULL`,
-          [Number(device_id)]
+          [Number(device_id)],
         );
       }
 
@@ -3086,7 +3395,14 @@ app.post(
           const [scheduleRes] = await conn.query(
             `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [Number(device_id), row.template_id, req.user.id, row.start_time, row.end_time, targetDate]
+            [
+              Number(device_id),
+              row.template_id,
+              req.user.id,
+              row.start_time,
+              row.end_time,
+              targetDate,
+            ],
           );
           const scheduleId = scheduleRes.insertId;
 
@@ -3094,7 +3410,7 @@ app.post(
           await conn.query(
             `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
              VALUES (?, 'none', 1, 1)`,
-             [scheduleId]
+            [scheduleId],
           );
 
           // Save instance
@@ -3103,7 +3419,16 @@ app.post(
           await conn.query(
             `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [scheduleId, Number(device_id), row.template_id, targetDate, row.start_time, row.end_time, startDatetime, endDatetime]
+            [
+              scheduleId,
+              Number(device_id),
+              row.template_id,
+              targetDate,
+              row.start_time,
+              row.end_time,
+              startDatetime,
+              endDatetime,
+            ],
           );
 
           createdCount++;
@@ -3118,7 +3443,7 @@ app.post(
     } finally {
       conn.release();
     }
-  })
+  }),
 );
 
 // POST /api/schedules/copy-device
@@ -3133,12 +3458,12 @@ app.post(
 
     // 1. Scope / Security checks: Ensure both devices belong to the user
     const [targetDevices] = await pool.query(
-      'SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1',
-      [Number(target_device_id), req.user.id]
+      "SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1",
+      [Number(target_device_id), req.user.id],
     );
     const [sourceDevices] = await pool.query(
-      'SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1',
-      [Number(source_device_id), req.user.id]
+      "SELECT id FROM devices WHERE id = ? AND owner_id = ? LIMIT 1",
+      [Number(source_device_id), req.user.id],
     );
 
     if (targetDevices.length === 0 || sourceDevices.length === 0) {
@@ -3155,7 +3480,7 @@ app.post(
         `SELECT id FROM schedule_instances 
          WHERE device_id = ? AND date >= ? 
          LIMIT 1`,
-        [Number(target_device_id), today]
+        [Number(target_device_id), today],
       );
       if (existing.length > 0) {
         return res.json({ ok: false, has_existing: true });
@@ -3168,17 +3493,17 @@ app.post(
       await conn.beginTransaction();
 
       // Delete only future schedule instances of target device
-      await conn.query(
-        `DELETE FROM schedule_instances WHERE device_id = ? AND date >= ?`,
-        [Number(target_device_id), today]
-      );
+      await conn.query(`DELETE FROM schedule_instances WHERE device_id = ? AND date >= ?`, [
+        Number(target_device_id),
+        today,
+      ]);
 
       // Clean up target device parent schedules that no longer have any instances (completely in future)
       await conn.query(
         `DELETE FROM schedules 
          WHERE device_id = ? 
            AND id NOT IN (SELECT DISTINCT schedule_id FROM schedule_instances WHERE device_id = ?)`,
-        [Number(target_device_id), Number(target_device_id)]
+        [Number(target_device_id), Number(target_device_id)],
       );
 
       // Fetch all schedules and recurrences of source device
@@ -3188,7 +3513,7 @@ app.post(
          FROM schedules s
          LEFT JOIN schedule_recurrences r ON r.schedule_id = s.id
          WHERE s.device_id = ? AND s.owner_id = ?`,
-        [Number(source_device_id), req.user.id]
+        [Number(source_device_id), req.user.id],
       );
 
       let createdSchedules = 0;
@@ -3201,20 +3526,27 @@ app.post(
           row.start_time,
           row.end_time,
           row.start_date,
-          row.repeat_mode || 'none',
+          row.repeat_mode || "none",
           row.repeat_interval || 1,
-          row.days_count || 1
+          row.days_count || 1,
         );
 
         // Keep only future instances
-        const futureInstances = allInstances.filter(inst => inst.date >= today);
+        const futureInstances = allInstances.filter((inst) => inst.date >= today);
 
         if (futureInstances.length > 0) {
           // Create parent schedule for target
           const [scheduleRes] = await conn.query(
             `INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [Number(target_device_id), row.template_id, req.user.id, row.start_time, row.end_time, row.start_date]
+            [
+              Number(target_device_id),
+              row.template_id,
+              req.user.id,
+              row.start_time,
+              row.end_time,
+              row.start_date,
+            ],
           );
           const newScheduleId = scheduleRes.insertId;
 
@@ -3222,11 +3554,16 @@ app.post(
           await conn.query(
             `INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count)
              VALUES (?, ?, ?, ?)`,
-            [newScheduleId, row.repeat_mode || 'none', row.repeat_interval || 1, row.days_count || 1]
+            [
+              newScheduleId,
+              row.repeat_mode || "none",
+              row.repeat_interval || 1,
+              row.days_count || 1,
+            ],
           );
 
           // Update instances with new schedule ID and convert to nested array for bulk insert
-          const instanceValues = futureInstances.map(inst => [
+          const instanceValues = futureInstances.map((inst) => [
             newScheduleId,
             Number(target_device_id),
             inst.template_id,
@@ -3234,13 +3571,13 @@ app.post(
             inst.start_time,
             inst.end_time,
             inst.start_datetime,
-            inst.end_datetime
+            inst.end_datetime,
           ]);
 
           await conn.query(
             `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
              VALUES ?`,
-            [instanceValues]
+            [instanceValues],
           );
 
           createdSchedules++;
@@ -3255,7 +3592,7 @@ app.post(
     } finally {
       conn.release();
     }
-  })
+  }),
 );
 
 // Tablet polling: returns the template the device should display right now
@@ -3274,7 +3611,7 @@ app.get(
     if (req.device.owner_id) {
       const [ownerRows] = await pool.query(
         "SELECT id, role, status, subscription_status, trial_ends_at, created_at FROM users WHERE id = ? LIMIT 1",
-        [req.device.owner_id]
+        [req.device.owner_id],
       );
       if (ownerRows[0]) {
         subscriptionStatus = ownerRows[0].subscription_status || "trial";
@@ -3284,10 +3621,11 @@ app.get(
           return res.status(403).json({
             trial_expired: true,
             error: "Trial Expired",
-            message: "Trial Expired: Your 7-day free trial period has ended. Contact your administrator to grant full access for this device.",
+            message:
+              "Trial Expired: Your 7-day free trial period has ended. Contact your administrator to grant full access for this device.",
             template_id: null,
             subscription_status: "expired",
-            trial_ends_at: trialEndsAt
+            trial_ends_at: trialEndsAt,
           });
         }
       }
@@ -3306,23 +3644,23 @@ app.get(
         template_id: fallback,
         source: "default",
         subscription_status: subscriptionStatus,
-        trial_ends_at: trialEndsAt
+        trial_ends_at: trialEndsAt,
       });
     }
 
     // Fetch owner's timezone to translate server time to client time
     const [profileRows] = await pool.query(
       "SELECT timezone FROM user_profiles WHERE user_id = ? LIMIT 1",
-      [req.device.owner_id]
+      [req.device.owner_id],
     );
     const tzName = profileRows[0]?.timezone || "IST";
     const tzMap = {
-      "IST": "Asia/Kolkata",
-      "EST": "America/New_York",
-      "CST": "America/Chicago",
-      "PST": "America/Los_Angeles",
-      "GMT": "Europe/London",
-      "UTC": "UTC"
+      IST: "Asia/Kolkata",
+      EST: "America/New_York",
+      CST: "America/Chicago",
+      PST: "America/Los_Angeles",
+      GMT: "Europe/London",
+      UTC: "UTC",
     };
     const targetTz = tzMap[tzName] || tzName || "Asia/Kolkata";
 
@@ -3331,7 +3669,7 @@ app.get(
       ...formatOpt,
       year: "numeric",
       month: "2-digit",
-      day: "2-digit"
+      day: "2-digit",
     }).format(new Date());
     const [mm, dd, yyyy] = dateStr.split("/");
     const today = `${yyyy}-${mm}-${dd}`;
@@ -3346,7 +3684,7 @@ app.get(
       `SELECT template_id FROM schedule_instances
        WHERE device_id = ? AND date = ? AND start_time <= ? AND end_time > ?
        LIMIT 1`,
-      [req.device.id, today, hhmmss, hhmmss]
+      [req.device.id, today, hhmmss, hhmmss],
     );
 
     const active = activeRows[0];
@@ -3354,7 +3692,7 @@ app.get(
     // Fetch active screensaver for this device owner
     const [ssRows] = await pool.query(
       "SELECT url, type, timeout_seconds FROM screensavers WHERE owner_id = ? AND is_active = 1 LIMIT 1",
-      [req.device.owner_id]
+      [req.device.owner_id],
     );
 
     res.json({
@@ -3362,7 +3700,7 @@ app.get(
       source: active ? "schedule" : "default",
       screensaver: ssRows[0] || null,
       subscription_status: subscriptionStatus,
-      trial_ends_at: trialEndsAt
+      trial_ends_at: trialEndsAt,
     });
   }),
 );
@@ -3379,7 +3717,10 @@ app.get("/api/screensavers/debug", async (req, res) => {
 app.get("/api/templates/debug", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT * FROM templates");
-    res.json({ count: rows.length, rows: rows.map(r => ({ ...r, questions: parseJson(r.questions, []) })) });
+    res.json({
+      count: rows.length,
+      rows: rows.map((r) => ({ ...r, questions: parseJson(r.questions, []) })),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3387,7 +3728,9 @@ app.get("/api/templates/debug", async (req, res) => {
 
 app.get("/api/devices/debug", async (req, res) => {
   try {
-    const [rows] = await pool.query("SELECT id, name, location, status, template_id, schedules_enabled, last_sync FROM devices");
+    const [rows] = await pool.query(
+      "SELECT id, name, location, status, template_id, schedules_enabled, last_sync FROM devices",
+    );
     res.json({ count: rows.length, rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -3401,10 +3744,10 @@ app.get(
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
       "SELECT * FROM screensavers WHERE owner_id = ? ORDER BY created_at DESC",
-      [req.user.id]
+      [req.user.id],
     );
     res.json({ screensavers: rows });
-  })
+  }),
 );
 
 // POST /api/screensavers/upload
@@ -3439,7 +3782,7 @@ app.post(
     try {
       const [dbResult] = await pool.query(
         "INSERT INTO screensavers (owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, 0, 300)",
-        [req.user.id, name, fileUrl, type]
+        [req.user.id, name, fileUrl, type],
       );
       result = dbResult;
     } catch (dbErr) {
@@ -3455,10 +3798,10 @@ app.post(
         url: fileUrl,
         type,
         is_active: 0,
-        timeout_seconds: 300
-      }
+        timeout_seconds: 300,
+      },
     });
-  })
+  }),
 );
 
 // POST /api/screensavers/activate
@@ -3466,7 +3809,14 @@ app.post(
   "/api/screensavers/activate",
   auth(),
   asyncH(async (req, res) => {
-    const { id, timeout_seconds, marquee_text = null, marquee_bg_color = null, marquee_text_color = null, marquee_font_size = null } = req.body || {};
+    const {
+      id,
+      timeout_seconds,
+      marquee_text = null,
+      marquee_bg_color = null,
+      marquee_text_color = null,
+      marquee_font_size = null,
+    } = req.body || {};
     if (!id) return res.status(400).json({ error: "id required" });
 
     // Set all screensavers for this user as inactive
@@ -3482,12 +3832,12 @@ app.post(
         marquee_text_color,
         marquee_font_size ? Number(marquee_font_size) : null,
         Number(id),
-        req.user.id
-      ]
+        req.user.id,
+      ],
     );
 
     res.json({ ok: true });
-  })
+  }),
 );
 
 // POST /api/screensavers/deactivate
@@ -3497,7 +3847,7 @@ app.post(
   asyncH(async (req, res) => {
     await pool.query("UPDATE screensavers SET is_active = 0 WHERE owner_id = ?", [req.user.id]);
     res.json({ ok: true });
-  })
+  }),
 );
 
 // DELETE /api/screensavers/:id
@@ -3507,7 +3857,10 @@ app.delete(
   asyncH(async (req, res) => {
     const id = Number(req.params.id);
 
-    const [rows] = await pool.query("SELECT url FROM screensavers WHERE id = ? AND owner_id = ?", [id, req.user.id]);
+    const [rows] = await pool.query("SELECT url FROM screensavers WHERE id = ? AND owner_id = ?", [
+      id,
+      req.user.id,
+    ]);
     if (rows.length > 0) {
       const url = rows[0].url;
       const filename = url.replace("/uploads/", "");
@@ -3524,7 +3877,7 @@ app.delete(
 
     await pool.query("DELETE FROM screensavers WHERE id = ? AND owner_id = ?", [id, req.user.id]);
     res.json({ ok: true });
-  })
+  }),
 );
 
 // GET /api/backup (Download full user database segment)
@@ -3536,51 +3889,52 @@ app.get(
 
     const [profile] = await pool.query(
       "SELECT organization, timezone, avatar_url, show_brand_header, brand_header_placement FROM user_profiles WHERE user_id = ? LIMIT 1",
-      [userId]
+      [userId],
     );
 
     const [templates] = await pool.query(
       "SELECT id, name, description, category, status, questions, display_mode, branding FROM templates WHERE owner_id = ?",
-      [userId]
+      [userId],
     );
 
     const [devices] = await pool.query(
       "SELECT id, name, location, status, android_version, template_id, schedules_enabled FROM devices WHERE owner_id = ?",
-      [userId]
+      [userId],
     );
 
     const [screensavers] = await pool.query(
       "SELECT id, name, url, type, is_active, timeout_seconds FROM screensavers WHERE owner_id = ?",
-      [userId]
+      [userId],
     );
 
     const [schedules] = await pool.query(
       "SELECT id, device_id, template_id, start_time, end_time, start_date FROM schedules WHERE owner_id = ?",
-      [userId]
+      [userId],
     );
 
-    const scheduleIds = schedules.map(s => s.id);
+    const scheduleIds = schedules.map((s) => s.id);
     let recurrences = [];
     let instances = [];
     if (scheduleIds.length > 0) {
       const [recRows] = await pool.query(
         "SELECT schedule_id, repeat_mode, repeat_interval, days_count FROM schedule_recurrences WHERE schedule_id IN (?)",
-        [scheduleIds]
+        [scheduleIds],
       );
       recurrences = recRows;
 
       const [instRows] = await pool.query(
         "SELECT schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime FROM schedule_instances WHERE schedule_id IN (?)",
-        [scheduleIds]
+        [scheduleIds],
       );
       instances = instRows;
     }
 
-    const templateIds = templates.map(t => t.id);
-    const deviceIds = devices.map(d => d.id);
+    const templateIds = templates.map((t) => t.id);
+    const deviceIds = devices.map((d) => d.id);
     let responses = [];
     if (templateIds.length > 0 || deviceIds.length > 0) {
-      let respQuery = "SELECT id, template_id, device_id, rating, answers, duration_seconds, submitted_at FROM responses WHERE 1=0";
+      let respQuery =
+        "SELECT id, template_id, device_id, rating, answers, duration_seconds, submitted_at FROM responses WHERE 1=0";
       const respParams = [];
       if (templateIds.length > 0) {
         respQuery += " OR template_id IN (?)";
@@ -3596,12 +3950,12 @@ app.get(
 
     const [userMetaRows] = await pool.query(
       "SELECT local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
-      [userId]
+      [userId],
     );
     const userMeta = userMetaRows[0] || { local_mode: "none", max_devices: 1 };
 
     const [allUsers] = await pool.query(
-      "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users"
+      "SELECT id, name, email, password_hash, role, status, local_mode, max_devices FROM users",
     );
 
     res.json({
@@ -3615,9 +3969,9 @@ app.get(
       schedules,
       recurrences,
       instances,
-      responses
+      responses,
     });
-  })
+  }),
 );
 
 // POST /api/restore (Upload and reconstruct user database segment mapping IDs dynamically)
@@ -3626,7 +3980,16 @@ app.post(
   auth(),
   asyncH(async (req, res) => {
     const userId = req.user.id;
-    const { profile, templates = [], devices = [], screensavers = [], schedules = [], recurrences = [], instances = [], responses = [] } = req.body || {};
+    const {
+      profile,
+      templates = [],
+      devices = [],
+      screensavers = [],
+      schedules = [],
+      recurrences = [],
+      instances = [],
+      responses = [],
+    } = req.body || {};
 
     const conn = await pool.getConnection();
     try {
@@ -3638,7 +4001,14 @@ app.post(
           `INSERT INTO user_profiles (user_id, organization, timezone, avatar_url, show_brand_header, brand_header_placement)
            VALUES (?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE organization=VALUES(organization), timezone=VALUES(timezone), avatar_url=VALUES(avatar_url), show_brand_header=VALUES(show_brand_header), brand_header_placement=VALUES(brand_header_placement)`,
-          [userId, profile.organization, profile.timezone || "IST", profile.avatar_url, profile.show_brand_header || 0, profile.brand_header_placement || "top"]
+          [
+            userId,
+            profile.organization,
+            profile.timezone || "IST",
+            profile.avatar_url,
+            profile.show_brand_header || 0,
+            profile.brand_header_placement || "top",
+          ],
         );
       }
 
@@ -3647,7 +4017,16 @@ app.post(
       for (const t of templates) {
         const [r] = await conn.query(
           "INSERT INTO templates (owner_id, name, description, category, status, questions, display_mode, branding) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [userId, t.name, t.description || "", t.category || "General", t.status || "draft", JSON.stringify(parseJson(t.questions, [])), t.display_mode || "multi_page", JSON.stringify(parseJson(t.branding, null))]
+          [
+            userId,
+            t.name,
+            t.description || "",
+            t.category || "General",
+            t.status || "draft",
+            JSON.stringify(parseJson(t.questions, [])),
+            t.display_mode || "multi_page",
+            JSON.stringify(parseJson(t.branding, null)),
+          ],
         );
         templateIdMap[t.id] = r.insertId;
       }
@@ -3655,10 +4034,18 @@ app.post(
       // 3. Restore Devices & map IDs
       const deviceIdMap = {}; // oldDeviceId -> newDeviceId
       for (const d of devices) {
-        const mappedTemplateId = d.template_id ? (templateIdMap[d.template_id] || null) : null;
+        const mappedTemplateId = d.template_id ? templateIdMap[d.template_id] || null : null;
         const [r] = await conn.query(
           "INSERT INTO devices (owner_id, name, location, status, android_version, template_id, schedules_enabled) VALUES (?, ?, ?, ?, ?, ?, ?)",
-          [userId, d.name, d.location || null, d.status || "offline", d.android_version || "Android 14", mappedTemplateId, d.schedules_enabled !== undefined ? d.schedules_enabled : 1]
+          [
+            userId,
+            d.name,
+            d.location || null,
+            d.status || "offline",
+            d.android_version || "Android 14",
+            mappedTemplateId,
+            d.schedules_enabled !== undefined ? d.schedules_enabled : 1,
+          ],
         );
         deviceIdMap[d.id] = r.insertId;
       }
@@ -3667,7 +4054,7 @@ app.post(
       for (const s of screensavers) {
         await conn.query(
           "INSERT INTO screensavers (owner_id, name, url, type, is_active, timeout_seconds) VALUES (?, ?, ?, ?, ?, ?)",
-          [userId, s.name, s.url, s.type || "image", s.is_active || 0, s.timeout_seconds || 300]
+          [userId, s.name, s.url, s.type || "image", s.is_active || 0, s.timeout_seconds || 300],
         );
       }
 
@@ -3680,7 +4067,7 @@ app.post(
 
         const [r] = await conn.query(
           "INSERT INTO schedules (device_id, template_id, owner_id, start_time, end_time, start_date) VALUES (?, ?, ?, ?, ?, ?)",
-          [newDevId, newTplId, userId, s.start_time, s.end_time, s.start_date]
+          [newDevId, newTplId, userId, s.start_time, s.end_time, s.start_date],
         );
         scheduleIdMap[s.id] = r.insertId;
       }
@@ -3691,7 +4078,7 @@ app.post(
         if (!newSchId) continue;
         await conn.query(
           "INSERT INTO schedule_recurrences (schedule_id, repeat_mode, repeat_interval, days_count) VALUES (?, ?, ?, ?)",
-          [newSchId, rec.repeat_mode || "none", rec.repeat_interval || 1, rec.days_count || 1]
+          [newSchId, rec.repeat_mode || "none", rec.repeat_interval || 1, rec.days_count || 1],
         );
       }
 
@@ -3705,19 +4092,35 @@ app.post(
         await conn.query(
           `INSERT INTO schedule_instances (schedule_id, device_id, template_id, date, start_time, end_time, start_datetime, end_datetime)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newSchId, newDevId, newTplId, inst.date, inst.start_time, inst.end_time, inst.start_datetime, inst.end_datetime]
+          [
+            newSchId,
+            newDevId,
+            newTplId,
+            inst.date,
+            inst.start_time,
+            inst.end_time,
+            inst.start_datetime,
+            inst.end_datetime,
+          ],
         );
       }
 
       // 8. Restore Responses
       for (const resp of responses) {
         const newTplId = templateIdMap[resp.template_id];
-        const newDevId = resp.device_id ? (deviceIdMap[resp.device_id] || null) : null;
+        const newDevId = resp.device_id ? deviceIdMap[resp.device_id] || null : null;
         if (!newTplId) continue;
 
         await conn.query(
           "INSERT INTO responses (template_id, device_id, rating, answers, duration_seconds, submitted_at) VALUES (?, ?, ?, ?, ?, ?)",
-          [newTplId, newDevId, resp.rating, JSON.stringify(parseJson(resp.answers, {})), resp.duration_seconds || 0, resp.submitted_at]
+          [
+            newTplId,
+            newDevId,
+            resp.rating,
+            JSON.stringify(parseJson(resp.answers, {})),
+            resp.duration_seconds || 0,
+            resp.submitted_at,
+          ],
         );
       }
 
@@ -3729,7 +4132,7 @@ app.post(
     } finally {
       conn.release();
     }
-  })
+  }),
 );
 
 app.use("/api", (err, _req, res, _next) => {
@@ -3741,7 +4144,10 @@ const distDir = path.join(__dirname, "dist");
 app.use("/uploads", express.static(path.join(baseDir, "uploads")));
 app.use(express.static(distDir, { maxAge: "1h", index: false }));
 app.get(/^(?!\/api).*/, (req, res) => {
-  if (req.path.startsWith("/assets/") || /\.(js|css|png|jpg|jpeg|gif|svg|ico|wasm|map)$/i.test(req.path)) {
+  if (
+    req.path.startsWith("/assets/") ||
+    /\.(js|css|png|jpg|jpeg|gif|svg|ico|wasm|map)$/i.test(req.path)
+  ) {
     return res.status(404).send("Asset not found");
   }
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -3768,13 +4174,17 @@ app.listen(PORT, () => {
     try {
       const { exec } = require("child_process");
       const url = `http://localhost:${PORT}/login`;
-      
+
       // Auto-create desktop shortcut on Windows for first-time launch
       if (process.platform === "win32") {
         try {
           const fs = require("fs");
           const path = require("path");
-          const desktopPath = path.join(process.env.USERPROFILE || "", "Desktop", "ReviewOS Local Server.lnk");
+          const desktopPath = path.join(
+            process.env.USERPROFILE || "",
+            "Desktop",
+            "ReviewOS Local Server.lnk",
+          );
           if (!fs.existsSync(desktopPath)) {
             const exePath = process.execPath;
             const createShortcutScript = `
@@ -3785,7 +4195,7 @@ app.listen(PORT, () => {
               $Shortcut.WorkingDirectory = '${path.dirname(exePath).replace(/'/g, "''")}';
               $Shortcut.Save();
             `;
-            exec(`powershell -Command "${createShortcutScript.replace(/\n/g, ' ')}"`, (err) => {
+            exec(`powershell -Command "${createShortcutScript.replace(/\n/g, " ")}"`, (err) => {
               if (err) console.error("[local] Failed to create desktop shortcut:", err.message);
               else console.log("[local] Successfully created desktop shortcut on Desktop!");
             });
@@ -3828,13 +4238,15 @@ app.listen(PORT, () => {
             }
           }
           if (!discoveryLogged && ips.length > 0) {
-            console.log(`[discovery] Broadcasting local server presence on: ${ips.map(ip => `http://${ip}:${PORT}`).join(", ")}`);
+            console.log(
+              `[discovery] Broadcasting local server presence on: ${ips.map((ip) => `http://${ip}:${PORT}`).join(", ")}`,
+            );
             discoveryLogged = true;
           }
           for (const ip of ips) {
             const payload = JSON.stringify({
               server: `http://${ip}:${PORT}`,
-              type: "reviewos-server"
+              type: "reviewos-server",
             });
             const buffer = Buffer.from(payload, "utf8");
             server.send(buffer, 0, buffer.length, 9999, "255.255.255.255");
@@ -3843,10 +4255,13 @@ app.listen(PORT, () => {
             // routers and Android devices drop the global broadcast above.
             for (const name of Object.keys(interfaces)) {
               for (const net of interfaces[name]) {
-                if (net.family !== "IPv4" || net.internal || net.address !== ip || !net.netmask) continue;
+                if (net.family !== "IPv4" || net.internal || net.address !== ip || !net.netmask)
+                  continue;
                 const address = ip.split(".").map(Number);
                 const mask = net.netmask.split(".").map(Number);
-                const broadcast = address.map((part, index) => (part & mask[index]) | (~mask[index] & 255)).join(".");
+                const broadcast = address
+                  .map((part, index) => (part & mask[index]) | (~mask[index] & 255))
+                  .join(".");
                 server.send(buffer, 0, buffer.length, 9999, broadcast);
               }
             }

@@ -281,8 +281,14 @@ function ResponsesPage() {
 
   function exportCsv() {
     if (list.length === 0) return toast.error("Nothing to export");
-    const activeDevice = selectedDeviceId === "all" ? { name: "All Tablets" } : devices.find((d) => d.id === selectedDeviceId);
-    const activeTpl = selectedTemplateId === "all" ? { name: "All Templates" } : deviceTemplates.find((t) => t.id === selectedTemplateId);
+    const activeDevice =
+      selectedDeviceId === "all"
+        ? { name: "All Tablets" }
+        : devices.find((d) => d.id === selectedDeviceId);
+    const activeTpl =
+      selectedTemplateId === "all"
+        ? { name: "All Templates" }
+        : deviceTemplates.find((t) => t.id === selectedTemplateId);
 
     const header = [
       "id",
@@ -324,8 +330,14 @@ function ResponsesPage() {
     toast.success(`Exported ${list.length} responses to CSV`);
   }
 
-  const selectedDeviceObj = selectedDeviceId === "all" ? { name: "All Tablets" } : devices.find((d) => d.id === selectedDeviceId);
-  const selectedTemplateObj = selectedTemplateId === "all" ? { name: "All Templates" } : deviceTemplates.find((t) => t.id === selectedTemplateId);
+  const selectedDeviceObj =
+    selectedDeviceId === "all"
+      ? { name: "All Tablets" }
+      : devices.find((d) => d.id === selectedDeviceId);
+  const selectedTemplateObj =
+    selectedTemplateId === "all"
+      ? { name: "All Templates" }
+      : deviceTemplates.find((t) => t.id === selectedTemplateId);
 
   // Renders dynamic selector dropdowns for the selected template's questions
   const renderDynamicFilters = () => {
@@ -624,7 +636,8 @@ function ResponsesPage() {
                     </div>
                     <div className="flex items-center justify-between mt-3 pt-2 border-t border-white/5 text-[10px]">
                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
-                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active Database
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />{" "}
+                        Active Database
                       </span>
                       <span className="text-muted-foreground font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded">
                         <MessageSquare className="size-2.5" /> {allResponses.length} reviews
@@ -975,7 +988,9 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
                   />
                 ))}
               </div>
-              <span className="text-[10px] text-muted-foreground font-semibold">({score} / {totalStars})</span>
+              <span className="text-[10px] text-muted-foreground font-semibold">
+                ({score} / {totalStars})
+              </span>
             </div>
             {label && (
               <span className="text-[10px] text-amber-200/90 italic -mt-0.5">Label: {label}</span>
@@ -1006,7 +1021,7 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
           (item: any) =>
             item.emoji === valStr ||
             item.label === valStr ||
-            String(customEmojis.indexOf(item) + 1) === valStr
+            String(customEmojis.indexOf(item) + 1) === valStr,
         );
         if (found) {
           return (
@@ -1124,10 +1139,12 @@ function ResponseDetailCard({ r }: { r: ApiResponse }) {
               {r.duration_seconds}s
             </span>
             <span className="flex items-center gap-1 truncate max-w-[150px]">
-              <Smartphone className="size-3 text-muted-foreground/75" /> {r.device || "Logged Out Terminal"}
+              <Smartphone className="size-3 text-muted-foreground/75" />{" "}
+              {r.device || "Logged Out Terminal"}
             </span>
             <span className="flex items-center gap-1 truncate max-w-[150px]">
-              <FileText className="size-3 text-muted-foreground/75" /> {r.template || "Draft Survey"}
+              <FileText className="size-3 text-muted-foreground/75" />{" "}
+              {r.template || "Draft Survey"}
             </span>
           </div>
         </div>

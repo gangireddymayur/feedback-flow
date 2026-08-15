@@ -29,7 +29,14 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Devices, Templates, Schedules, type ApiSchedule, type ApiScheduleInstance, type RepeatMode } from "@/lib/api";
+import {
+  Devices,
+  Templates,
+  Schedules,
+  type ApiSchedule,
+  type ApiScheduleInstance,
+  type RepeatMode,
+} from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -41,16 +48,26 @@ const PX_PER_MIN = PX_PER_HOUR / 60; // 1 min = 1px
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 const PALETTE = [
   "oklch(0.76 0.17 210)", // Soft Teal
   "oklch(0.72 0.21 330)", // Soft Violet
   "oklch(0.80 0.15 150)", // Soft Emerald
-  "oklch(0.82 0.16 70)",  // Soft Orange
-  "oklch(0.74 0.19 15)",  // Soft Rose
+  "oklch(0.82 0.16 70)", // Soft Orange
+  "oklch(0.74 0.19 15)", // Soft Rose
   "oklch(0.78 0.16 270)", // Soft Lavender
 ];
 
@@ -142,7 +159,7 @@ function SchedulePage() {
   const [currentWeekDate, setCurrentWeekDate] = React.useState<string>(toISO(new Date()));
 
   const selectedDevice = devices.find((d) => d.id === selectedDeviceId);
-  const schedulesEnabled = selectedDevice ? (selectedDevice.schedules_enabled !== 0) : true;
+  const schedulesEnabled = selectedDevice ? selectedDevice.schedules_enabled !== 0 : true;
 
   // Active schedule editing state
   const [selectedSchedule, setSelectedSchedule] = React.useState<ApiSchedule | null>(null);
@@ -171,7 +188,9 @@ function SchedulePage() {
 
   // Overwrite state variables
   const [bulkOverwriteDates, setBulkOverwriteDates] = React.useState<string[] | null>(null);
-  const [repeatOverwritePayload, setRepeatOverwritePayload] = React.useState<Parameters<typeof Schedules.repeat>[0] | null>(null);
+  const [repeatOverwritePayload, setRepeatOverwritePayload] = React.useState<
+    Parameters<typeof Schedules.repeat>[0] | null
+  >(null);
 
   // Copy device schedule states
   const [copySourceDeviceId, setCopySourceDeviceId] = React.useState<string>("");
@@ -192,8 +211,16 @@ function SchedulePage() {
     const end = new Date(start.getTime());
     end.setDate(start.getDate() + (totalDays - 1) * interval);
 
-    const startStr = start.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    const endStr = end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const startStr = start.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    const endStr = end.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
 
     if (bulkRepeatMode === "none") {
       return `Occurs only on ${startStr}`;
@@ -210,8 +237,16 @@ function SchedulePage() {
     const end = new Date(start.getTime());
     end.setDate(start.getDate() + (totalDays - 1) * interval);
 
-    const startStr = start.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-    const endStr = end.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const startStr = start.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    const endStr = end.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
 
     if (editRepeatMode === "none") {
       return `Occurs only on ${startStr}`;
@@ -296,13 +331,13 @@ function SchedulePage() {
 
       if (e.shiftKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
         e.preventDefault();
-        const anchorIdx = weekDates.findIndex(d => toISO(d) === selectionAnchorDate);
+        const anchorIdx = weekDates.findIndex((d) => toISO(d) === selectionAnchorDate);
         if (anchorIdx === -1) return;
 
         const indices = selectedDates
-          .map(d => weekDates.findIndex(w => toISO(w) === d))
-          .filter(idx => idx !== -1);
-        
+          .map((d) => weekDates.findIndex((w) => toISO(w) === d))
+          .filter((idx) => idx !== -1);
+
         if (indices.length === 0) return;
 
         const minIdx = Math.min(...indices);
@@ -454,7 +489,13 @@ function SchedulePage() {
   });
 
   const copyDeviceMut = useMutation({
-    mutationFn: async ({ sourceDeviceId, overwrite }: { sourceDeviceId: string; overwrite: boolean }) => {
+    mutationFn: async ({
+      sourceDeviceId,
+      overwrite,
+    }: {
+      sourceDeviceId: string;
+      overwrite: boolean;
+    }) => {
       return Schedules.copyDevice({
         target_device_id: selectedDeviceId!,
         source_device_id: Number(sourceDeviceId),
@@ -525,7 +566,7 @@ function SchedulePage() {
 
     const handleMouseMove = (e: MouseEvent) => {
       const deltaY = e.clientY - dragState.startY;
-      const deltaMins = Math.round((deltaY / PX_PER_MIN) / 15) * 15;
+      const deltaMins = Math.round(deltaY / PX_PER_MIN / 15) * 15;
 
       if (dragState.action === "move") {
         const deltaX = e.clientX - dragState.startX;
@@ -540,7 +581,7 @@ function SchedulePage() {
           newStart = 0;
         }
         if (newEnd > 24 * 60) {
-          newStart -= (newEnd - 24 * 60);
+          newStart -= newEnd - 24 * 60;
           newEnd = 24 * 60;
         }
 
@@ -577,8 +618,8 @@ function SchedulePage() {
       if (
         blockId !== null &&
         (currentDate !== dragState.originalDate ||
-        currentStartMins !== dragState.originalStartMins ||
-        currentEndMins !== dragState.originalEndMins)
+          currentStartMins !== dragState.originalStartMins ||
+          currentEndMins !== dragState.originalEndMins)
       ) {
         const todayStr = toISO(new Date());
         if (currentDate < todayStr) {
@@ -623,11 +664,11 @@ function SchedulePage() {
   const filteredDevices = devices.filter(
     (d) =>
       d.name.toLowerCase().includes(deviceSearch.toLowerCase()) ||
-      (d.location && d.location.toLowerCase().includes(deviceSearch.toLowerCase()))
+      (d.location && d.location.toLowerCase().includes(deviceSearch.toLowerCase())),
   );
 
   const filteredTemplates = templates.filter((t) =>
-    t.name.toLowerCase().includes(templateSearch.toLowerCase())
+    t.name.toLowerCase().includes(templateSearch.toLowerCase()),
   );
 
   // Month Switcher for Mini Calendar
@@ -669,7 +710,7 @@ function SchedulePage() {
   const handleBlockMouseDown = (
     e: React.MouseEvent,
     inst: ApiScheduleInstance,
-    actionType: DragState["action"]
+    actionType: DragState["action"],
   ) => {
     e.stopPropagation();
     e.preventDefault();
@@ -808,7 +849,7 @@ function SchedulePage() {
                       "w-full text-left p-2 rounded-xl text-xs flex items-center justify-between border transition-all duration-200",
                       isSelected
                         ? "bg-primary/10 border-primary/30 text-foreground font-medium"
-                        : "bg-transparent border-transparent hover:bg-white/5 text-muted-foreground hover:text-foreground"
+                        : "bg-transparent border-transparent hover:bg-white/5 text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <div className="truncate">
@@ -822,7 +863,7 @@ function SchedulePage() {
                           ? "bg-emerald-400 animate-pulse"
                           : d.status === "paused"
                             ? "bg-amber-400"
-                            : "bg-muted-foreground/30"
+                            : "bg-muted-foreground/30",
                       )}
                     />
                   </button>
@@ -898,7 +939,7 @@ function SchedulePage() {
                         ? "bg-primary text-primary-foreground font-semibold"
                         : isToday
                           ? "bg-white/10 text-foreground"
-                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5",
                     )}
                   >
                     <span>{cell.date.getDate()}</span>
@@ -925,11 +966,13 @@ function SchedulePage() {
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground select-none">
                 Schedule Mode
               </h2>
-              
+
               <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-xs font-medium text-foreground">Disable Schedule</span>
-                  <span className="text-[10px] text-muted-foreground">Use a default template for everything</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Use a default template for everything
+                  </span>
                 </div>
                 <button
                   onClick={() => {
@@ -939,13 +982,15 @@ function SchedulePage() {
                   disabled={updateDeviceSchedulesMode.isPending}
                   className={cn(
                     "relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-primary/40 focus:ring-offset-1 focus:ring-offset-background",
-                    selectedDevice.schedules_enabled === 0 ? "bg-amber-600/70 border-amber-500/50" : "bg-white/10 border-white/5"
+                    selectedDevice.schedules_enabled === 0
+                      ? "bg-amber-600/70 border-amber-500/50"
+                      : "bg-white/10 border-white/5",
                   )}
                 >
                   <span
                     className={cn(
                       "pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out",
-                      selectedDevice.schedules_enabled === 0 ? "translate-x-4" : "translate-x-0"
+                      selectedDevice.schedules_enabled === 0 ? "translate-x-4" : "translate-x-0",
                     )}
                   />
                 </button>
@@ -953,7 +998,9 @@ function SchedulePage() {
 
               {selectedDevice.schedules_enabled === 0 && (
                 <div className="space-y-1.5 pt-2 border-t border-white/5 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <Label className="text-[10px] text-muted-foreground font-semibold">Default 24/7 Template</Label>
+                  <Label className="text-[10px] text-muted-foreground font-semibold">
+                    Default 24/7 Template
+                  </Label>
                   <select
                     value={selectedDevice.template_id || ""}
                     onChange={(e) => {
@@ -963,7 +1010,9 @@ function SchedulePage() {
                     disabled={updateDeviceDefaultTemplate.isPending}
                     className="w-full bg-white/5 border border-white/10 rounded-xl h-8 px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
                   >
-                    <option value="" disabled className="bg-[#0d0f12] text-muted-foreground">Select a default template...</option>
+                    <option value="" disabled className="bg-[#0d0f12] text-muted-foreground">
+                      Select a default template...
+                    </option>
                     {templates.map((t) => (
                       <option key={t.id} value={t.id} className="bg-[#0d0f12] text-foreground">
                         {t.name}
@@ -981,17 +1030,22 @@ function SchedulePage() {
                 Duplicate Schedule
               </h2>
               <p className="text-[10px] text-muted-foreground leading-normal">
-                Copy all schedule configurations from another screen. Past historical logs will not be affected.
+                Copy all schedule configurations from another screen. Past historical logs will not
+                be affected.
               </p>
-              
+
               <div className="space-y-1.5 pt-1">
-                <Label className="text-[10px] text-muted-foreground font-semibold">Copy From Screen</Label>
+                <Label className="text-[10px] text-muted-foreground font-semibold">
+                  Copy From Screen
+                </Label>
                 <select
                   value={copySourceDeviceId}
                   onChange={(e) => setCopySourceDeviceId(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl h-8 px-2.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 focus:border-primary/40"
                 >
-                  <option value="" className="bg-[#0d0f12] text-muted-foreground">Select screen...</option>
+                  <option value="" className="bg-[#0d0f12] text-muted-foreground">
+                    Select screen...
+                  </option>
                   {devices
                     .filter((d) => d.id !== selectedDeviceId)
                     .map((d) => (
@@ -1092,9 +1146,10 @@ function SchedulePage() {
                   const dateIso = toISO(date);
                   const isSelected = selectedDate === dateIso;
                   const isCurrent = dateIso === toISO(new Date());
-                  const isPast = parseISODate(dateIso).getTime() < parseISODate(toISO(new Date())).getTime();
+                  const isPast =
+                    parseISODate(dateIso).getTime() < parseISODate(toISO(new Date())).getTime();
                   const formattedDay = date.toLocaleDateString(undefined, { day: "numeric" });
-                  
+
                   return (
                     <div
                       key={idx}
@@ -1102,12 +1157,12 @@ function SchedulePage() {
                         if (!schedulesEnabled) return;
                         setSelectedDate(dateIso);
                         setCurrentWeekDate(dateIso);
-                        
+
                         if (isPast) {
                           toast.error("Past days cannot be repeated or duplicated.");
                           return;
                         }
-                        
+
                         const dayInstances = instances.filter((i) => i.date === dateIso);
                         if (dayInstances.length > 0) {
                           setBulkRepeatDate(dateIso);
@@ -1123,12 +1178,15 @@ function SchedulePage() {
                         e.stopPropagation();
                         if (!schedulesEnabled) return;
                         if (selectedDates.includes(dateIso)) {
-                          setSelectedDates(prev => prev.filter(d => d !== dateIso));
+                          setSelectedDates((prev) => prev.filter((d) => d !== dateIso));
                           if (selectionAnchorDate === dateIso) setSelectionAnchorDate(null);
                         } else {
                           setSelectedDates([dateIso]);
                           setSelectionAnchorDate(dateIso);
-                          toast.info("Column selected. Hold Shift + Left/Right arrow keys to expand selection.", { duration: 4000 });
+                          toast.info(
+                            "Column selected. Hold Shift + Left/Right arrow keys to expand selection.",
+                            { duration: 4000 },
+                          );
                         }
                       }}
                       className={cn(
@@ -1138,7 +1196,8 @@ function SchedulePage() {
                           : "cursor-pointer hover:bg-white/5",
                         isSelected && "bg-emerald-500/5",
                         isCurrent && "bg-primary/5",
-                        selectedDates.includes(dateIso) && "bg-rose-500/15 border-x border-rose-500/40"
+                        selectedDates.includes(dateIso) &&
+                          "bg-rose-500/15 border-x border-rose-500/40",
                       )}
                     >
                       <span
@@ -1148,7 +1207,7 @@ function SchedulePage() {
                             ? "text-emerald-400"
                             : isPast
                               ? "text-rose-400/90"
-                              : "text-muted-foreground"
+                              : "text-muted-foreground",
                         )}
                       >
                         {WEEKDAYS[idx]}
@@ -1162,7 +1221,7 @@ function SchedulePage() {
                               ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20"
                               : isPast
                                 ? "bg-rose-500/10 border border-rose-500/20 text-rose-400"
-                                : "text-foreground"
+                                : "text-foreground",
                         )}
                       >
                         {formattedDay}
@@ -1174,9 +1233,7 @@ function SchedulePage() {
             </div>
 
             {/* Scrollable Timeline */}
-            <div
-              className="grid grid-cols-[60px_1fr] relative overflow-y-scroll max-h-[620px]"
-            >
+            <div className="grid grid-cols-[60px_1fr] relative overflow-y-scroll max-h-[620px]">
               {/* Hour scale vertical labels */}
               <div className="flex flex-col text-[10px] text-muted-foreground/60 bg-white/[0.01]">
                 {Array.from({ length: HOURS }).map((_, h) => (
@@ -1195,14 +1252,17 @@ function SchedulePage() {
                 {!schedulesEnabled && (
                   <div
                     onClick={() => {
-                      toast.info(`Device is running its default fallback template: ${selectedDevice?.template_id ? templates.find(t => t.id === selectedDevice.template_id)?.name || 'Survey' : 'None'}. Turn on "Enable Scheduling" in the sidebar to configure the timeline.`);
+                      toast.info(
+                        `Device is running its default fallback template: ${selectedDevice?.template_id ? templates.find((t) => t.id === selectedDevice.template_id)?.name || "Survey" : "None"}. Turn on "Enable Scheduling" in the sidebar to configure the timeline.`,
+                      );
                     }}
                     className="absolute inset-0 bg-black/75 backdrop-blur-[1px] z-[60] flex flex-col items-center justify-center text-center p-4 select-none cursor-pointer"
                   >
                     <SlidersHorizontal className="size-8 text-amber-500/80 mb-2 animate-pulse" />
                     <h4 className="text-sm font-semibold text-foreground">Schedules Disabled</h4>
                     <p className="text-xs text-muted-foreground mt-1 max-w-xs leading-relaxed">
-                      This device is configured to display its default fallback template 24/7. Turn on "Enable Scheduling" in the sidebar to configure the timeline.
+                      This device is configured to display its default fallback template 24/7. Turn
+                      on "Enable Scheduling" in the sidebar to configure the timeline.
                     </p>
                   </div>
                 )}
@@ -1233,7 +1293,8 @@ function SchedulePage() {
                       className={cn(
                         "day-column relative h-full select-none cursor-copy transition-colors duration-200 hover:bg-white/[0.01]",
                         isCurrent && "bg-primary/[0.01]",
-                        selectedDates.includes(dateIso) && "bg-rose-500/[0.02] border-x border-rose-500/[0.08]"
+                        selectedDates.includes(dateIso) &&
+                          "bg-rose-500/[0.02] border-x border-rose-500/[0.08]",
                       )}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={(e) => handleGridDrop(e, dateIso)}
@@ -1245,8 +1306,12 @@ function SchedulePage() {
                         const isDraggingThis = dragState.blockId === inst.schedule_id;
 
                         // Calculate visual parameters
-                        const startMins = isDraggingThis ? dragState.currentStartMins : parseHHMM(inst.start_time);
-                        const endMins = isDraggingThis ? dragState.currentEndMins : parseHHMM(inst.end_time);
+                        const startMins = isDraggingThis
+                          ? dragState.currentStartMins
+                          : parseHHMM(inst.start_time);
+                        const endMins = isDraggingThis
+                          ? dragState.currentEndMins
+                          : parseHHMM(inst.end_time);
 
                         // Position mapping (1px = 1 min)
                         const top = startMins * PX_PER_MIN;
@@ -1268,10 +1333,11 @@ function SchedulePage() {
                             onDoubleClick={() => !isPastDay && handleBlockClick(inst.schedule_id)}
                             className={cn(
                               "absolute left-1 right-1 rounded-xl p-2 text-[10px] overflow-hidden group shadow-md transition-shadow hover:shadow-lg border-l-4",
-                              isPastDay 
-                                ? "opacity-50 blur-[0.5px] cursor-not-allowed pointer-events-none" 
+                              isPastDay
+                                ? "opacity-50 blur-[0.5px] cursor-not-allowed pointer-events-none"
                                 : "cursor-pointer",
-                              isDraggingThis && "opacity-90 shadow-2xl scale-[0.98] ring-1 ring-primary/40"
+                              isDraggingThis &&
+                                "opacity-90 shadow-2xl scale-[0.98] ring-1 ring-primary/40",
                             )}
                             style={{
                               top,
@@ -1291,7 +1357,10 @@ function SchedulePage() {
                             {/* Block Content */}
                             <div className="flex flex-col h-full pointer-events-none select-none relative">
                               <div className="font-semibold text-foreground truncate flex items-center gap-1">
-                                <span className="size-1.5 rounded-full shrink-0" style={{ background: color }} />
+                                <span
+                                  className="size-1.5 rounded-full shrink-0"
+                                  style={{ background: color }}
+                                />
                                 {inst.template_name}
                               </div>
                               <div className="text-muted-foreground text-[9px] mt-0.5 font-medium">
@@ -1445,7 +1514,9 @@ function SchedulePage() {
 
               {/* Recurrence Mode Selector */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground font-semibold">Repeat Pattern</Label>
+                <Label className="text-xs text-muted-foreground font-semibold">
+                  Repeat Pattern
+                </Label>
                 <div className="grid grid-cols-3 gap-2">
                   {(
                     [
@@ -1461,7 +1532,7 @@ function SchedulePage() {
                         "py-2 rounded-xl text-xs border font-medium transition-all",
                         editRepeatMode === k
                           ? "bg-primary/20 border-primary/40 text-foreground"
-                          : "bg-white/5 border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                          : "bg-white/5 border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground",
                       )}
                     >
                       {l}
@@ -1473,7 +1544,9 @@ function SchedulePage() {
               {/* Custom Interval settings */}
               {editRepeatMode === "custom" && (
                 <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <Label className="text-xs text-muted-foreground font-semibold">Repeat Interval</Label>
+                  <Label className="text-xs text-muted-foreground font-semibold">
+                    Repeat Interval
+                  </Label>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Every</span>
                     <Input
@@ -1481,7 +1554,9 @@ function SchedulePage() {
                       min={1}
                       max={90}
                       value={editRepeatInterval}
-                      onChange={(e) => setEditRepeatInterval(Math.max(1, Number(e.target.value) || 1))}
+                      onChange={(e) =>
+                        setEditRepeatInterval(Math.max(1, Number(e.target.value) || 1))
+                      }
                       className="w-20 bg-white/5 border-white/10 h-8 text-center text-xs"
                     />
                     <span className="text-xs text-muted-foreground">days</span>
@@ -1502,7 +1577,7 @@ function SchedulePage() {
                           "px-3 py-1 rounded-md text-xs border transition-colors",
                           editDaysCount === num
                             ? "bg-white/15 border-white/20 text-foreground"
-                            : "bg-white/5 border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                            : "bg-white/5 border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10",
                         )}
                       >
                         {num} day{num > 1 ? "s" : ""}
@@ -1609,7 +1684,9 @@ function SchedulePage() {
                         variant="destructive"
                         size="sm"
                         className="text-[10px] bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 h-8 px-3"
-                        onClick={() => deleteMut.mutate({ id: selectedSchedule.id, date: selectedDate })}
+                        onClick={() =>
+                          deleteMut.mutate({ id: selectedSchedule.id, date: selectedDate })
+                        }
                         disabled={deleteMut.isPending}
                       >
                         <Trash2 className="size-3.5 mr-1" /> Delete Day
@@ -1650,7 +1727,8 @@ function SchedulePage() {
           <DialogHeader>
             <DialogTitle>Repeat Day Schedule</DialogTitle>
             <DialogDescription>
-              Configure the recurrence rule to copy all templates scheduled on this date to other days.
+              Configure the recurrence rule to copy all templates scheduled on this date to other
+              days.
             </DialogDescription>
           </DialogHeader>
 
@@ -1659,18 +1737,27 @@ function SchedulePage() {
               {/* Day Schedules List */}
               <div className="bg-white/5 border border-white/5 rounded-xl p-3 space-y-2">
                 <div className="text-xs text-muted-foreground font-semibold">
-                  Scheduled Templates on {parseISODate(bulkRepeatDate).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}:
+                  Scheduled Templates on{" "}
+                  {parseISODate(bulkRepeatDate).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                  :
                 </div>
-                
+
                 {(() => {
-                  const dayInstanceSchedules = instances.filter(i => i.date === bulkRepeatDate);
-                  const dayScheduleIds = Array.from(new Set(dayInstanceSchedules.map(i => i.schedule_id)));
-                  const targetSchedules = schedules.filter(s => dayScheduleIds.includes(s.id));
+                  const dayInstanceSchedules = instances.filter((i) => i.date === bulkRepeatDate);
+                  const dayScheduleIds = Array.from(
+                    new Set(dayInstanceSchedules.map((i) => i.schedule_id)),
+                  );
+                  const targetSchedules = schedules.filter((s) => dayScheduleIds.includes(s.id));
 
                   if (targetSchedules.length === 0) {
                     return (
                       <div className="text-xs text-muted-foreground italic">
-                        No templates scheduled on this day. Add templates to the calendar grid first.
+                        No templates scheduled on this day. Add templates to the calendar grid
+                        first.
                       </div>
                     );
                   }
@@ -1682,7 +1769,10 @@ function SchedulePage() {
                         return (
                           <div key={s.id} className="flex items-center justify-between text-xs">
                             <div className="font-medium text-foreground flex items-center gap-1.5">
-                              <span className="size-1.5 rounded-full" style={{ background: color }} />
+                              <span
+                                className="size-1.5 rounded-full"
+                                style={{ background: color }}
+                              />
                               {s.template_name}
                             </div>
                             <div className="text-muted-foreground font-mono">
@@ -1698,7 +1788,9 @@ function SchedulePage() {
 
               {/* Recurrence Mode Selector */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground font-semibold">Repeat Pattern</Label>
+                <Label className="text-xs text-muted-foreground font-semibold">
+                  Repeat Pattern
+                </Label>
                 <div className="grid grid-cols-3 gap-2">
                   {(
                     [
@@ -1714,7 +1806,7 @@ function SchedulePage() {
                         "py-2 rounded-xl text-xs border font-medium transition-all",
                         bulkRepeatMode === k
                           ? "bg-primary/20 border-primary/40 text-foreground"
-                          : "bg-white/5 border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground"
+                          : "bg-white/5 border-white/10 hover:bg-white/10 text-muted-foreground hover:text-foreground",
                       )}
                     >
                       {l}
@@ -1726,7 +1818,9 @@ function SchedulePage() {
               {/* Custom Interval settings */}
               {bulkRepeatMode === "custom" && (
                 <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <Label className="text-xs text-muted-foreground font-semibold">Repeat Interval</Label>
+                  <Label className="text-xs text-muted-foreground font-semibold">
+                    Repeat Interval
+                  </Label>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Every</span>
                     <Input
@@ -1734,7 +1828,9 @@ function SchedulePage() {
                       min={1}
                       max={90}
                       value={bulkRepeatInterval}
-                      onChange={(e) => setBulkRepeatInterval(Math.max(1, Number(e.target.value) || 1))}
+                      onChange={(e) =>
+                        setBulkRepeatInterval(Math.max(1, Number(e.target.value) || 1))
+                      }
                       className="w-20 bg-white/5 border-white/10 h-8 text-center text-xs"
                     />
                     <span className="text-xs text-muted-foreground">days</span>
@@ -1755,7 +1851,7 @@ function SchedulePage() {
                           "px-3 py-1 rounded-md text-xs border transition-colors",
                           bulkRepeatDaysCount === num
                             ? "bg-white/15 border-white/20 text-foreground"
-                            : "bg-white/5 border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10"
+                            : "bg-white/5 border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/10",
                         )}
                       >
                         {num} day{num > 1 ? "s" : ""}
@@ -1768,7 +1864,9 @@ function SchedulePage() {
                         min={1}
                         max={365}
                         value={bulkRepeatDaysCount}
-                        onChange={(e) => setBulkRepeatDaysCount(Math.max(1, Number(e.target.value) || 1))}
+                        onChange={(e) =>
+                          setBulkRepeatDaysCount(Math.max(1, Number(e.target.value) || 1))
+                        }
                         className="w-16 bg-white/5 border-white/10 h-8 text-center text-xs"
                       />
                     </div>
@@ -1790,7 +1888,9 @@ function SchedulePage() {
                 variant="destructive"
                 className="bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 w-full sm:w-auto sm:mr-auto text-xs h-9"
                 onClick={() => {
-                  if (confirm("Are you sure you want to clear all templates scheduled on this day?")) {
+                  if (
+                    confirm("Are you sure you want to clear all templates scheduled on this day?")
+                  ) {
                     clearDayMut.mutate();
                   }
                 }}
@@ -1852,7 +1952,10 @@ function SchedulePage() {
       {/* ======================================================== */}
       {/* DIALOG: Save Recurring Change Options                     */}
       {/* ======================================================== */}
-      <Dialog open={pendingUpdate !== null} onOpenChange={(open) => !open && setPendingUpdate(null)}>
+      <Dialog
+        open={pendingUpdate !== null}
+        onOpenChange={(open) => !open && setPendingUpdate(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Save Recurring Change</DialogTitle>
@@ -1917,7 +2020,10 @@ function SchedulePage() {
       {/* ======================================================== */}
       {/* DIALOG: Confirm Overwrite for Bulk Replication            */}
       {/* ======================================================== */}
-      <Dialog open={bulkOverwriteDates !== null} onOpenChange={(open) => !open && setBulkOverwriteDates(null)}>
+      <Dialog
+        open={bulkOverwriteDates !== null}
+        onOpenChange={(open) => !open && setBulkOverwriteDates(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
@@ -1967,12 +2073,16 @@ function SchedulePage() {
       {/* ======================================================== */}
       {/* DIALOG: Confirm Overwrite for Recurrence Edit             */}
       {/* ======================================================== */}
-      <Dialog open={repeatOverwritePayload !== null} onOpenChange={(open) => !open && setRepeatOverwritePayload(null)}>
+      <Dialog
+        open={repeatOverwritePayload !== null}
+        onOpenChange={(open) => !open && setRepeatOverwritePayload(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
             <DialogDescription>
-              This recurrence pattern overlaps with existing schedules on future dates. Do you want to overwrite those overlapping windows?
+              This recurrence pattern overlaps with existing schedules on future dates. Do you want
+              to overwrite those overlapping windows?
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 pt-2">
@@ -2010,7 +2120,9 @@ function SchedulePage() {
           <DialogHeader>
             <DialogTitle>Overwrite Existing Schedules?</DialogTitle>
             <DialogDescription>
-              This screen already has active schedules assigned to it in the future. Copying schedule configurations will permanently delete and overwrite them. Past historical records will remain untouched.
+              This screen already has active schedules assigned to it in the future. Copying
+              schedule configurations will permanently delete and overwrite them. Past historical
+              records will remain untouched.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 pt-2">
@@ -2038,13 +2150,17 @@ function SchedulePage() {
       {/* ======================================================== */}
       {/* DIALOG: Bulk Delete Selected Days Confirm Dialog        */}
       {/* ======================================================== */}
-      <Dialog open={bulkDeleteConfirmOpen} onOpenChange={(open) => !open && setBulkDeleteConfirmOpen(false)}>
+      <Dialog
+        open={bulkDeleteConfirmOpen}
+        onOpenChange={(open) => !open && setBulkDeleteConfirmOpen(false)}
+      >
         <DialogContent className="max-w-md bg-card border-border">
           <DialogHeader>
             <DialogTitle>Clear Schedules for Selected Days?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete and clear all schedule windows for the selected **{selectedDates.length} days**? 
-              This action only clears future schedules; past historical logs remain untouched.
+              Are you sure you want to delete and clear all schedule windows for the selected **
+              {selectedDates.length} days**? This action only clears future schedules; past
+              historical logs remain untouched.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2 pt-2">

@@ -50,7 +50,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { QUESTION_LIBRARY, type BuilderQuestion, type QuestionType } from "@/lib/mock-data";
 import { Templates } from "@/lib/api";
 import { toast } from "sonner";
@@ -64,17 +70,152 @@ const builderSearchSchema = z.object({
 });
 
 const ALL_EMOJIS = [
-  "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩", "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴", "🤢", "🤮", "🤧", "😷", "🤒", "🤕",
-  "👍", "👎", "✊", "👊", "🤛", "🤜", "🤞", "✌️", "🤟", "🤘", "👌", "🤌", "👐", "🙌", "👏", "🙏", "🤝", "✍️", "💪", "🧠", "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "🔥", "✨", "🌟", "⭐", "🎉", "🎈", "🎁", "💡", "⚡", "💥", "🌈", "☀️"
+  "😀",
+  "😃",
+  "😄",
+  "😁",
+  "😆",
+  "😅",
+  "😂",
+  "🤣",
+  "😊",
+  "😇",
+  "🙂",
+  "🙃",
+  "😉",
+  "😌",
+  "😍",
+  "🥰",
+  "😘",
+  "😗",
+  "😙",
+  "😚",
+  "😋",
+  "😛",
+  "😝",
+  "😜",
+  "🤪",
+  "🤨",
+  "🧐",
+  "🤓",
+  "😎",
+  "🤩",
+  "🥳",
+  "😏",
+  "😒",
+  "😞",
+  "😔",
+  "😟",
+  "😕",
+  "🙁",
+  "☹️",
+  "😣",
+  "😖",
+  "😫",
+  "😩",
+  "🥺",
+  "😢",
+  "😭",
+  "😤",
+  "😠",
+  "😡",
+  "🤬",
+  "🤯",
+  "😳",
+  "🥵",
+  "🥶",
+  "😱",
+  "😨",
+  "😰",
+  "😥",
+  "😓",
+  "🤗",
+  "🤔",
+  "🤭",
+  "🤫",
+  "🤥",
+  "😶",
+  "😐",
+  "😑",
+  "😬",
+  "🙄",
+  "😯",
+  "😦",
+  "😧",
+  "😮",
+  "😲",
+  "🥱",
+  "😴",
+  "🤤",
+  "😪",
+  "😵",
+  "🤐",
+  "🥴",
+  "🤢",
+  "🤮",
+  "🤧",
+  "😷",
+  "🤒",
+  "🤕",
+  "👍",
+  "👎",
+  "✊",
+  "👊",
+  "🤛",
+  "🤜",
+  "🤞",
+  "✌️",
+  "🤟",
+  "🤘",
+  "👌",
+  "🤌",
+  "👐",
+  "🙌",
+  "👏",
+  "🙏",
+  "🤝",
+  "✍️",
+  "💪",
+  "🧠",
+  "❤️",
+  "🧡",
+  "💛",
+  "💚",
+  "💙",
+  "💜",
+  "🖤",
+  "🤍",
+  "🤎",
+  "💔",
+  "🔥",
+  "✨",
+  "🌟",
+  "⭐",
+  "🎉",
+  "🎈",
+  "🎁",
+  "💡",
+  "⚡",
+  "💥",
+  "🌈",
+  "☀️",
 ];
 
-function EmojiPicker({ onSelect, children }: { onSelect: (emoji: string) => void; children: React.ReactNode }) {
+function EmojiPicker({
+  onSelect,
+  children,
+}: {
+  onSelect: (emoji: string) => void;
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = React.useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
       <PopoverContent className="w-64 p-2 bg-zinc-950 border-zinc-800 text-foreground z-[9999]">
-        <div className="text-[10px] font-medium text-muted-foreground mb-1.5 px-1 select-none">Select Emoji</div>
+        <div className="text-[10px] font-medium text-muted-foreground mb-1.5 px-1 select-none">
+          Select Emoji
+        </div>
         <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto pr-1">
           {ALL_EMOJIS.map((emoji) => (
             <button
@@ -191,10 +332,10 @@ function BuilderPage() {
     textColor: "",
   });
 
-  const defaultQuestions = React.useMemo(() => [
-    makeQuestion("rating", 1),
-    makeQuestion("short_text", 1),
-  ], []);
+  const defaultQuestions = React.useMemo(
+    () => [makeQuestion("rating", 1), makeQuestion("short_text", 1)],
+    [],
+  );
 
   const [questions, setQuestions] = React.useState<BuilderQuestion[]>(defaultQuestions);
   const [selectedId, setSelectedId] = React.useState<string | null>(defaultQuestions[0].id);
@@ -212,7 +353,9 @@ function BuilderPage() {
     if (existingTemplate) {
       setName(existingTemplate.name);
       setDescription(existingTemplate.description || "");
-      setDisplayMode((existingTemplate.displayMode as "multi_page" | "single_page") || "multi_page");
+      setDisplayMode(
+        (existingTemplate.displayMode as "multi_page" | "single_page") || "multi_page",
+      );
       if (existingTemplate.branding) {
         setBranding({
           enabled: !!existingTemplate.branding.enabled,
@@ -355,7 +498,7 @@ function BuilderPage() {
           name,
           description,
           category: existingTemplate?.category || "General",
-          status: publish ? "active" : (existingTemplate?.status || "draft"),
+          status: publish ? "active" : existingTemplate?.status || "draft",
           displayMode,
           questions,
           branding,
@@ -399,7 +542,11 @@ function BuilderPage() {
     <DashboardLayout>
       <PageHeader
         title={templateId ? "Edit Template" : "Template Builder"}
-        description={templateId ? "Modify layout, questions, and customize tablet response screens." : "Drag question types from the library, drop into the canvas, edit on the right."}
+        description={
+          templateId
+            ? "Modify layout, questions, and customize tablet response screens."
+            : "Drag question types from the library, drop into the canvas, edit on the right."
+        }
         actions={
           <>
             <Button variant="outline" className="bg-white/5 border-white/10" asChild>
@@ -454,17 +601,22 @@ function BuilderPage() {
                 ))}
               </div>
             </div>
-            
+
             <div className="border-t border-white/5 pt-3 space-y-2.5">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Quick Configurations
               </div>
               <div className="flex items-center justify-between rounded bg-white/5 px-2 py-2">
                 <div>
-                  <Label htmlFor="t-custinfo" className="text-xs font-semibold text-foreground cursor-pointer">
+                  <Label
+                    htmlFor="t-custinfo"
+                    className="text-xs font-semibold text-foreground cursor-pointer"
+                  >
                     Collect Customer Info
                   </Label>
-                  <p className="text-[9px] text-muted-foreground mt-0.5">Collect name, email, phone</p>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">
+                    Collect name, email, phone
+                  </p>
                 </div>
                 <Switch
                   id="t-custinfo"
@@ -498,11 +650,13 @@ function BuilderPage() {
                 placeholder="Short description shown to customers…"
                 className="bg-white/5 border-white/10 mt-2 min-h-16 resize-none"
               />
-              
+
               <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
                 <div>
                   <Label className="text-xs font-semibold text-foreground">Display Mode</Label>
-                  <p className="text-[10px] text-muted-foreground">How questions render on the tablet screen</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    How questions render on the tablet screen
+                  </p>
                 </div>
                 <div className="flex gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
                   <Button
@@ -523,9 +677,8 @@ function BuilderPage() {
                   </Button>
                 </div>
               </div>
-
             </GlassCard>
- 
+
             <Canvas
               questions={questions}
               selectedId={selectedId}
@@ -541,7 +694,7 @@ function BuilderPage() {
               branding={branding}
             />
           </div>
- 
+
           {/* Inspector */}
           <GlassCard className="col-span-12 lg:col-span-3 p-4 h-fit lg:sticky lg:top-6 space-y-6">
             {selected && (
@@ -577,15 +730,24 @@ function BuilderPage() {
         </DragOverlay>
       </DndContext>
 
-      <Dialog open={previewQuestionType !== null} onOpenChange={(open) => !open && setPreviewQuestionType(null)}>
+      <Dialog
+        open={previewQuestionType !== null}
+        onOpenChange={(open) => !open && setPreviewQuestionType(null)}
+      >
         <DialogContent className="glass-strong border-white/10 text-white max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-              {previewQuestionType && React.createElement(ICONS[previewQuestionType], { className: "size-5 text-primary" })}
-              {previewQuestionType && QUESTION_LIBRARY.find(q => q.type === previewQuestionType)?.label} Preview
+              {previewQuestionType &&
+                React.createElement(ICONS[previewQuestionType], {
+                  className: "size-5 text-primary",
+                })}
+              {previewQuestionType &&
+                QUESTION_LIBRARY.find((q) => q.type === previewQuestionType)?.label}{" "}
+              Preview
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-1">
-              {previewQuestionType && QUESTION_LIBRARY.find(q => q.type === previewQuestionType)?.hint}
+              {previewQuestionType &&
+                QUESTION_LIBRARY.find((q) => q.type === previewQuestionType)?.hint}
             </DialogDescription>
           </DialogHeader>
 
@@ -595,8 +757,11 @@ function BuilderPage() {
               <div className="space-y-4 text-center w-full">
                 <div className="text-sm font-medium">How would you rate our service?</div>
                 <div className="flex justify-center gap-2">
-                  {[1, 2, 3, 4, 5].map(star => (
-                    <Star key={star} className="size-8 text-amber-400 fill-amber-400 cursor-pointer" />
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className="size-8 text-amber-400 fill-amber-400 cursor-pointer"
+                    />
                   ))}
                 </div>
               </div>
@@ -606,7 +771,10 @@ function BuilderPage() {
                 <div className="text-sm font-medium">How likely are you to recommend us?</div>
                 <div className="flex justify-center gap-1.5 flex-wrap">
                   {Array.from({ length: 11 }).map((_, i) => (
-                    <div key={i} className="size-8 rounded-lg border border-white/10 flex items-center justify-center text-xs font-semibold bg-white/5 hover:bg-primary/20 cursor-pointer">
+                    <div
+                      key={i}
+                      className="size-8 rounded-lg border border-white/10 flex items-center justify-center text-xs font-semibold bg-white/5 hover:bg-primary/20 cursor-pointer"
+                    >
                       {i}
                     </div>
                   ))}
@@ -617,8 +785,11 @@ function BuilderPage() {
               <div className="space-y-4 text-center w-full">
                 <div className="text-sm font-medium">How do you feel about today's visit?</div>
                 <div className="flex justify-center gap-3">
-                  {["😡", "😐", "🙂", "😍"].map(emoji => (
-                    <div key={emoji} className="text-3xl hover:scale-110 cursor-pointer transition-transform">
+                  {["😡", "😐", "🙂", "😍"].map((emoji) => (
+                    <div
+                      key={emoji}
+                      className="text-3xl hover:scale-110 cursor-pointer transition-transform"
+                    >
                       {emoji}
                     </div>
                   ))}
@@ -627,10 +798,16 @@ function BuilderPage() {
             )}
             {previewQuestionType === "yes_no" && (
               <div className="space-y-4 text-center w-full">
-                <div className="text-sm font-medium">Did you find everything you were looking for?</div>
+                <div className="text-sm font-medium">
+                  Did you find everything you were looking for?
+                </div>
                 <div className="flex justify-center gap-3">
-                  <Button variant="outline" className="w-24 bg-white/5 border-white/10">Yes</Button>
-                  <Button variant="outline" className="w-24 bg-white/5 border-white/10">No</Button>
+                  <Button variant="outline" className="w-24 bg-white/5 border-white/10">
+                    Yes
+                  </Button>
+                  <Button variant="outline" className="w-24 bg-white/5 border-white/10">
+                    No
+                  </Button>
                 </div>
               </div>
             )}
@@ -638,8 +815,11 @@ function BuilderPage() {
               <div className="space-y-4 text-center w-full">
                 <div className="text-sm font-medium">Which service did you use today?</div>
                 <div className="space-y-2 max-w-xs mx-auto">
-                  {["Dine In", "Takeaway", "Home Delivery"].map(opt => (
-                    <div key={opt} className="px-3 py-2 text-left rounded-lg bg-white/5 border border-white/10 text-xs cursor-pointer hover:bg-white/10">
+                  {["Dine In", "Takeaway", "Home Delivery"].map((opt) => (
+                    <div
+                      key={opt}
+                      className="px-3 py-2 text-left rounded-lg bg-white/5 border border-white/10 text-xs cursor-pointer hover:bg-white/10"
+                    >
                       {opt}
                     </div>
                   ))}
@@ -650,39 +830,65 @@ function BuilderPage() {
               <div className="space-y-4 text-center w-full">
                 <div className="text-sm font-medium">Select areas we did well:</div>
                 <div className="space-y-2 max-w-xs mx-auto">
-                  {["Speed of service", "Staff friendliness", "Cleanliness", "Product quality"].map(opt => (
-                    <div key={opt} className="px-3 py-2 text-left rounded-lg bg-white/5 border border-white/10 text-xs flex items-center gap-2 cursor-pointer hover:bg-white/10">
-                      <div className="size-4 rounded border border-white/20 flex items-center justify-center" />
-                      {opt}
-                    </div>
-                  ))}
+                  {["Speed of service", "Staff friendliness", "Cleanliness", "Product quality"].map(
+                    (opt) => (
+                      <div
+                        key={opt}
+                        className="px-3 py-2 text-left rounded-lg bg-white/5 border border-white/10 text-xs flex items-center gap-2 cursor-pointer hover:bg-white/10"
+                      >
+                        <div className="size-4 rounded border border-white/20 flex items-center justify-center" />
+                        {opt}
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             )}
             {previewQuestionType === "short_text" && (
               <div className="space-y-4 text-center w-full max-w-xs">
                 <div className="text-sm font-medium">Any specific comments?</div>
-                <Input placeholder="Type your comment..." className="bg-white/5 border-white/10 text-xs" readOnly />
+                <Input
+                  placeholder="Type your comment..."
+                  className="bg-white/5 border-white/10 text-xs"
+                  readOnly
+                />
               </div>
             )}
             {previewQuestionType === "long_text" && (
               <div className="space-y-4 text-center w-full max-w-xs">
                 <div className="text-sm font-medium">Share your experience in detail:</div>
-                <Textarea placeholder="Type detailed response..." className="bg-white/5 border-white/10 text-xs" readOnly />
+                <Textarea
+                  placeholder="Type detailed response..."
+                  className="bg-white/5 border-white/10 text-xs"
+                  readOnly
+                />
               </div>
             )}
             {previewQuestionType === "customer_info" && (
               <div className="space-y-3 w-full max-w-xs mx-auto">
                 <div className="text-center text-sm font-medium">Contact Details</div>
-                <Input placeholder="Full Name" className="bg-white/5 border-white/10 text-xs h-8" readOnly />
-                <Input placeholder="Email Address" className="bg-white/5 border-white/10 text-xs h-8" readOnly />
-                <Input placeholder="Phone Number" className="bg-white/5 border-white/10 text-xs h-8" readOnly />
+                <Input
+                  placeholder="Full Name"
+                  className="bg-white/5 border-white/10 text-xs h-8"
+                  readOnly
+                />
+                <Input
+                  placeholder="Email Address"
+                  className="bg-white/5 border-white/10 text-xs h-8"
+                  readOnly
+                />
+                <Input
+                  placeholder="Phone Number"
+                  className="bg-white/5 border-white/10 text-xs h-8"
+                  readOnly
+                />
               </div>
             )}
           </div>
 
           <div className="text-[11px] text-muted-foreground mt-2">
-            💡 Drag this question type into your template or click the "+" button in the library list to customize it.
+            💡 Drag this question type into your template or click the "+" button in the library
+            list to customize it.
           </div>
         </DialogContent>
       </Dialog>
@@ -791,9 +997,10 @@ function Canvas({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "canvas" });
 
-  const pageQuestions = displayMode === "multi_page"
-    ? questions.filter((q) => (q.page || 1) === activePage)
-    : questions;
+  const pageQuestions =
+    displayMode === "multi_page"
+      ? questions.filter((q) => (q.page || 1) === activePage)
+      : questions;
 
   const canvasBgStyle = React.useMemo(() => {
     if (branding.backgroundStyle === "solid") {
@@ -804,16 +1011,18 @@ function Canvas({
         background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.9) 100%)`,
       };
     } else {
-      return branding.themeMode === "light"
-        ? { background: "#F8FAFC" }
-        : { background: "#0b0f19" };
+      return branding.themeMode === "light" ? { background: "#F8FAFC" } : { background: "#0b0f19" };
     }
   }, [branding.backgroundStyle, branding.brandColor, branding.themeMode]);
 
   return (
     <div
       ref={setNodeRef}
-      style={{ ...canvasBgStyle, fontFamily: branding.fontFamily || "Inter", color: branding.themeMode === "light" ? "#18181b" : "#ffffff" }}
+      style={{
+        ...canvasBgStyle,
+        fontFamily: branding.fontFamily || "Inter",
+        color: branding.themeMode === "light" ? "#18181b" : "#ffffff",
+      }}
       className={cn(
         "glass rounded-2xl p-4 min-h-[360px] transition-all duration-300 relative",
         isOver && "ring-2 ring-primary/40 bg-primary/5",
@@ -847,7 +1056,11 @@ function Canvas({
                 onRemove={() => onRemove(q.id)}
                 onDuplicate={() => onDuplicate(q.id)}
                 onToggleWidth={() => {
-                  setQuestions((qs) => qs.map((x) => x.id === q.id ? { ...x, width: x.width === "half" ? "full" : "half" } : x));
+                  setQuestions((qs) =>
+                    qs.map((x) =>
+                      x.id === q.id ? { ...x, width: x.width === "half" ? "full" : "half" } : x,
+                    ),
+                  );
                 }}
                 themeMode={branding.themeMode || "dark"}
                 brandColor={branding.brandColor || "#0F766E"}
@@ -862,7 +1075,9 @@ function Canvas({
       {displayMode === "multi_page" && (
         <div className="mt-6 border-t border-white/5 pt-4 flex flex-wrap items-center justify-between gap-3 select-none">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mr-1">Pages:</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mr-1">
+              Pages:
+            </span>
             {Array.from({ length: totalPages }).map((_, idx) => {
               const pNum = idx + 1;
               return (
@@ -872,7 +1087,9 @@ function Canvas({
                     variant={activePage === pNum ? "secondary" : "outline"}
                     className={cn(
                       "h-8 px-3 text-xs cursor-pointer font-semibold",
-                      activePage === pNum ? "bg-primary text-primary-foreground border-primary/20" : "bg-white/5 border-white/10 hover:bg-white/10"
+                      activePage === pNum
+                        ? "bg-primary text-primary-foreground border-primary/20"
+                        : "bg-white/5 border-white/10 hover:bg-white/10",
                     )}
                     onClick={() => setActivePage(pNum)}
                   >
@@ -891,7 +1108,7 @@ function Canvas({
                             .map((q) => {
                               const qp = q.page || 1;
                               if (qp > pNum) {
-                                  return { ...q, page: qp - 1 };
+                                return { ...q, page: qp - 1 };
                               }
                               return q;
                             });
@@ -929,8 +1146,6 @@ function Canvas({
           </span>
         </div>
       )}
-
-
     </div>
   );
 }
@@ -967,8 +1182,16 @@ function SortableQuestion({
   const style = { transform: CSS.Transform.toString(transform), transition };
   const Icon = ICONS[q.type];
   const isLight = themeMode === "light";
-  const customBorderColor = selected ? brandColor : (isLight ? "rgba(228, 228, 231, 1)" : "rgba(255, 255, 255, 0.05)");
-  const customBgColor = selected ? `${brandColor}15` : (isLight ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.03)");
+  const customBorderColor = selected
+    ? brandColor
+    : isLight
+      ? "rgba(228, 228, 231, 1)"
+      : "rgba(255, 255, 255, 0.05)";
+  const customBgColor = selected
+    ? `${brandColor}15`
+    : isLight
+      ? "rgba(255, 255, 255, 0.9)"
+      : "rgba(255, 255, 255, 0.03)";
   const textTitleColor = isLight ? "text-zinc-900" : "text-white";
 
   const fontSizePx = React.useMemo(() => {
@@ -988,7 +1211,7 @@ function SortableQuestion({
         "group rounded-xl border p-3 flex items-start gap-3 transition-colors cursor-pointer",
         isLight ? "text-zinc-900 shadow-sm" : "text-white",
         isDragging && "opacity-50",
-        q.width === "half" ? "col-span-2 md:col-span-1" : "col-span-2"
+        q.width === "half" ? "col-span-2 md:col-span-1" : "col-span-2",
       )}
     >
       <button
@@ -1005,11 +1228,18 @@ function SortableQuestion({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className={cn("text-[10px]", isLight ? "text-zinc-500" : "text-muted-foreground")}>Q{index + 1}</span>
+          <span className={cn("text-[10px]", isLight ? "text-zinc-500" : "text-muted-foreground")}>
+            Q{index + 1}
+          </span>
           {q.required && (
             <Badge
               variant="secondary"
-              className={cn("text-[9px] px-1.5 py-0", isLight ? "bg-rose-100 text-rose-700 font-semibold" : "bg-rose-400/15 text-rose-300")}
+              className={cn(
+                "text-[9px] px-1.5 py-0",
+                isLight
+                  ? "bg-rose-100 text-rose-700 font-semibold"
+                  : "bg-rose-400/15 text-rose-300",
+              )}
             >
               Required
             </Badge>
@@ -1017,15 +1247,21 @@ function SortableQuestion({
           {q.width === "half" && (
             <Badge
               variant="outline"
-              className={cn("text-[9px] px-1.5 py-0", isLight ? "border-zinc-200 text-zinc-500" : "border-white/10 text-muted-foreground")}
+              className={cn(
+                "text-[9px] px-1.5 py-0",
+                isLight ? "border-zinc-200 text-zinc-500" : "border-white/10 text-muted-foreground",
+              )}
             >
               50% Width
             </Badge>
           )}
         </div>
-        <div 
-          style={{ fontSize: `${fontSizePx}px`, color: textColor || undefined }} 
-          className={cn("font-semibold mt-0.5 truncate transition-all", !textColor && textTitleColor)}
+        <div
+          style={{ fontSize: `${fontSizePx}px`, color: textColor || undefined }}
+          className={cn(
+            "font-semibold mt-0.5 truncate transition-all",
+            !textColor && textTitleColor,
+          )}
         >
           {q.label}
         </div>
@@ -1039,9 +1275,9 @@ function SortableQuestion({
           }}
           className={cn(
             "text-[9px] font-bold px-1.5 py-0.5 rounded border select-none shrink-0 cursor-pointer",
-            isLight 
-              ? "border-zinc-200 hover:bg-zinc-100 text-zinc-600" 
-              : "border-white/10 hover:bg-white/10 text-muted-foreground"
+            isLight
+              ? "border-zinc-200 hover:bg-zinc-100 text-zinc-600"
+              : "border-white/10 hover:bg-white/10 text-muted-foreground",
           )}
           title="Toggle width (50% / 100%)"
         >
@@ -1050,7 +1286,12 @@ function SortableQuestion({
         <Button
           size="icon"
           variant="ghost"
-          className={cn("size-7", isLight ? "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100" : "text-muted-foreground hover:text-white")}
+          className={cn(
+            "size-7",
+            isLight
+              ? "text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100"
+              : "text-muted-foreground hover:text-white",
+          )}
           onClick={(e) => {
             e.stopPropagation();
             onDuplicate();
@@ -1061,7 +1302,12 @@ function SortableQuestion({
         <Button
           size="icon"
           variant="ghost"
-          className={cn("size-7", isLight ? "text-rose-600 hover:text-rose-700 hover:bg-rose-50" : "text-rose-300 hover:text-rose-200")}
+          className={cn(
+            "size-7",
+            isLight
+              ? "text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+              : "text-rose-300 hover:text-rose-200",
+          )}
           onClick={(e) => {
             e.stopPropagation();
             onRemove();
@@ -1074,9 +1320,17 @@ function SortableQuestion({
   );
 }
 
-function QuestionPreview({ q, themeMode = "dark" }: { q: BuilderQuestion; themeMode?: "light" | "dark" }) {
+function QuestionPreview({
+  q,
+  themeMode = "dark",
+}: {
+  q: BuilderQuestion;
+  themeMode?: "light" | "dark";
+}) {
   const isLight = themeMode === "light";
-  const bgClass = isLight ? "bg-zinc-100 text-zinc-700 border-zinc-200" : "bg-white/5 text-muted-foreground border-white/5";
+  const bgClass = isLight
+    ? "bg-zinc-100 text-zinc-700 border-zinc-200"
+    : "bg-white/5 text-muted-foreground border-white/5";
   const textClass = isLight ? "text-zinc-500" : "text-muted-foreground";
 
   switch (q.type) {
@@ -1086,7 +1340,10 @@ function QuestionPreview({ q, themeMode = "dark" }: { q: BuilderQuestion; themeM
         <div className="mt-2 space-y-1">
           <div className="flex gap-1 flex-wrap">
             {Array.from({ length: totalStars }).map((_, i) => (
-              <Star key={i} className={cn("size-4", isLight ? "text-zinc-300" : "text-muted-foreground/40")} />
+              <Star
+                key={i}
+                className={cn("size-4", isLight ? "text-zinc-300" : "text-muted-foreground/40")}
+              />
             ))}
           </div>
           {q.starLabels?.some((l) => l) && (
@@ -1122,7 +1379,11 @@ function QuestionPreview({ q, themeMode = "dark" }: { q: BuilderQuestion; themeM
       return (
         <div className={cn("flex flex-wrap gap-1 mt-2 text-xs select-none", textClass)}>
           {emojiList.map((item, idx) => (
-            <span key={idx} className={cn("px-1 py-0.5 rounded border", bgClass)} title={item.label}>
+            <span
+              key={idx}
+              className={cn("px-1 py-0.5 rounded border", bgClass)}
+              title={item.label}
+            >
               {item.emoji}
             </span>
           ))}
@@ -1145,10 +1406,7 @@ function QuestionPreview({ q, themeMode = "dark" }: { q: BuilderQuestion; themeM
       return (
         <div className="flex flex-wrap gap-1.5 mt-2">
           {(q.options ?? []).map((o, i) => (
-            <span
-              key={i}
-              className={cn("text-[10px] px-2 py-0.5 rounded border", bgClass)}
-            >
+            <span key={i} className={cn("text-[10px] px-2 py-0.5 rounded border", bgClass)}>
               {o}
             </span>
           ))}
@@ -1166,16 +1424,21 @@ function QuestionPreview({ q, themeMode = "dark" }: { q: BuilderQuestion; themeM
       return (
         <div className="flex flex-wrap gap-1 mt-2">
           {fields.map((f) => (
-            <span key={f} className={cn(
-              "text-[9px] px-1.5 py-0.5 rounded border",
-              isLight 
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-            )}>
+            <span
+              key={f}
+              className={cn(
+                "text-[9px] px-1.5 py-0.5 rounded border",
+                isLight
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+              )}
+            >
               {f} input
             </span>
           ))}
-          {fields.length === 0 && <span className="text-[9px] italic text-rose-500">No fields selected</span>}
+          {fields.length === 0 && (
+            <span className="text-[9px] italic text-rose-500">No fields selected</span>
+          )}
         </div>
       );
     }
@@ -1222,12 +1485,19 @@ function Inspector({
         <Label htmlFor="req" className="text-xs cursor-pointer">
           Required
         </Label>
-        <Switch id="req" checked={q.required} onCheckedChange={(v) => onChange({ required: v })} className="scale-90 cursor-pointer" />
+        <Switch
+          id="req"
+          checked={q.required}
+          onCheckedChange={(v) => onChange({ required: v })}
+          className="scale-90 cursor-pointer"
+        />
       </div>
 
       {/* Grid Width layout switch */}
       <div className="space-y-1.5 border-t border-white/5 pt-3">
-        <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Layout Width</Label>
+        <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          Layout Width
+        </Label>
         <div className="flex gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
           <Button
             variant={q.width === "half" ? "secondary" : "ghost"}
@@ -1251,7 +1521,9 @@ function Inspector({
       {/* Yes/No customizable text */}
       {q.type === "yes_no" && (
         <div className="space-y-2 border-t border-white/5 pt-3">
-          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Custom Button Labels</Label>
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Custom Button Labels
+          </Label>
           <div>
             <Label className="text-[10px] text-muted-foreground">Yes button text</Label>
             <Input
@@ -1277,7 +1549,9 @@ function Inspector({
       {q.type === "rating" && (
         <div className="space-y-3 border-t border-white/5 pt-3">
           <div>
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Number of Stars</Label>
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Number of Stars
+            </Label>
             <div className="flex gap-1 mt-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
               {[3, 5, 10].map((num) => (
                 <Button
@@ -1286,7 +1560,10 @@ function Inspector({
                   size="sm"
                   onClick={() => {
                     const currentLabels = q.starLabels || [];
-                    const nextLabels = currentLabels.length >= num ? currentLabels : [...currentLabels, ...Array(num - currentLabels.length).fill("")];
+                    const nextLabels =
+                      currentLabels.length >= num
+                        ? currentLabels
+                        : [...currentLabels, ...Array(num - currentLabels.length).fill("")];
                     onChange({ maxStars: num, starLabels: nextLabels });
                   }}
                   className="w-full h-7 text-[10px] px-0"
@@ -1297,7 +1574,9 @@ function Inspector({
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Star Labels</Label>
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Star Labels
+            </Label>
             <Button
               variant="outline"
               size="xs"
@@ -1313,13 +1592,17 @@ function Inspector({
               <Plus className="size-3 mr-1 inline" /> Add Star
             </Button>
           </div>
-          <p className="text-[9px] text-muted-foreground -mt-1">Labels displayed underneath rating options</p>
+          <p className="text-[9px] text-muted-foreground -mt-1">
+            Labels displayed underneath rating options
+          </p>
           <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
             {Array.from({ length: q.maxStars || 5 }).map((_, i) => {
               const currentLabels = q.starLabels || [];
               return (
                 <div key={i} className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground w-12 shrink-0">{i + 1} Star:</span>
+                  <span className="text-[10px] text-muted-foreground w-12 shrink-0">
+                    {i + 1} Star:
+                  </span>
                   <Input
                     value={currentLabels[i] || ""}
                     onChange={(e) => {
@@ -1339,7 +1622,10 @@ function Inspector({
                         const currentStars = q.maxStars || 5;
                         const nextLabels = [...currentLabels];
                         nextLabels.splice(i, 1);
-                        onChange({ maxStars: Math.max(1, currentStars - 1), starLabels: nextLabels });
+                        onChange({
+                          maxStars: Math.max(1, currentStars - 1),
+                          starLabels: nextLabels,
+                        });
                       }}
                     >
                       <Trash2 className="size-3" />
@@ -1356,7 +1642,9 @@ function Inspector({
       {q.type === "emoji" && (
         <div className="space-y-2 border-t border-white/5 pt-3">
           <div className="flex items-center justify-between">
-            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Emoji options</Label>
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              Emoji options
+            </Label>
             <Button
               variant="outline"
               size="xs"
@@ -1378,13 +1666,15 @@ function Inspector({
             </Button>
           </div>
           <div className="space-y-2 mt-1 max-h-64 overflow-y-auto pr-1">
-            {(q.emojis || [
-              { emoji: "😡", label: "Very Unsatisfied" },
-              { emoji: "😕", label: "Unsatisfied" },
-              { emoji: "😐", label: "Neutral" },
-              { emoji: "🙂", label: "Satisfied" },
-              { emoji: "😍", label: "Extremely Satisfied" },
-            ]).map((item, idx) => (
+            {(
+              q.emojis || [
+                { emoji: "😡", label: "Very Unsatisfied" },
+                { emoji: "😕", label: "Unsatisfied" },
+                { emoji: "😐", label: "Neutral" },
+                { emoji: "🙂", label: "Satisfied" },
+                { emoji: "😍", label: "Extremely Satisfied" },
+              ]
+            ).map((item, idx) => (
               <div key={idx} className="space-y-1 bg-white/5 p-1.5 rounded border border-white/5">
                 <div className="flex items-center gap-1">
                   <Input
@@ -1411,7 +1701,8 @@ function Inspector({
                     <EmojiPicker
                       onSelect={(emoji) => {
                         const next = [...(q.emojis || [])];
-                        if (next[idx]) next[idx] = { ...next[idx], label: (item.label || "") + emoji };
+                        if (next[idx])
+                          next[idx] = { ...next[idx], label: (item.label || "") + emoji };
                         onChange({ emojis: next });
                       }}
                     >
@@ -1445,7 +1736,21 @@ function Inspector({
                 </div>
                 {/* Emoji quick-selector */}
                 <div className="flex gap-1 flex-wrap pt-0.5 justify-start items-center">
-                  {["😡", "😕", "😐", "🙂", "😍", "👍", "👎", "👏", "❤️", "🌟", "😀", "💡", "🔥"].map((char) => (
+                  {[
+                    "😡",
+                    "😕",
+                    "😐",
+                    "🙂",
+                    "😍",
+                    "👍",
+                    "👎",
+                    "👏",
+                    "❤️",
+                    "🌟",
+                    "😀",
+                    "💡",
+                    "🔥",
+                  ].map((char) => (
                     <button
                       key={char}
                       onClick={() => {
@@ -1455,7 +1760,7 @@ function Inspector({
                       }}
                       className={cn(
                         "text-xs p-0.5 rounded hover:bg-white/10 select-none cursor-pointer",
-                        item.emoji === char && "bg-primary/20 border border-primary/30"
+                        item.emoji === char && "bg-primary/20 border border-primary/30",
                       )}
                     >
                       {char}
@@ -1485,10 +1790,14 @@ function Inspector({
       {/* Customer Info Form field checkboxes */}
       {q.type === "customer_info" && (
         <div className="space-y-3 border-t border-white/5 pt-3">
-          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Fields to Display</Label>
+          <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Fields to Display
+          </Label>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between rounded bg-white/5 px-2 py-1.5">
-              <Label htmlFor="ci-name" className="text-xs cursor-pointer">Collect Full Name</Label>
+              <Label htmlFor="ci-name" className="text-xs cursor-pointer">
+                Collect Full Name
+              </Label>
               <Switch
                 id="ci-name"
                 checked={q.collectName !== false}
@@ -1497,7 +1806,9 @@ function Inspector({
               />
             </div>
             <div className="flex items-center justify-between rounded bg-white/5 px-2 py-1.5">
-              <Label htmlFor="ci-email" className="text-xs cursor-pointer">Collect Email Address</Label>
+              <Label htmlFor="ci-email" className="text-xs cursor-pointer">
+                Collect Email Address
+              </Label>
               <Switch
                 id="ci-email"
                 checked={q.collectEmail !== false}
@@ -1506,7 +1817,9 @@ function Inspector({
               />
             </div>
             <div className="flex items-center justify-between rounded bg-white/5 px-2 py-1.5">
-              <Label htmlFor="ci-phone" className="text-xs cursor-pointer">Collect Phone Number</Label>
+              <Label htmlFor="ci-phone" className="text-xs cursor-pointer">
+                Collect Phone Number
+              </Label>
               <Switch
                 id="ci-phone"
                 checked={q.collectPhone !== false}
@@ -1601,19 +1914,21 @@ function BrandingInspector({
     backgroundStyle?: "solid" | "gradient" | "default";
     themeMode?: "light" | "dark";
   };
-  onChange: React.Dispatch<React.SetStateAction<{
-    enabled: boolean;
-    companyName: string;
-    logoUrl: string;
-    position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
-    size: number;
-    offsetX: number;
-    offsetY: number;
-    brandColor?: string;
-    fontFamily?: string;
-    backgroundStyle?: "solid" | "gradient" | "default";
-    themeMode?: "light" | "dark";
-  }>>;
+  onChange: React.Dispatch<
+    React.SetStateAction<{
+      enabled: boolean;
+      companyName: string;
+      logoUrl: string;
+      position: "top_left" | "top_right" | "bottom_left" | "bottom_right";
+      size: number;
+      offsetX: number;
+      offsetY: number;
+      brandColor?: string;
+      fontFamily?: string;
+      backgroundStyle?: "solid" | "gradient" | "default";
+      themeMode?: "light" | "dark";
+    }>
+  >;
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -1688,9 +2003,14 @@ function BrandingInspector({
               "Quicksand",
               "Cinzel",
               "Caveat",
-              "Fira Code"
+              "Fira Code",
             ].map((font) => (
-              <option key={font} value={font} className="bg-[#18181b] text-white" style={{ fontFamily: font }}>
+              <option
+                key={font}
+                value={font}
+                className="bg-[#18181b] text-white"
+                style={{ fontFamily: font }}
+              >
                 {font}
               </option>
             ))}
@@ -1706,10 +2026,10 @@ function BrandingInspector({
               {branding.fontSize === "normal"
                 ? "36px (Normal)"
                 : branding.fontSize === "large"
-                ? "44px (Large)"
-                : branding.fontSize === "xlarge"
-                ? "52px (X-Large)"
-                : `${branding.fontSize || 36}px (Custom)`}
+                  ? "44px (Large)"
+                  : branding.fontSize === "xlarge"
+                    ? "52px (X-Large)"
+                    : `${branding.fontSize || 36}px (Custom)`}
             </span>
           </div>
           <div className="grid grid-cols-4 gap-1 bg-white/5 p-0.5 rounded-lg border border-white/5">
@@ -1726,8 +2046,7 @@ function BrandingInspector({
             ))}
             <Button
               variant={
-                branding.fontSize &&
-                !["normal", "large", "xlarge"].includes(branding.fontSize)
+                branding.fontSize && !["normal", "large", "xlarge"].includes(branding.fontSize)
                   ? "secondary"
                   : "ghost"
               }
@@ -1835,8 +2154,6 @@ function BrandingInspector({
           </div>
         </div>
       </div>
-
-
     </div>
   );
 }
@@ -1888,16 +2205,16 @@ function SurveyTabletPreview({
         background: `linear-gradient(135deg, ${baseColor} 0%, rgba(24, 24, 27, 0.95) 100%)`,
       };
     } else {
-      return branding.themeMode === "light"
-        ? { background: "#F8FAFC" }
-        : { background: "#0b0f19" };
+      return branding.themeMode === "light" ? { background: "#F8FAFC" } : { background: "#0b0f19" };
     }
   }, [branding.backgroundStyle, baseColor, branding.themeMode]);
 
   const isLight = branding.themeMode === "light";
   const textColor = isLight ? "text-zinc-900" : "text-white";
   const mutedTextColor = isLight ? "text-zinc-600" : "text-zinc-400";
-  const cardBg = isLight ? "bg-white/80 border-black/10 text-zinc-900" : "bg-white/5 border-white/5 text-white";
+  const cardBg = isLight
+    ? "bg-white/80 border-black/10 text-zinc-900"
+    : "bg-white/5 border-white/5 text-white";
   const previewFontSizePx = React.useMemo(() => {
     if (!branding.fontSize || branding.fontSize === "normal") return 14;
     if (branding.fontSize === "large") return 18;
@@ -1944,13 +2261,13 @@ function SurveyTabletPreview({
           <div className="w-full max-w-3xl aspect-[16/10] bg-zinc-800 rounded-[28px] p-3 shadow-2xl border-4 border-zinc-700 flex flex-col relative">
             {/* Camera dot */}
             <div className="absolute left-1/2 -translate-x-1/2 top-1.5 size-1.5 rounded-full bg-zinc-900" />
-            
+
             {/* Screen */}
-            <div 
+            <div
               style={{ ...bgStyle, fontFamily: branding.fontFamily || "Inter" }}
               className={cn(
                 "flex-1 rounded-[18px] p-6 overflow-y-auto flex flex-col justify-between transition-all duration-300 relative select-none",
-                isLight ? "text-zinc-900" : "text-white"
+                isLight ? "text-zinc-900" : "text-white",
               )}
             >
               {completed ? (
@@ -1963,8 +2280,8 @@ function SurveyTabletPreview({
                   <p className={cn("text-xs max-w-xs", mutedTextColor)}>
                     Your response has been recorded successfully.
                   </p>
-                  <Button 
-                    onClick={handleReset} 
+                  <Button
+                    onClick={handleReset}
                     className="mt-2 bg-white/10 hover:bg-white/20 text-white border border-white/10"
                     size="sm"
                   >
@@ -1989,11 +2306,20 @@ function SurveyTabletPreview({
                     {pageQuestions.map((q) => {
                       const ans = answers[q.id];
                       return (
-                        <div 
-                          key={q.id} 
-                          className={cn("p-4 rounded-xl border backdrop-blur-md transition-all duration-200", cardBg)}
+                        <div
+                          key={q.id}
+                          className={cn(
+                            "p-4 rounded-xl border backdrop-blur-md transition-all duration-200",
+                            cardBg,
+                          )}
                         >
-                          <div className="mb-2.5 flex items-baseline gap-1.5" style={{ fontSize: `${previewFontSizePx}px`, color: branding.textColor || undefined }}>
+                          <div
+                            className="mb-2.5 flex items-baseline gap-1.5"
+                            style={{
+                              fontSize: `${previewFontSizePx}px`,
+                              color: branding.textColor || undefined,
+                            }}
+                          >
                             <span className="font-semibold">{q.label}</span>
                             {q.required && <span className="text-rose-400 text-[10px]">*</span>}
                           </div>
@@ -2007,11 +2333,13 @@ function SurveyTabletPreview({
                                   onClick={() => setAnswers({ ...answers, [q.id]: star })}
                                   className="transition-transform active:scale-95 cursor-pointer"
                                 >
-                                  <Star 
+                                  <Star
                                     className={cn(
-                                      "size-7", 
-                                      ans >= star ? "text-amber-400 fill-amber-400" : "text-zinc-400"
-                                    )} 
+                                      "size-7",
+                                      ans >= star
+                                        ? "text-amber-400 fill-amber-400"
+                                        : "text-zinc-400",
+                                    )}
                                   />
                                 </button>
                               ))}
@@ -2026,9 +2354,9 @@ function SurveyTabletPreview({
                                   onClick={() => setAnswers({ ...answers, [q.id]: i })}
                                   className={cn(
                                     "size-8 rounded-lg border flex items-center justify-center text-[10px] font-bold cursor-pointer transition-colors",
-                                    ans === i 
-                                      ? "bg-white text-zinc-950 border-white" 
-                                      : "bg-black/20 border-white/10 hover:bg-black/30 text-white"
+                                    ans === i
+                                      ? "bg-white text-zinc-950 border-white"
+                                      : "bg-black/20 border-white/10 hover:bg-black/30 text-white",
                                   )}
                                 >
                                   {i}
@@ -2045,7 +2373,9 @@ function SurveyTabletPreview({
                                   onClick={() => setAnswers({ ...answers, [q.id]: emoji })}
                                   className={cn(
                                     "text-2xl p-1 rounded-full transition-transform active:scale-95 cursor-pointer",
-                                    ans === emoji ? "bg-white/20 ring-2 ring-white" : "opacity-70 hover:opacity-100"
+                                    ans === emoji
+                                      ? "bg-white/20 ring-2 ring-white"
+                                      : "opacity-70 hover:opacity-100",
                                   )}
                                 >
                                   {emoji}
@@ -2078,9 +2408,9 @@ function SurveyTabletPreview({
                                   onClick={() => setAnswers({ ...answers, [q.id]: opt })}
                                   className={cn(
                                     "w-full text-left px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition-all",
-                                    ans === opt 
-                                      ? "bg-white text-zinc-950 border-white" 
-                                      : "bg-black/20 border-white/10 hover:bg-black/30 text-white"
+                                    ans === opt
+                                      ? "bg-white text-zinc-950 border-white"
+                                      : "bg-black/20 border-white/10 hover:bg-black/30 text-white",
                                   )}
                                 >
                                   {opt}
@@ -2099,22 +2429,28 @@ function SurveyTabletPreview({
                                     key={opt}
                                     onClick={() => {
                                       const nextList = isChecked
-                                        ? currentList.filter(x => x !== opt)
+                                        ? currentList.filter((x) => x !== opt)
                                         : [...currentList, opt];
                                       setAnswers({ ...answers, [q.id]: nextList });
                                     }}
                                     className={cn(
                                       "w-full text-left px-3 py-1.5 rounded-lg border text-xs flex items-center gap-2 cursor-pointer transition-all",
-                                      isChecked 
-                                        ? "bg-white/10 border-white text-white" 
-                                        : "bg-black/20 border-white/10 hover:bg-black/30 text-white"
+                                      isChecked
+                                        ? "bg-white/10 border-white text-white"
+                                        : "bg-black/20 border-white/10 hover:bg-black/30 text-white",
                                     )}
                                   >
-                                    <div className={cn(
-                                      "size-3.5 rounded border flex items-center justify-center shrink-0",
-                                      isChecked ? "bg-white border-white text-zinc-950" : "border-white/40"
-                                    )}>
-                                      {isChecked && <CheckCircle2 className="size-2.5 fill-current" />}
+                                    <div
+                                      className={cn(
+                                        "size-3.5 rounded border flex items-center justify-center shrink-0",
+                                        isChecked
+                                          ? "bg-white border-white text-zinc-950"
+                                          : "border-white/40",
+                                      )}
+                                    >
+                                      {isChecked && (
+                                        <CheckCircle2 className="size-2.5 fill-current" />
+                                      )}
                                     </div>
                                     {opt}
                                   </button>
@@ -2146,28 +2482,34 @@ function SurveyTabletPreview({
                               <Input
                                 placeholder="Full Name"
                                 value={ans?.name || ""}
-                                onChange={(e) => setAnswers({
-                                  ...answers,
-                                  [q.id]: { ...(ans || {}), name: e.target.value }
-                                })}
+                                onChange={(e) =>
+                                  setAnswers({
+                                    ...answers,
+                                    [q.id]: { ...(ans || {}), name: e.target.value },
+                                  })
+                                }
                                 className="bg-black/20 border-white/10 text-xs h-8 focus-visible:ring-1 text-white"
                               />
                               <Input
                                 placeholder="Email Address"
                                 value={ans?.email || ""}
-                                onChange={(e) => setAnswers({
-                                  ...answers,
-                                  [q.id]: { ...(ans || {}), email: e.target.value }
-                                })}
+                                onChange={(e) =>
+                                  setAnswers({
+                                    ...answers,
+                                    [q.id]: { ...(ans || {}), email: e.target.value },
+                                  })
+                                }
                                 className="bg-black/20 border-white/10 text-xs h-8 focus-visible:ring-1 text-white"
                               />
                               <Input
                                 placeholder="Phone Number"
                                 value={ans?.phone || ""}
-                                onChange={(e) => setAnswers({
-                                  ...answers,
-                                  [q.id]: { ...(ans || {}), phone: e.target.value }
-                                })}
+                                onChange={(e) =>
+                                  setAnswers({
+                                    ...answers,
+                                    [q.id]: { ...(ans || {}), phone: e.target.value },
+                                  })
+                                }
                                 className="bg-black/20 border-white/10 text-xs h-8 focus-visible:ring-1 text-white"
                               />
                             </div>
@@ -2183,7 +2525,10 @@ function SurveyTabletPreview({
                       variant="ghost"
                       onClick={handleBack}
                       disabled={activePage === 1}
-                      className={cn("h-8 text-xs font-semibold select-none cursor-pointer", isLight ? "hover:bg-black/5 text-zinc-900" : "hover:bg-white/5 text-white")}
+                      className={cn(
+                        "h-8 text-xs font-semibold select-none cursor-pointer",
+                        isLight ? "hover:bg-black/5 text-zinc-900" : "hover:bg-white/5 text-white",
+                      )}
                     >
                       Back
                     </Button>

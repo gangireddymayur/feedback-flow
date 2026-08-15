@@ -319,7 +319,7 @@ export type ApiScheduleInstance = {
   template_name: string | null;
   date: string; // YYYY-MM-DD
   start_time: string; // HH:MM
-  end_time: string;   // HH:MM
+  end_time: string; // HH:MM
   start_datetime: string;
   end_datetime: string;
 };
@@ -330,7 +330,7 @@ export type ApiSchedule = {
   template_id: number;
   template_name: string | null;
   start_time: string; // HH:MM
-  end_time: string;   // HH:MM
+  end_time: string; // HH:MM
   start_date: string; // YYYY-MM-DD
   repeat_mode: RepeatMode;
   repeat_interval: number;
@@ -339,7 +339,9 @@ export type ApiSchedule = {
 
 export const Schedules = {
   list: async (deviceId: number) => {
-    return await http<{ schedules: ApiSchedule[]; instances: ApiScheduleInstance[] }>(`/schedules/device/${deviceId}`);
+    return await http<{ schedules: ApiSchedule[]; instances: ApiScheduleInstance[] }>(
+      `/schedules/device/${deviceId}`,
+    );
   },
   create: async (body: {
     device_id: number;
@@ -366,7 +368,7 @@ export const Schedules = {
       repeat_mode?: RepeatMode;
       repeat_interval?: number;
       days_count?: number;
-    }
+    },
   ) => {
     return await http<{ ok: true; created_instances: number }>(`/schedules/${id}`, {
       method: "PUT",
@@ -403,8 +405,18 @@ export const Schedules = {
       body: JSON.stringify(body),
     });
   },
-  copyDay: async (body: { device_id: number; source_date: string; target_dates: string[]; overwrite?: boolean }) => {
-    return await http<{ ok: boolean; has_existing?: boolean; existing_dates?: string[]; created?: number }>("/schedules/copy-day", {
+  copyDay: async (body: {
+    device_id: number;
+    source_date: string;
+    target_dates: string[];
+    overwrite?: boolean;
+  }) => {
+    return await http<{
+      ok: boolean;
+      has_existing?: boolean;
+      existing_dates?: string[];
+      created?: number;
+    }>("/schedules/copy-day", {
       method: "POST",
       body: JSON.stringify(body),
     });
@@ -415,11 +427,18 @@ export const Schedules = {
       body: JSON.stringify(body),
     });
   },
-  copyDevice: async (body: { target_device_id: number; source_device_id: number; overwrite?: boolean }) => {
-    return await http<{ ok: boolean; has_existing?: boolean; created?: number }>("/schedules/copy-device", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
+  copyDevice: async (body: {
+    target_device_id: number;
+    source_device_id: number;
+    overwrite?: boolean;
+  }) => {
+    return await http<{ ok: boolean; has_existing?: boolean; created?: number }>(
+      "/schedules/copy-device",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
   },
 };
 
@@ -431,7 +450,11 @@ export const Responses = {
   list: async () => {
     return await http<{ responses: ApiResponse[] }>("/responses");
   },
-  reportList: async (params?: { device_id?: string | number; from_date?: string; to_date?: string }) => {
+  reportList: async (params?: {
+    device_id?: string | number;
+    from_date?: string;
+    to_date?: string;
+  }) => {
     let url = "/reports/responses";
     const query = new URLSearchParams();
     if (params?.device_id) query.append("device_id", String(params.device_id));
@@ -451,13 +474,29 @@ export const Admins = {
   list: async () => {
     return await http<{ admins: ApiAdmin[] }>("/admins");
   },
-  create: async (body: { name: string; email: string; password: string; role?: "sub" | "super"; local_mode?: "none" | "single" | "multi"; max_devices?: number }) => {
+  create: async (body: {
+    name: string;
+    email: string;
+    password: string;
+    role?: "sub" | "super";
+    local_mode?: "none" | "single" | "multi";
+    max_devices?: number;
+  }) => {
     return await http<{ id: number }>("/admins", {
       method: "POST",
       body: JSON.stringify(body),
     });
   },
-  update: async (id: number, body: { name?: string; email?: string; password?: string; local_mode?: "none" | "single" | "multi"; max_devices?: number }) => {
+  update: async (
+    id: number,
+    body: {
+      name?: string;
+      email?: string;
+      password?: string;
+      local_mode?: "none" | "single" | "multi";
+      max_devices?: number;
+    },
+  ) => {
     return await http<{ ok: true }>(`/admins/${id}`, {
       method: "PUT",
       body: JSON.stringify(body),
@@ -496,7 +535,12 @@ export const Screensavers = {
   list: async () => {
     return await http<{ screensavers: ApiScreensaver[] }>("/screensavers");
   },
-  upload: async (body: { name: string; filename: string; base64Data: string; type: "image" | "video" }) => {
+  upload: async (body: {
+    name: string;
+    filename: string;
+    base64Data: string;
+    type: "image" | "video";
+  }) => {
     return await http<{ ok: boolean; screensaver: ApiScreensaver }>("/screensavers/upload", {
       method: "POST",
       body: JSON.stringify(body),
