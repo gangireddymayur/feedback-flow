@@ -46,6 +46,7 @@ function persist(a: AuthState | null) {
 }
 
 function toState(u: Me): AuthState {
+  if (!u) throw new Error("Authentication response missing user data");
   const isLocalServer =
     typeof window !== "undefined" &&
     (window.location.port === "3000" ||
@@ -94,9 +95,12 @@ export async function loginWithApi(email: string, password: string) {
 }
 
 export async function verifyCodeWithApi(email: string, password: string, code: string) {
-  const { token, user } = await Auth.verifyCode(email, password, code);
-  setToken(token);
-  const state = toState(user);
+  const res = await Auth.verifyCode(email, password, code);
+  if (!res.token || !res.user) {
+    throw new Error("Invalid verification response from server");
+  }
+  setToken(res.token);
+  const state = toState(res.user);
   persist(state);
   return state;
 }
