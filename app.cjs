@@ -1331,7 +1331,7 @@ app.post(
 );
 
 app.get(
-  "/api/me",
+  ["/api/me", "/api/auth/me"],
   auth(),
   asyncH(async (req, res) => {
     const [rows] = await pool.query(
