@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Auth, getToken, setToken, type Me } from "./api";
+import { Auth, getToken, setToken, type Me, ApiError } from "./api";
 
 export type Role = "super" | "sub";
 export type AuthState = {
@@ -72,17 +72,25 @@ function toState(u: Me): AuthState {
 }
 
 export async function loginWithApi(email: string, password: string) {
-  const res = await Auth.login(email, password);
-  if (res.require_code) {
-    return { require_code: true, email: res.email || email };
+  try {
+    const res = await Auth.login(email, password);
+    if (res.require_code) {
+      return { require_code: true, email: res.email || email };
+    }
+    if (!res.token || !res.user) {
+      throw new Error("Invalid response from login server");
+    }
+    setToken(res.token);
+    const state = toState(res.user);
+    persist(state);
+    return state;
+  } catch (err) {
+    // If the server returned 403 with code_required, surface that instead of an error
+    if (err instanceof ApiError && err.body?.code_required) {
+      return { require_code: true, no_code_available: true, email };
+    }
+    throw err;
   }
-  if (!res.token || !res.user) {
-    throw new Error("Invalid response from login server");
-  }
-  setToken(res.token);
-  const state = toState(res.user);
-  persist(state);
-  return state;
 }
 
 export async function verifyCodeWithApi(email: string, password: string, code: string) {
