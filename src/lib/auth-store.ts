@@ -72,7 +72,21 @@ function toState(u: Me): AuthState {
 }
 
 export async function loginWithApi(email: string, password: string) {
-  const { token, user } = await Auth.login(email, password);
+  const res = await Auth.login(email, password);
+  if (res.require_code) {
+    return { require_code: true, email: res.email || email };
+  }
+  if (!res.token || !res.user) {
+    throw new Error("Invalid response from login server");
+  }
+  setToken(res.token);
+  const state = toState(res.user);
+  persist(state);
+  return state;
+}
+
+export async function verifyCodeWithApi(email: string, password: string, code: string) {
+  const { token, user } = await Auth.verifyCode(email, password, code);
   setToken(token);
   const state = toState(user);
   persist(state);

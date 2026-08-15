@@ -14,6 +14,7 @@ import {
   Clock,
   AlertTriangle,
   RotateCcw,
+  Key,
 } from "lucide-react";
 import { DashboardLayout, PageHeader, GlassCard } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,13 @@ function AdminsPage() {
     max_devices: 5,
   });
 
+  const [activeCodes, setActiveCodes] = React.useState<Record<number, { code: string; expiresAt: number }>>({});
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const updateAdmin = useMutation({
     mutationFn: () =>
       Admins.update(editingAdmin.id, {
@@ -131,6 +139,18 @@ function AdminsPage() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admins"] });
       toast.success("Account access updated");
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const generateCode = useMutation({
+    mutationFn: (id: number) => Admins.generateCode(id),
+    onSuccess: (res, id) => {
+      setActiveCodes((prev) => ({
+        ...prev,
+        [id]: { code: res.code, expiresAt: Date.now() + 5 * 60 * 1000 },
+      }));
+      toast.success(`Verification code generated successfully: ${res.code}`);
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -379,7 +399,18 @@ function AdminsPage() {
                   )}
                 </div>
 
-                <div>
+                <div className="flex items-center gap-1.5">
+                  {a.local_mode !== "none" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => generateCode.mutate(a.id)}
+                      disabled={generateCode.isPending}
+                      className="h-7 text-[10px] font-bold border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/10 cursor-pointer px-2"
+                    >
+                      <Key className="size-3 mr-1" /> Generate Code
+                    </Button>
+                  )}
                   {a.subscription_status !== "active" ? (
                     <Button
                       size="sm"
@@ -400,6 +431,12 @@ function AdminsPage() {
                   )}
                 </div>
               </div>
+
+              {activeCodes[a.id] && activeCodes[a.id].expiresAt > Date.now() && (
+                <div className="mt-2 text-center text-xs font-bold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 rounded-lg py-1.5 px-2 flex items-center justify-center gap-1.5 animate-pulse">
+                  <Key className="size-3.5" /> Login Code: <span className="text-sm font-mono tracking-wider">{activeCodes[a.id].code}</span> (expires in {Math.max(0, Math.round((activeCodes[a.id].expiresAt - Date.now()) / 1000))}s)
+                </div>
+              )}
             </GlassCard>
           ))}
         </div>

@@ -166,9 +166,15 @@ export type ApiProfile = {
 
 export const Auth = {
   login: async (email: string, password: string) => {
-    return await http<{ token: string; user: Me }>("/auth/login", {
+    return await http<{ token?: string; user?: Me; require_code?: boolean; email?: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+    });
+  },
+  verifyCode: async (email: string, password: string, code: string) => {
+    return await http<{ token: string; user: Me }>("/auth/verify-code", {
+      method: "POST",
+      body: JSON.stringify({ email, password, code }),
     });
   },
   me: async () => {
@@ -512,6 +518,11 @@ export const Admins = {
     return await http<{ ok: true }>(`/admins/${id}/access`, {
       method: "PUT",
       body: JSON.stringify({ status }),
+    });
+  },
+  generateCode: async (id: number) => {
+    return await http<{ code: string }>(`/admins/${id}/generate-code`, {
+      method: "POST",
     });
   },
 };
