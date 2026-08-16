@@ -1186,7 +1186,7 @@ function computeTrialInfo(user) {
       createdAt: null,
     };
   const role = String(user.role || "").toLowerCase();
-  if (role === "admin" || role === "superadmin" || role === "super_admin" || role === "owner") {
+  if (role === "admin" || role === "superadmin" || role === "super_admin" || role === "super" || role === "owner") {
     return {
       isExpired: false,
       status: "active",
@@ -1195,14 +1195,34 @@ function computeTrialInfo(user) {
       createdAt: user.created_at || null,
     };
   }
+
+  const now = new Date();
+
+  // Active subscription check
   if (user.subscription_status === "active") {
-    return {
-      isExpired: false,
-      status: "active",
-      daysLeft: 999,
-      trialEndsAt: user.trial_ends_at || null,
-      createdAt: user.created_at || null,
-    };
+    if (!user.trial_ends_at) {
+      // Lifetime access
+      return {
+        isExpired: false,
+        status: "active",
+        daysLeft: 9999,
+        trialEndsAt: null,
+        createdAt: user.created_at || null,
+      };
+    } else {
+      // Custom duration active access
+      const trialEnds = new Date(user.trial_ends_at);
+      const diffMs = trialEnds.getTime() - now.getTime();
+      const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      const isExpired = now > trialEnds;
+      return {
+        isExpired,
+        status: isExpired ? "expired" : "active",
+        daysLeft,
+        trialEndsAt: trialEnds.toISOString(),
+        createdAt: user.created_at || null,
+      };
+    }
   }
 
   const createdAt = user.created_at ? new Date(user.created_at) : new Date();
@@ -1210,7 +1230,6 @@ function computeTrialInfo(user) {
     ? new Date(user.trial_ends_at)
     : new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const now = new Date();
   const diffMs = trialEnds.getTime() - now.getTime();
   const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
   const isExpired = now > trialEnds || user.subscription_status === "expired";
@@ -2204,13 +2223,23 @@ app.put(
   requireSuper,
   asyncH(async (req, res) => {
     const userId = Number(req.params.id);
-    const { status } = req.body || {}; // 'active' (full access) or 'trial' (reset 7-day trial)
+    const { status, duration } = req.body || {}; // 'active' (full access), 'trial' (reset trial), 'expired' (expire now)
     if (!["active", "trial", "expired"].includes(status)) {
       return res.status(400).json({ error: "Invalid subscription status" });
     }
 
     if (status === "active") {
-      await pool.query("UPDATE users SET subscription_status = 'active' WHERE id = ?", [userId]);
+      if (duration === "lifetime" || !duration) {
+        await pool.query("UPDATE users SET subscription_status = 'active', trial_ends_at = NULL WHERE id = ?", [userId]);
+      } else {
+        const days = Number(duration);
+        await pool.query(
+          useSqlite
+            ? `UPDATE users SET subscription_status = 'active', trial_ends_at = datetime('now', '+${days} days') WHERE id = ?`
+            : `UPDATE users SET subscription_status = 'active', trial_ends_at = DATE_ADD(NOW(), INTERVAL ${days} DAY) WHERE id = ?`,
+          [userId],
+        );
+      }
     } else if (status === "trial") {
       await pool.query(
         useSqlite

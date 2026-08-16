@@ -75,6 +75,8 @@ function AdminsPage() {
   });
 
   const [activeCodes, setActiveCodes] = React.useState<Record<number, { code: string; expiresAt: number }>>({});
+  const [accessOpen, setAccessOpen] = React.useState(false);
+  const [accessAdmin, setAccessAdmin] = React.useState<any | null>(null);
   const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
     const timer = setInterval(() => setTick((t) => t + 1), 1000);
@@ -134,8 +136,8 @@ function AdminsPage() {
   });
 
   const setAccess = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: "active" | "trial" | "expired" }) =>
-      Admins.setAccessStatus(id, status),
+    mutationFn: ({ id, status, duration }: { id: number; status: "active" | "trial" | "expired"; duration?: number | "lifetime" }) =>
+      Admins.setAccessStatus(id, status, duration),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admins"] });
       toast.success("Account access updated");
@@ -411,24 +413,22 @@ function AdminsPage() {
                       <Key className="size-3 mr-1" /> Generate Code
                     </Button>
                   )}
-                  {a.subscription_status !== "active" ? (
-                    <Button
-                      size="sm"
-                      onClick={() => setAccess.mutate({ id: a.id, status: "active" })}
-                      className="h-7 text-[10px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer px-3"
-                    >
-                      <ShieldCheck className="size-3 mr-1" /> Grant Access
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setAccess.mutate({ id: a.id, status: "trial" })}
-                      className="h-7 text-[10px] font-semibold text-muted-foreground hover:text-white cursor-pointer border-white/10"
-                    >
-                      <RotateCcw className="size-3 mr-1" /> Reset Trial
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setAccessAdmin(a);
+                      setAccessOpen(true);
+                    }}
+                    className={cn(
+                      "h-7 text-[10px] font-bold cursor-pointer px-3",
+                      a.subscription_status === "active"
+                        ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700"
+                        : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                    )}
+                  >
+                    <ShieldCheck className="size-3 mr-1" />
+                    {a.subscription_status === "active" ? "Manage Access" : "Grant Access"}
+                  </Button>
                 </div>
               </div>
 
@@ -580,6 +580,145 @@ function AdminsPage() {
               {updateAdmin.isPending ? "Saving changes…" : "Save changes"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={accessOpen} onOpenChange={setAccessOpen}>
+        <DialogContent className="glass-strong border-white/10 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Access: {accessAdmin?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Current Status</Label>
+              <div className="text-sm font-semibold mt-1">
+                {accessAdmin?.subscription_status === "active" ? (
+                  <span className="text-emerald-400">Full Access (Expires: {accessAdmin?.trial_info?.trialEndsAt ? new Date(accessAdmin.trial_info.trialEndsAt).toLocaleDateString() : "Lifetime"})</span>
+                ) : accessAdmin?.trial_info?.isExpired ? (
+                  <span className="text-rose-400">Trial Expired</span>
+                ) : (
+                  <span className="text-amber-400">{accessAdmin?.trial_info?.daysLeft}d Trial Left</span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2 border-t border-white/5 pt-3">
+              <Label className="text-xs font-semibold">Change Access Duration</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs bg-white/5 border-white/10 cursor-pointer"
+                  onClick={() => {
+                    if (accessAdmin) {
+                      setAccess.mutate({ id: accessAdmin.id, status: "trial" });
+                      setAccessOpen(false);
+                    }
+                  }}
+                >
+                  <RotateCcw className="size-3 mr-1.5" /> 7-Day Trial
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs bg-white/5 border-white/10 cursor-pointer"
+                  onClick={() => {
+                    if (accessAdmin) {
+                      setAccess.mutate({ id: accessAdmin.id, status: "active", duration: 30 });
+                      setAccessOpen(false);
+                    }
+                  }}
+                >
+                  30 Days
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs bg-white/5 border-white/10 cursor-pointer"
+                  onClick={() => {
+                    if (accessAdmin) {
+                      setAccess.mutate({ id: accessAdmin.id, status: "active", duration: 90 });
+                      setAccessOpen(false);
+                    }
+                  }}
+                >
+                  90 Days
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs bg-white/5 border-white/10 cursor-pointer"
+                  onClick={() => {
+                    if (accessAdmin) {
+                      setAccess.mutate({ id: accessAdmin.id, status: "active", duration: 365 });
+                      setAccessOpen(false);
+                    }
+                  }}
+                >
+                  1 Year
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="col-span-2 text-xs bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-500/30 text-emerald-400 cursor-pointer"
+                  onClick={() => {
+                    if (accessAdmin) {
+                      setAccess.mutate({ id: accessAdmin.id, status: "active", duration: "lifetime" });
+                      setAccessOpen(false);
+                    }
+                  }}
+                >
+                  Lifetime Access
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2 border-t border-white/5 pt-3">
+              <Label className="text-xs font-semibold">Custom Days</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  placeholder="Number of days"
+                  className="bg-white/5 border-white/10 text-xs h-8"
+                  id="custom-days-input"
+                />
+                <Button
+                  size="sm"
+                  className="h-8 text-xs cursor-pointer"
+                  onClick={() => {
+                    const el = document.getElementById("custom-days-input") as HTMLInputElement;
+                    const days = el ? Number(el.value) : 0;
+                    if (days > 0 && accessAdmin) {
+                      setAccess.mutate({ id: accessAdmin.id, status: "active", duration: days });
+                      setAccessOpen(false);
+                    } else {
+                      toast.error("Please enter a valid number of days");
+                    }
+                  }}
+                >
+                  Apply
+                </Button>
+              </div>
+            </div>
+
+            {accessAdmin?.subscription_status !== "expired" && (
+              <div className="border-t border-white/5 pt-3">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="w-full text-xs cursor-pointer"
+                  onClick={() => {
+                    if (accessAdmin) {
+                      setAccess.mutate({ id: accessAdmin.id, status: "expired" });
+                      setAccessOpen(false);
+                    }
+                  }}
+                >
+                  Stop Access / Expire Now
+                </Button>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

@@ -514,10 +514,10 @@ export const Admins = {
       body: JSON.stringify({ status }),
     });
   },
-  setAccessStatus: async (id: number, status: "active" | "trial" | "expired") => {
+  setAccessStatus: async (id: number, status: "active" | "trial" | "expired", duration?: number | "lifetime") => {
     return await http<{ ok: true }>(`/admins/${id}/access`, {
       method: "PUT",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, duration }),
     });
   },
   generateCode: async (id: number) => {
