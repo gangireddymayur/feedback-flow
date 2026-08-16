@@ -805,6 +805,39 @@ function BuilderPage() {
                   </Button>
                 </div>
               </div>
+
+              <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
+                <div>
+                  <Label className="text-xs font-semibold text-foreground">Translate Template</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Translate all questions in the canvas
+                  </p>
+                </div>
+                <select
+                  className="bg-white/5 border border-white/10 rounded px-2.5 py-1 text-xs text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary h-8 min-w-[140px]"
+                  value=""
+                  onChange={async (e) => {
+                    const lang = e.target.value;
+                    if (!lang) return;
+                    const promise = translateAllQuestions(questions, lang);
+                    toast.promise(promise, {
+                      loading: "Translating all questions...",
+                      success: (translatedQs) => {
+                        setQuestions(translatedQs);
+                        return `Successfully translated to ${LANGUAGES.find(l => l.code === lang)?.name}!`;
+                      },
+                      error: (err) => `Translation failed: ${err.message}`,
+                    });
+                  }}
+                >
+                  <option value="" disabled className="bg-zinc-950">Translate All...</option>
+                  {LANGUAGES.map((l) => (
+                    <option key={l.code} value={l.code} className="bg-zinc-950">
+                      {l.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </GlassCard>
 
             <Canvas
@@ -1156,40 +1189,14 @@ function Canvas({
         isOver && "ring-2 ring-primary/40 bg-primary/5",
       )}
     >
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground px-1 mb-3 flex items-center justify-between gap-4">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground px-1 mb-2 flex items-center justify-between">
         <span>
           Canvas · {pageQuestions.length} question{pageQuestions.length === 1 ? "" : "s"}
           {displayMode === "multi_page" && ` on Page ${activePage}`}
         </span>
-        <div className="flex items-center gap-3">
-          <select
-            className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
-            value=""
-            onChange={async (e) => {
-              const lang = e.target.value;
-              if (!lang) return;
-              const promise = translateAllQuestions(questions, lang);
-              toast.promise(promise, {
-                loading: "Translating all questions...",
-                success: (translatedQs) => {
-                  setQuestions(translatedQs);
-                  return `Successfully translated to ${LANGUAGES.find(l => l.code === lang)?.name}!`;
-                },
-                error: (err) => `Translation failed: ${err.message}`,
-              });
-            }}
-          >
-            <option value="" disabled className="bg-zinc-950">Translate All...</option>
-            {LANGUAGES.map((l) => (
-              <option key={l.code} value={l.code} className="bg-zinc-950">
-                {l.name}
-              </option>
-            ))}
-          </select>
-          <span className="text-[9px] text-muted-foreground capitalize shrink-0">
-            Mode: {displayMode.replace("_", " ")}
-          </span>
-        </div>
+        <span className="text-[9px] text-muted-foreground capitalize">
+          Mode: {displayMode.replace("_", " ")}
+        </span>
       </div>
       {pageQuestions.length === 0 ? (
         <div className="border border-dashed border-white/10 rounded-xl h-64 grid place-items-center text-sm text-muted-foreground">
