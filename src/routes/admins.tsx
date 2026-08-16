@@ -37,6 +37,7 @@ import {
 import { Admins, getToken } from "@/lib/api";
 import { LoadingState, ErrorState } from "@/routes/templates";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admins")({ component: AdminsPage });
 
