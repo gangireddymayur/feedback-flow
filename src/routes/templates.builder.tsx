@@ -58,7 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { QUESTION_LIBRARY, type BuilderQuestion, type QuestionType } from "@/lib/mock-data";
-import { Templates } from "@/lib/api";
+import { Templates, getToken } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -234,6 +234,134 @@ function EmojiPicker({
       </PopoverContent>
     </Popover>
   );
+}
+
+const LANGUAGES = [
+  { code: "hi", name: "Hindi (हिंदी)" },
+  { code: "te", name: "Telugu (తెలుగు)" },
+  { code: "ta", name: "Tamil (தமிழ்)" },
+  { code: "kn", name: "Kannada (ಕನ್ನಡ)" },
+  { code: "ml", name: "Malayalam (മലയാളം)" },
+  { code: "mr", name: "Marathi (मराठी)" },
+  { code: "bn", name: "Bengali (বাংলা)" },
+  { code: "gu", name: "Gujarati (ગુજરાતી)" },
+  { code: "pa", name: "Punjabi (ਪੰਜਾਬੀ)" },
+  { code: "ur", name: "Urdu (اردو)" },
+  { code: "en", name: "English" },
+  { code: "es", name: "Spanish (Español)" },
+  { code: "fr", name: "French (Français)" },
+  { code: "ar", name: "Arabic (العربية)" },
+];
+
+async function translateTexts(texts: string[], targetLang: string): Promise<string[]> {
+  const token = getToken();
+  const res = await fetch("/api/translate", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ text: texts, target: targetLang }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Translation request failed");
+  }
+  const data = await res.json();
+  return Array.isArray(data.translated) ? data.translated : [data.translated];
+}
+
+async function translateQuestion(q: BuilderQuestion, targetLang: string): Promise<BuilderQuestion> {
+  const texts: string[] = [];
+  const map: Array<{ type: "label" | "option" | "starLabel" | "yesLabel" | "noLabel" | "emojiLabel"; index?: number }> = [];
+
+  if (q.label) {
+    texts.push(q.label);
+    map.push({ type: "label" });
+  }
+
+  if (q.options && q.options.length > 0) {
+    q.options.forEach((opt, idx) => {
+      if (opt && opt.trim() !== "") {
+        texts.push(opt);
+        map.push({ type: "option", index: idx });
+      }
+    });
+  }
+
+  if (q.starLabels && q.starLabels.length > 0) {
+    q.starLabels.forEach((lbl, idx) => {
+      if (lbl && lbl.trim() !== "") {
+        texts.push(lbl);
+        map.push({ type: "starLabel", index: idx });
+      }
+    });
+  }
+
+  if (q.yesLabel) {
+    texts.push(q.yesLabel);
+    map.push({ type: "yesLabel" });
+  }
+
+  if (q.noLabel) {
+    texts.push(q.noLabel);
+    map.push({ type: "noLabel" });
+  }
+
+  if (q.emojis && q.emojis.length > 0) {
+    q.emojis.forEach((em, idx) => {
+      if (em.label && em.label.trim() !== "") {
+        texts.push(em.label);
+        map.push({ type: "emojiLabel", index: idx });
+      }
+    });
+  }
+
+  if (texts.length === 0) return q;
+
+  const translated = await translateTexts(texts, targetLang);
+
+  const newQ = { ...q };
+  if (newQ.options) newQ.options = [...newQ.options];
+  if (newQ.starLabels) newQ.starLabels = [...newQ.starLabels];
+  if (newQ.emojis) newQ.emojis = newQ.emojis.map(e => ({ ...e }));
+
+  translated.forEach((translatedText, i) => {
+    const mapping = map[i];
+    switch (mapping.type) {
+      case "label":
+        newQ.label = translatedText;
+        break;
+      case "option":
+        if (newQ.options && mapping.index !== undefined) {
+          newQ.options[mapping.index] = translatedText;
+        }
+        break;
+      case "starLabel":
+        if (newQ.starLabels && mapping.index !== undefined) {
+          newQ.starLabels[mapping.index] = translatedText;
+        }
+        break;
+      case "yesLabel":
+        newQ.yesLabel = translatedText;
+        break;
+      case "noLabel":
+        newQ.noLabel = translatedText;
+        break;
+      case "emojiLabel":
+        if (newQ.emojis && mapping.index !== undefined) {
+          newQ.emojis[mapping.index].label = translatedText;
+        }
+        break;
+    }
+  });
+
+  return newQ;
+}
+
+async function translateAllQuestions(qs: BuilderQuestion[], targetLang: string): Promise<BuilderQuestion[]> {
+  const promises = qs.map(q => translateQuestion(q, targetLang));
+  return Promise.all(promises);
 }
 
 export const Route = createFileRoute("/templates/builder")({
@@ -1028,14 +1156,40 @@ function Canvas({
         isOver && "ring-2 ring-primary/40 bg-primary/5",
       )}
     >
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground px-1 mb-2 flex items-center justify-between">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground px-1 mb-3 flex items-center justify-between gap-4">
         <span>
           Canvas · {pageQuestions.length} question{pageQuestions.length === 1 ? "" : "s"}
           {displayMode === "multi_page" && ` on Page ${activePage}`}
         </span>
-        <span className="text-[9px] text-muted-foreground capitalize">
-          Mode: {displayMode.replace("_", " ")}
-        </span>
+        <div className="flex items-center gap-3">
+          <select
+            className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+            value=""
+            onChange={async (e) => {
+              const lang = e.target.value;
+              if (!lang) return;
+              const promise = translateAllQuestions(questions, lang);
+              toast.promise(promise, {
+                loading: "Translating all questions...",
+                success: (translatedQs) => {
+                  setQuestions(translatedQs);
+                  return `Successfully translated to ${LANGUAGES.find(l => l.code === lang)?.name}!`;
+                },
+                error: (err) => `Translation failed: ${err.message}`,
+              });
+            }}
+          >
+            <option value="" disabled className="bg-zinc-950">Translate All...</option>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} className="bg-zinc-950">
+                {l.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-[9px] text-muted-foreground capitalize shrink-0">
+            Mode: {displayMode.replace("_", " ")}
+          </span>
+        </div>
       </div>
       {pageQuestions.length === 0 ? (
         <div className="border border-dashed border-white/10 rounded-xl h-64 grid place-items-center text-sm text-muted-foreground">
@@ -1454,6 +1608,35 @@ function Inspector({
 }) {
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+        <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          Translate Question
+        </Label>
+        <select
+          className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-primary"
+          value=""
+          onChange={async (e) => {
+            const lang = e.target.value;
+            if (!lang) return;
+            const promise = translateQuestion(q, lang);
+            toast.promise(promise, {
+              loading: "Translating question...",
+              success: (translatedQ) => {
+                onChange(translatedQ);
+                return `Question translated to ${LANGUAGES.find(l => l.code === lang)?.name}!`;
+              },
+              error: (err) => `Translation failed: ${err.message}`,
+            });
+          }}
+        >
+          <option value="" disabled className="bg-zinc-950">Translate to...</option>
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code} className="bg-zinc-950">
+              {l.name}
+            </option>
+          ))}
+        </select>
+      </div>
       <div>
         <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
           Question label

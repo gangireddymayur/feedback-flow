@@ -1621,6 +1621,42 @@ app.post(
   }),
 );
 
+app.post(
+  "/api/translate",
+  auth(),
+  asyncH(async (req, res) => {
+    const { text, target } = req.body || {};
+    if (!text || !target) {
+      return res.status(400).json({ error: "Missing text or target language" });
+    }
+    const isArray = Array.isArray(text);
+    const textsToTranslate = isArray ? text : [text];
+    
+    const translatedTexts = [];
+    for (const t of textsToTranslate) {
+      if (!t || typeof t !== "string" || t.trim() === "") {
+        translatedTexts.push(t);
+        continue;
+      }
+      
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(t)}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Google Translate API returned status ${response.status}`);
+      }
+      const data = await response.json();
+      if (data && data[0]) {
+        const translatedPart = data[0].map((x) => x[0]).join("");
+        translatedTexts.push(translatedPart);
+      } else {
+        translatedTexts.push(t);
+      }
+    }
+    
+    res.json({ translated: isArray ? translatedTexts : translatedTexts[0] });
+  }),
+);
+
 app.get(
   "/api/templates/:id",
   auth(),
