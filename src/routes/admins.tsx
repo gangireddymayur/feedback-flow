@@ -388,9 +388,16 @@ function AdminsPage() {
                     Access Level
                   </div>
                   {a.subscription_status === "active" && !a.trial_info?.isExpired ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mt-1">
-                      <ShieldCheck className="size-3" /> Full Access
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mt-1">
+                        <ShieldCheck className="size-3" /> Full Access
+                      </span>
+                      {a.trial_info?.trialEndsAt && (
+                        <div className="text-[9px] text-muted-foreground mt-1 font-medium">
+                          Expires: {new Date(a.trial_info.trialEndsAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </>
                   ) : a.trial_info?.isExpired ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 mt-1">
                       <AlertTriangle className="size-3" /> Access Expired
