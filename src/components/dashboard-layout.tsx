@@ -285,6 +285,23 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <div className="text-xs font-semibold bg-rose-500/20 px-3 py-2 rounded-lg border border-rose-500/40 text-rose-200">
                     Contact Administrator to Renew Access
                   </div>
+                  
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      try {
+                        await logout();
+                        window.location.href = "/login";
+                      } catch (err) {
+                        toast.error("Logout failed");
+                      }
+                    }}
+                    className="w-full h-9 text-xs text-muted-foreground hover:text-rose-200 hover:bg-white/5 cursor-pointer mt-1"
+                  >
+                    <LogOut className="size-3.5 mr-2" />
+                    Sign Out Account
+                  </Button>
                 </div>
                 
                 <div className="border-t border-white/5 pt-4 text-[10px] text-muted-foreground">
