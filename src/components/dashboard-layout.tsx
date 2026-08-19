@@ -14,6 +14,9 @@ import {
   Sparkles,
   CalendarClock,
   Tv,
+  ShieldCheck,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuth, useAuth, logout, refreshAuth } from "@/lib/auth-store";
@@ -211,6 +214,30 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               className="pl-9 bg-white/5 border-white/10 focus-visible:ring-primary/40 cursor-pointer text-xs h-9"
             />
           </div>
+          {auth.role === "sub" && (
+            <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-[11px] font-semibold select-none">
+              {auth.subscription_status === "active" && !auth.trial_info?.isExpired ? (
+                <>
+                  <ShieldCheck className="size-3.5 text-emerald-400" />
+                  <span className="text-zinc-300">
+                    Full Access {auth.trial_info?.trialEndsAt ? `until ${new Date(auth.trial_info.trialEndsAt).toLocaleDateString()}` : "(Lifetime)"}
+                  </span>
+                </>
+              ) : auth.trial_info?.isExpired ? (
+                <>
+                  <AlertTriangle className="size-3.5 text-rose-400" />
+                  <span className="text-rose-400">Access Expired</span>
+                </>
+              ) : (
+                <>
+                  <Clock className="size-3.5 text-amber-400" />
+                  <span className="text-amber-300">
+                    Trial expires: {auth.trial_info?.trialEndsAt ? new Date(auth.trial_info.trialEndsAt).toLocaleDateString() : ""}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="size-4" />
             <span className="absolute top-2 right-2 size-1.5 rounded-full bg-primary" />
