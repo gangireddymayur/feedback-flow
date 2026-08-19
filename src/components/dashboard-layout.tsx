@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   Clock,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuth, useAuth, logout, refreshAuth } from "@/lib/auth-store";
@@ -237,6 +238,27 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 </>
               )}
             </div>
+          )}
+          {auth.role === "sub" && auth.local_mode !== "none" && (
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={async () => {
+                try {
+                  toast.loading("Syncing subscription status...", { id: "sync-license" });
+                  await Auth.syncCloudEntitlements();
+                  await refreshAuth();
+                  toast.success("Subscription synced successfully!", { id: "sync-license" });
+                  window.location.reload();
+                } catch (err) {
+                  toast.error((err as Error).message || "Sync failed", { id: "sync-license" });
+                }
+              }}
+              className="size-7 rounded-lg text-muted-foreground hover:text-white hover:bg-white/5 cursor-pointer shrink-0"
+              title="Sync subscription status from cloud"
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
           )}
           <Button variant="ghost" size="icon" className="relative">
             <Bell className="size-4" />
