@@ -387,13 +387,13 @@ function AdminsPage() {
                   <div className="text-[10px] uppercase text-muted-foreground font-semibold">
                     Access Level
                   </div>
-                  {a.subscription_status === "active" ? (
+                  {a.subscription_status === "active" && !a.trial_info?.isExpired ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mt-1">
                       <ShieldCheck className="size-3" /> Full Access
                     </span>
                   ) : a.trial_info?.isExpired ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 mt-1">
-                      <AlertTriangle className="size-3" /> Trial Expired
+                      <AlertTriangle className="size-3" /> Access Expired
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 mt-1">
@@ -593,10 +593,10 @@ function AdminsPage() {
             <div>
               <Label className="text-xs text-muted-foreground">Current Status</Label>
               <div className="text-sm font-semibold mt-1">
-                {accessAdmin?.subscription_status === "active" ? (
+                {accessAdmin?.subscription_status === "active" && !accessAdmin?.trial_info?.isExpired ? (
                   <span className="text-emerald-400">Full Access (Expires: {accessAdmin?.trial_info?.trialEndsAt ? new Date(accessAdmin.trial_info.trialEndsAt).toLocaleDateString() : "Lifetime"})</span>
                 ) : accessAdmin?.trial_info?.isExpired ? (
-                  <span className="text-rose-400">Trial Expired</span>
+                  <span className="text-rose-400">Access Expired</span>
                 ) : (
                   <span className="text-amber-400">{accessAdmin?.trial_info?.daysLeft}d Trial Left</span>
                 )}
