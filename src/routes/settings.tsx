@@ -17,6 +17,12 @@ import {
   Image as ImageIcon,
   Loader2,
   SlidersHorizontal,
+  Mail,
+  Phone,
+  MapPin,
+  ExternalLink,
+  Globe,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +40,7 @@ function SettingsPage() {
   const qc = useQueryClient();
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = React.useState<"general" | "about">("general");
   const [logoutOpen, setLogoutOpen] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [uploadingLogo, setUploadingLogo] = React.useState(false);
@@ -208,9 +215,35 @@ function SettingsPage() {
         description="Profile, branding preferences, and security options."
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Profile and Branding Settings Card */}
-        <GlassCard className="lg:col-span-2 space-y-6">
+      <div className="flex gap-2 border-b border-white/5 pb-4 mb-6">
+        <button
+          onClick={() => setActiveTab("general")}
+          className={cn(
+            "px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer",
+            activeTab === "general"
+              ? "bg-primary text-white shadow-lg shadow-primary/20"
+              : "text-muted-foreground hover:text-white hover:bg-white/5 border border-transparent"
+          )}
+        >
+          General Settings
+        </button>
+        <button
+          onClick={() => setActiveTab("about")}
+          className={cn(
+            "px-4 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer",
+            activeTab === "about"
+              ? "bg-primary text-white shadow-lg shadow-primary/20"
+              : "text-muted-foreground hover:text-white hover:bg-white/5 border border-transparent"
+          )}
+        >
+          Developer Info
+        </button>
+      </div>
+
+      {activeTab === "general" ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Profile and Branding Settings Card */}
+          <GlassCard className="lg:col-span-2 space-y-6">
           <div className="flex items-center justify-between border-b border-white/5 pb-3">
             <div>
               <h3 className="font-semibold text-lg">Profile & Branding</h3>
@@ -482,6 +515,147 @@ function SettingsPage() {
           </GlassCard>
         </div>
       </div>
+      ) : (
+        <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <GlassCard className="p-8 border border-white/10 relative overflow-hidden">
+            {/* Background design elements */}
+            <div className="absolute -top-24 -right-24 size-48 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 size-48 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/5">
+              <div className="space-y-2">
+                <div className="inline-flex px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold text-primary tracking-wider uppercase">
+                  System Developer Profile
+                </div>
+                <h2 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-teal-400 via-emerald-400 to-indigo-400 bg-clip-text text-transparent">
+                  ADVAITHA Automations
+                </h2>
+                <p className="text-sm font-semibold text-zinc-300">
+                  ADVAITHA Designers N Networks
+                </p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
+                  <MapPin className="size-4 text-primary shrink-0" />
+                  <span>Road No.12, Banjara Hills, Mithali Nagar, Hyderabad - 500034</span>
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-wrap gap-3 shrink-0">
+                <a
+                  href="mailto:sree@advaitha.co.in"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <Mail className="size-3.5" />
+                  <span>sree@advaitha.co.in</span>
+                </a>
+                <a
+                  href="tel:9490468368"
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition-colors"
+                >
+                  <Phone className="size-3.5" />
+                  <span>+91 9490468368</span>
+                </a>
+              </div>
+            </div>
+
+            {/* WhatsApp Integration Call to Action */}
+            <div className="mt-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="space-y-1 text-center sm:text-left">
+                <h4 className="text-sm font-bold text-emerald-300 flex items-center justify-center sm:justify-start gap-1.5">
+                  <MessageSquare className="size-4 shrink-0" /> Instant Technical Support
+                </h4>
+                <p className="text-xs text-emerald-200/70 leading-normal max-w-md">
+                  Have questions, feature requests, or need technical assistance? Chat directly with our engineering team on WhatsApp.
+                </p>
+              </div>
+              <a
+                href="https://wa.me/9490468368"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-zinc-950 text-xs font-extrabold hover:bg-emerald-400 hover:shadow-lg hover:shadow-emerald-500/20 active:scale-95 transition-all shrink-0 cursor-pointer"
+              >
+                Chat on WhatsApp
+                <ExternalLink className="size-3.5" />
+              </a>
+            </div>
+
+            {/* Services Showcase Grid */}
+            <div className="mt-8 space-y-4">
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                Our Solutions & Services
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2.5 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                  <h4 className="text-xs font-extrabold text-primary uppercase tracking-wider">Enterprise & Operations</h4>
+                  <ul className="space-y-1.5 text-xs text-zinc-300">
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-primary" />
+                      <span>High-Performance Servers</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-primary" />
+                      <span>IT Infrastructure & Managed Services</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-primary" />
+                      <span>Custom Software & Apps Development</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-primary" />
+                      <span>Evolis ID Card Printers & Consumables</span>
+                    </li>
+                  </ul>
+                </div>
+                <div className="space-y-2.5 p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                  <h4 className="text-xs font-extrabold text-indigo-400 uppercase tracking-wider">Security & Digital Signage</h4>
+                  <ul className="space-y-1.5 text-xs text-zinc-300">
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-indigo-400" />
+                      <span>SDWAN / Enterprise Firewalls</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-indigo-400" />
+                      <span>CCTV Surveillance Systems</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-indigo-400" />
+                      <span>Queue Management & Digital Kiosks</span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      <span className="size-1.5 rounded-full bg-indigo-400" />
+                      <span>Digital Signage & Biometric Attendance</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Strategic Partnerships Section */}
+            <div className="mt-8 pt-6 border-t border-white/5 space-y-4">
+              <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest text-center">
+                Strategic Technology Partnerships
+              </h3>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300">
+                  Google Partner
+                </span>
+                <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300">
+                  Cisco Partner
+                </span>
+                <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300">
+                  Honeywell Partner
+                </span>
+                <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300">
+                  Microsoft Silver Partner
+                </span>
+                <span className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[10px] font-semibold text-zinc-300">
+                  Evolis Partner
+                </span>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+      )}
 
       {/* Logout Confirmation Dialog */}
       <Dialog open={logoutOpen} onOpenChange={setLogoutOpen}>
