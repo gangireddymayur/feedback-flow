@@ -276,6 +276,19 @@ function AdminsPage() {
                   <div className="text-xs text-muted-foreground inline-flex items-center gap-1 truncate">
                     <Mail className="size-3" /> {a.email}
                   </div>
+                  <div className="text-[10px] mt-1 font-medium">
+                    {a.subscription_status === "active" && !a.trial_info?.isExpired ? (
+                      <span className="text-emerald-400">
+                        Full Access {a.trial_info?.trialEndsAt ? `until ${new Date(a.trial_info.trialEndsAt).toLocaleDateString()}` : "(Lifetime)"}
+                      </span>
+                    ) : a.trial_info?.isExpired ? (
+                      <span className="text-rose-400">Access Expired</span>
+                    ) : (
+                      <span className="text-amber-400">
+                        Trial expires: {a.trial_info?.trialEndsAt ? new Date(a.trial_info.trialEndsAt).toLocaleDateString() : ""}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
