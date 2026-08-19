@@ -522,6 +522,15 @@ function SettingsPage() {
             <div className="absolute -top-24 -right-24 size-48 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
             <div className="absolute -bottom-24 -left-24 size-48 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
 
+            {/* Advaitha Profile Banner Image */}
+            <div className="w-full rounded-2xl border border-white/5 overflow-hidden bg-white/5 mb-6 shadow-xl">
+              <img
+                src="/advaitha.png"
+                alt="Advaitha Automations Showcase"
+                className="w-full h-auto object-contain"
+              />
+            </div>
+
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/5">
               <div className="space-y-2">
                 <div className="inline-flex px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold text-primary tracking-wider uppercase">
