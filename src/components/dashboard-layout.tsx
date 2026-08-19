@@ -247,55 +247,54 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           </span>
         </header>
         <div className="space-y-6">
-          {auth?.trial_info?.isExpired && auth.role !== "super" && (
-            <div className="bg-rose-500/15 border border-rose-500/30 rounded-xl p-4 text-rose-200 flex items-center justify-between gap-4 select-none">
-              <div className="flex items-center gap-3">
-                <div className="size-10 rounded-lg bg-rose-500/20 grid place-items-center text-rose-400 shrink-0 font-bold">
-                  7D
+          {auth?.trial_info?.isExpired && auth.role !== "super" ? (
+            <div className="flex-1 min-h-[70vh] grid place-items-center p-6 select-none">
+              <div className="w-full max-w-md glass-strong rounded-3xl p-8 border border-rose-500/20 shadow-2xl text-center space-y-6">
+                <div className="size-16 rounded-2xl bg-rose-500/10 border border-rose-500/30 grid place-items-center text-rose-400 mx-auto animate-bounce">
+                  <AlertTriangle className="size-8" />
                 </div>
-                <div>
-                  <div className="font-semibold text-sm text-rose-100 flex items-center gap-2">
-                    <span>7-Day Free Trial Expired</span>
-                    <span className="text-[10px] bg-rose-500/30 text-rose-200 px-2 py-0.5 rounded-full font-bold">
-                      Limit Reached
-                    </span>
-                  </div>
-                  <div className="text-xs text-rose-300/90 mt-0.5">
-                    Your 7-day free trial period has ended. Please contact your system administrator
-                    to grant full access for your account.
+                <div className="space-y-2">
+                  <h2 className="text-xl font-bold text-rose-200">License / Trial Expired</h2>
+                  <p className="text-xs text-rose-300/80 leading-relaxed">
+                    Your license or 7-day free trial period has expired. Please contact your system administrator to unlock full access for your account.
+                  </p>
+                </div>
+                
+                <div className="flex flex-col gap-2 pt-2">
+                  {auth?.local_mode !== "none" && (
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          toast.loading("Syncing status...", { id: "sync-sub" });
+                          await Auth.syncCloudEntitlements();
+                          await refreshAuth();
+                          toast.success("Subscription synced successfully!", { id: "sync-sub" });
+                          window.location.reload();
+                        } catch (err) {
+                          toast.error((err as Error).message || "Sync failed", {
+                            id: "sync-sub",
+                          });
+                        }
+                      }}
+                      className="w-full h-9 text-xs bg-rose-600 hover:bg-rose-500 text-white font-semibold cursor-pointer"
+                    >
+                      Sync Subscription Status
+                    </Button>
+                  )}
+                  <div className="text-xs font-semibold bg-rose-500/20 px-3 py-2 rounded-lg border border-rose-500/40 text-rose-200">
+                    Contact Administrator to Renew Access
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {auth?.local_mode !== "none" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        toast.loading("Syncing status...", { id: "sync-sub" });
-                        await Auth.syncCloudEntitlements();
-                        await refreshAuth();
-                        toast.success("Subscription synced successfully!", { id: "sync-sub" });
-                        window.location.reload();
-                      } catch (err) {
-                        toast.error((err as Error).message || "Sync failed", {
-                          id: "sync-sub",
-                        });
-                      }
-                    }}
-                    className="h-8 text-xs bg-rose-500/10 border-rose-500/30 text-rose-200 hover:bg-rose-500/20 hover:text-rose-100"
-                  >
-                    Sync Status
-                  </Button>
-                )}
-                <div className="text-xs font-semibold bg-rose-500/20 px-3 py-1.5 rounded-lg border border-rose-500/40">
-                  Contact Admin to Unlock
+                
+                <div className="border-t border-white/5 pt-4 text-[10px] text-muted-foreground">
+                  Expired on: {auth.trial_info?.trialEndsAt ? new Date(auth.trial_info.trialEndsAt).toLocaleDateString() : "Unknown"}
                 </div>
               </div>
             </div>
+          ) : (
+            children
           )}
-          {children}
         </div>
       </main>
 
