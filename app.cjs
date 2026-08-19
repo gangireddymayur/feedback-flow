@@ -2233,6 +2233,9 @@ app.put(
         await pool.query("UPDATE users SET subscription_status = 'active', trial_ends_at = NULL WHERE id = ?", [userId]);
       } else {
         const days = Number(duration);
+        if (isNaN(days) || days <= 0) {
+          return res.status(400).json({ error: "Invalid duration value" });
+        }
         await pool.query(
           useSqlite
             ? `UPDATE users SET subscription_status = 'active', trial_ends_at = datetime('now', '+${days} days') WHERE id = ?`
