@@ -1282,6 +1282,14 @@ app.post(
     }
 
     const isLocal = is_local || req.headers["x-local-request"];
+    if (ok && u && u.role === "sub" && !isLocal && !useSqlite) {
+      if (u.local_mode !== "none") {
+        return res.status(403).json({
+          error: "Solo and Network local sub-admins are not permitted to log in on the cloud dashboard.",
+        });
+      }
+    }
+
     if (ok && u && u.role === "sub" && isLocal && !useSqlite) {
       const codeExpiresAt = u.login_code_expires_at ? new Date(u.login_code_expires_at) : null;
       const isCodeValid = u.login_code && codeExpiresAt && codeExpiresAt.getTime() > Date.now();
