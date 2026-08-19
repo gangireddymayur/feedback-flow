@@ -1393,6 +1393,7 @@ app.post(
       local_mode: u.local_mode,
       max_devices: u.max_devices,
       created_at: u.created_at,
+      trial_info: computeTrialInfo(u),
     };
     res.json({ token: signToken(user), user });
   }),
@@ -1485,6 +1486,7 @@ app.post(
       local_mode: u.local_mode,
       max_devices: u.max_devices,
       created_at: u.created_at,
+      trial_info: computeTrialInfo(u),
     };
 
     res.json({ token: signToken(user), user });
