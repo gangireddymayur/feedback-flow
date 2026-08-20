@@ -243,6 +243,20 @@ class SqlitePool {
 
     // Regular query
     try {
+      const isWrite = /^\s*(insert|update|delete|create|drop|alter|replace)/i.test(translatedSql);
+      if (isWrite) {
+        this.db.run(translatedSql, params);
+        let lastId = 0;
+        let changes = 0;
+        const res = this.db.exec("SELECT last_insert_rowid(), changes()");
+        if (res && res.length > 0) {
+          lastId = res[0].values[0][0];
+          changes = res[0].values[0][1];
+        }
+        if (!this.inTransaction) this.saveToDisk();
+        return [{ insertId: lastId, affectedRows: changes }, null];
+      }
+
       let rows = [];
       const stmt = this.db.prepare(translatedSql);
       stmt.bind(params);
@@ -257,19 +271,6 @@ class SqlitePool {
         rows.push(rowObj);
       }
       stmt.free();
-
-      const isWrite = /^\s*(insert|update|delete|create|drop|alter|replace)/i.test(translatedSql);
-      if (isWrite) {
-        let lastId = 0;
-        let changes = 0;
-        const res = this.db.exec("SELECT last_insert_rowid(), changes()");
-        if (res && res.length > 0) {
-          lastId = res[0].values[0][0];
-          changes = res[0].values[0][1];
-        }
-        if (!this.inTransaction) this.saveToDisk();
-        return [{ insertId: lastId, affectedRows: changes }, null];
-      }
 
       return [rows, null];
     } catch (err) {
@@ -544,6 +545,9 @@ async function initializeSqliteDb(sqlitePool) {
   } catch (e) {}
   try {
     await sqlitePool.execute("ALTER TABLE users ADD COLUMN trial_ends_at TEXT NULL");
+  } catch (e) {}
+  try {
+    await sqlitePool.execute("ALTER TABLE users ADD COLUMN cloud_password TEXT NULL");
   } catch (e) {}
   try {
     await sqlitePool.execute("ALTER TABLE users ADD COLUMN login_code TEXT NULL");
@@ -1200,9 +1204,20 @@ function computeTrialInfo(user) {
 
   const now = new Date();
 
+  const parseDate = (d) => {
+    if (!d) return null;
+    if (d instanceof Date) return d;
+    const str = String(d).trim().replace(" ", "T");
+    const parsed = new Date(str);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const subStatus = user.subscription_status ? String(user.subscription_status).toLowerCase() : "trial";
+
   // Active subscription check
-  if (user.subscription_status === "active") {
-    if (!user.trial_ends_at) {
+  if (subStatus === "active") {
+    const trialEnds = parseDate(user.trial_ends_at);
+    if (!trialEnds) {
       // Lifetime access
       return {
         isExpired: false,
@@ -1213,10 +1228,9 @@ function computeTrialInfo(user) {
       };
     } else {
       // Custom duration active access
-      const trialEnds = new Date(user.trial_ends_at);
       const diffMs = trialEnds.getTime() - now.getTime();
       const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-      const isExpired = now > trialEnds;
+      const isExpired = now.getTime() > trialEnds.getTime();
       return {
         isExpired,
         status: isExpired ? "expired" : "active",
@@ -1227,14 +1241,12 @@ function computeTrialInfo(user) {
     }
   }
 
-  const createdAt = user.created_at ? new Date(user.created_at) : new Date();
-  const trialEnds = user.trial_ends_at
-    ? new Date(user.trial_ends_at)
-    : new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const createdAt = parseDate(user.created_at) || new Date();
+  const trialEnds = parseDate(user.trial_ends_at) || new Date(createdAt.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   const diffMs = trialEnds.getTime() - now.getTime();
   const daysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
-  const isExpired = now > trialEnds || user.subscription_status === "expired";
+  const isExpired = now.getTime() > trialEnds.getTime() || subStatus === "expired";
 
   return {
     isExpired,
@@ -1382,6 +1394,7 @@ app.post(
         });
       }
       localLoginPasswords.set(String(u.id), String(password));
+      await pool.query("UPDATE users SET cloud_password = ? WHERE id = ?", [String(password), u.id]);
     }
 
     const user = {
@@ -1477,6 +1490,11 @@ app.post(
     // Code is valid! Clear the code in the database so it cannot be reused
     await pool.query("UPDATE users SET login_code = NULL, login_code_expires_at = NULL WHERE id = ?", [u.id]);
 
+    if (useSqlite) {
+      localLoginPasswords.set(String(u.id), String(password));
+      await pool.query("UPDATE users SET cloud_password = ? WHERE id = ?", [String(password), u.id]);
+    }
+
     const user = {
       id: u.id,
       name: u.name,
@@ -1499,13 +1517,13 @@ async function syncUserEntitlementsLocalHelper(userId) {
   if (!useSqlite) return null;
   try {
     const [rows] = await pool.query(
-      "SELECT id, email, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, email, role, status, local_mode, max_devices, cloud_password FROM users WHERE id = ? LIMIT 1",
       [userId],
     );
     const localUser = rows[0];
     if (!localUser || localUser.role !== "sub") return null;
 
-    const password = localLoginPasswords.get(String(localUser.id));
+    const password = localLoginPasswords.get(String(localUser.id)) || localUser.cloud_password;
     if (!password) return null;
 
     const cloudResponse = await fetch(`${CLOUD_URL.replace(/\/+$/, "")}/api/auth/login`, {
@@ -1578,7 +1596,7 @@ app.post(
     }
 
     const [rows] = await pool.query(
-      "SELECT id, email, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+      "SELECT id, email, role, status, local_mode, max_devices, cloud_password FROM users WHERE id = ? LIMIT 1",
       [req.user.id],
     );
     const localUser = rows[0];
@@ -1593,7 +1611,7 @@ app.post(
         .json({ error: "Only local accounts (solo or network mode) can sync with the cloud." });
     }
 
-    const password = localLoginPasswords.get(String(localUser.id));
+    const password = localLoginPasswords.get(String(localUser.id)) || localUser.cloud_password;
     if (!password) {
       return res.status(428).json({
         error: "Please sign out and sign in once, then press Sync from Cloud again.",
