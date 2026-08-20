@@ -1212,10 +1212,10 @@ function computeTrialInfo(user) {
     return isNaN(parsed.getTime()) ? null : parsed;
   };
 
-  const subStatus = user.subscription_status ? String(user.subscription_status).toLowerCase() : "trial";
+  const subStatus = user.subscription_status ? String(user.subscription_status).toLowerCase() : "active";
 
-  // Active subscription check
-  if (subStatus === "active") {
+  // Active subscription check (or Local Solo Server default)
+  if (subStatus === "active" || (useSqlite && subStatus !== "expired")) {
     const trialEnds = parseDate(user.trial_ends_at);
     if (!trialEnds) {
       // Lifetime access
