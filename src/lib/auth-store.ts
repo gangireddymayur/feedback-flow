@@ -129,9 +129,25 @@ export function useAuth() {
   React.useEffect(() => {
     setState(getAuth());
 
-    // Refresh session on mount to sync local_mode
-    refreshAuth().then((updated) => {
-      if (updated) setState(updated);
+    // Refresh session on mount to sync local_mode and trial status
+    refreshAuth().then(async (updated) => {
+      if (updated) {
+        setState(updated);
+        if (
+          updated.trial_info?.isExpired &&
+          updated.role === "sub" &&
+          updated.local_mode &&
+          updated.local_mode !== "none"
+        ) {
+          try {
+            await Auth.syncCloudEntitlements();
+            const reRefreshed = await refreshAuth();
+            if (reRefreshed) setState(reRefreshed);
+          } catch (e) {
+            // Silently ignore background sync failures when offline
+          }
+        }
+      }
     });
 
     const h = () => setState(getAuth());

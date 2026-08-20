@@ -363,7 +363,7 @@ async function restoreBackupPayload(payload, dbPool) {
   if (Array.isArray(payload.users)) {
     for (const u of payload.users) {
       await dbPool.query(
-        "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
           u.id,
           u.name,
@@ -371,6 +371,8 @@ async function restoreBackupPayload(payload, dbPool) {
           u.password_hash,
           u.role,
           u.status || "active",
+          u.subscription_status || "trial",
+          u.trial_ends_at || null,
           u.local_mode || "none",
           u.max_devices || 1,
         ],
@@ -1493,17 +1495,74 @@ app.post(
   }),
 );
 
+async function syncUserEntitlementsLocalHelper(userId) {
+  if (!useSqlite) return null;
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, email, role, status, local_mode, max_devices FROM users WHERE id = ? LIMIT 1",
+      [userId],
+    );
+    const localUser = rows[0];
+    if (!localUser || localUser.role !== "sub") return null;
+
+    const password = localLoginPasswords.get(String(localUser.id));
+    if (!password) return null;
+
+    const cloudResponse = await fetch(`${CLOUD_URL.replace(/\/+$/, "")}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: localUser.email, password }),
+    });
+
+    if (!cloudResponse.ok) return null;
+
+    const cloudLogin = await cloudResponse.json();
+    const cloudUser = cloudLogin?.user || {};
+    const cloudLimit = Number(cloudUser.max_devices) || 1;
+
+    await pool.query(
+      "UPDATE users SET max_devices = ?, subscription_status = ?, trial_ends_at = ?, created_at = ? WHERE id = ?",
+      [
+        cloudLimit,
+        cloudUser.subscription_status || "trial",
+        cloudUser.trial_ends_at || null,
+        cloudUser.created_at || null,
+        localUser.id,
+      ],
+    );
+    return cloudUser;
+  } catch (e) {
+    return null;
+  }
+}
+
 app.get(
   ["/api/me", "/api/auth/me"],
   auth(),
   asyncH(async (req, res) => {
-    const [rows] = await pool.query(
+    let [rows] = await pool.query(
       "SELECT id, name, email, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at FROM users WHERE id = ? LIMIT 1",
       [req.user.id],
     );
     if (!rows[0]) return res.status(404).json({ error: "Not found" });
-    const user = rows[0];
-    user.trial_info = computeTrialInfo(user);
+    let user = rows[0];
+    let trialInfo = computeTrialInfo(user);
+
+    if (useSqlite && user.role === "sub" && (trialInfo.isExpired || user.subscription_status === "trial")) {
+      const synced = await syncUserEntitlementsLocalHelper(user.id);
+      if (synced) {
+        const [refreshedRows] = await pool.query(
+          "SELECT id, name, email, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at FROM users WHERE id = ? LIMIT 1",
+          [req.user.id],
+        );
+        if (refreshedRows[0]) {
+          user = refreshedRows[0];
+          trialInfo = computeTrialInfo(user);
+        }
+      }
+    }
+
+    user.trial_info = trialInfo;
     res.json({ user });
   }),
 );
