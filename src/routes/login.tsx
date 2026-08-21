@@ -21,7 +21,8 @@ function LoginPage() {
   }, []);
 
   const [mode, setMode] = React.useState<"login" | "signup">("login");
-  const [name, setName] = React.useState("");
+  const [orgName, setOrgName] = React.useState("");
+  const [adminName, setAdminName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
@@ -55,7 +56,8 @@ function LoginPage() {
 
       setLoading(true);
       try {
-        await signupWithApi(name.trim(), email.trim(), password);
+        const displayName = adminName.trim() || orgName.trim() || email.trim().split("@")[0];
+        await signupWithApi(displayName, email.trim(), password);
         toast.success("Account created successfully! Enjoy your 7-day free trial.");
         router.navigate({ to: "/" });
       } catch (err) {
@@ -114,12 +116,12 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid place-items-center px-4 relative overflow-hidden">
-      {/* Background glowing gradients */}
-      <div className="absolute -top-32 -left-32 size-96 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-32 -right-32 size-96 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+    <div className="min-h-screen grid place-items-center px-4 py-8 relative overflow-hidden bg-background">
+      {/* Background ambient lighting */}
+      <div className="absolute -top-32 -left-32 size-96 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-32 -right-32 size-96 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
 
-      <div className="w-full max-w-md glass-strong rounded-3xl p-8 shadow-2xl relative z-10">
+      <div className="w-full max-w-lg glass-strong rounded-3xl p-8 shadow-2xl relative z-10 border border-white/10">
         <div className="flex items-center gap-3 mb-6">
           <img
             src="/logo.png"
@@ -127,34 +129,41 @@ function LoginPage() {
             alt="FAM Logo"
           />
           <div>
-            <div className="text-lg font-semibold tracking-tight">Feedback Action Management</div>
+            <div className="text-lg font-bold tracking-tight">Feedback Action Management</div>
             <div className="text-xs text-muted-foreground">Action Management Platform</div>
           </div>
         </div>
 
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight">
             {mode === "signup" && isCloud ? "Create Cloud Account" : "Welcome back"}
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             {mode === "signup" && isCloud
               ? "Sign up now and get full access with a 7-day free trial."
               : "Sign in to manage your reviews."}
           </p>
         </div>
 
-        {/* Mode Switcher Tabs (Cloud Only) */}
+        {/* Mode Switcher Tabs with smooth pill indicator (Cloud Only) */}
         {isCloud && !requireCode && !codeUnavailable && (
-          <div className="flex p-1 bg-white/5 rounded-2xl border border-white/10 mb-6">
+          <div className="relative flex items-center p-1 bg-white/5 rounded-2xl w-full max-w-[280px] mx-auto mb-6 border border-white/10 shadow-inner">
+            <div
+              className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-xl transition-all duration-300 ease-out shadow-md ${
+                mode === "login"
+                  ? "left-1 bg-primary text-primary-foreground"
+                  : "left-[calc(50%+2px)] bg-emerald-500 shadow-emerald-500/25"
+              }`}
+            />
             <button
               type="button"
               onClick={() => {
                 setMode("login");
                 setError("");
               }}
-              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all ${
+              className={`relative z-10 flex-1 py-2 text-xs font-bold rounded-xl transition-colors duration-200 text-center whitespace-nowrap cursor-pointer select-none ${
                 mode === "login"
-                  ? "bg-primary text-primary-foreground shadow-md"
+                  ? "text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -166,17 +175,14 @@ function LoginPage() {
                 setMode("signup");
                 setError("");
               }}
-              className={`flex-1 py-2 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+              className={`relative z-10 flex-1 py-2 text-xs font-bold rounded-xl transition-colors duration-200 flex items-center justify-center gap-1.5 whitespace-nowrap cursor-pointer select-none ${
                 mode === "signup"
-                  ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                  ? "text-white font-extrabold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              <Sparkles className="size-3.5" />
+              <Sparkles className={`size-3.5 transition-transform duration-300 ${mode === "signup" ? "text-white scale-110" : "text-muted-foreground"}`} />
               <span>Sign Up</span>
-              <span className="text-[10px] bg-black/20 px-1.5 py-0.5 rounded-full font-bold">
-                7d Free
-              </span>
             </button>
           </div>
         )}
@@ -203,27 +209,60 @@ function LoginPage() {
           </div>
         ) : (
           <form onSubmit={submit} noValidate className="space-y-4">
+            {mode === "signup" && isCloud && (
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs text-emerald-400 flex items-center gap-3 shadow-inner mb-4">
+                <div className="size-8 rounded-xl bg-emerald-500/20 grid place-items-center shrink-0 text-emerald-400">
+                  <ShieldCheck className="size-4" />
+                </div>
+                <div className="leading-snug">
+                  <span className="font-bold text-white">Includes 7-Day Free Cloud Trial</span> with full dashboard features.
+                </div>
+              </div>
+            )}
+
             {!requireCode ? (
               <>
                 {mode === "signup" && isCloud && (
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name / Organization</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="e.g. John Doe"
-                      value={name}
-                      onChange={(e) => {
-                        setName(e.target.value);
-                        setError("");
-                      }}
-                      className="bg-white/5 border-white/10"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="orgName" className="text-xs font-semibold text-muted-foreground">
+                        Organization Name
+                      </Label>
+                      <Input
+                        id="orgName"
+                        type="text"
+                        placeholder="Acme Retail"
+                        value={orgName}
+                        onChange={(e) => {
+                          setOrgName(e.target.value);
+                          setError("");
+                        }}
+                        className="bg-white/5 border-white/10 h-10 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="adminName" className="text-xs font-semibold text-muted-foreground">
+                        Admin Full Name
+                      </Label>
+                      <Input
+                        id="adminName"
+                        type="text"
+                        placeholder="Jane Doe"
+                        value={adminName}
+                        onChange={(e) => {
+                          setAdminName(e.target.value);
+                          setError("");
+                        }}
+                        className="bg-white/5 border-white/10 h-10 text-xs"
+                      />
+                    </div>
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-xs font-semibold text-muted-foreground">
+                    Email Address
+                  </Label>
                   <Input
                     id="email"
                     type="email"
@@ -234,24 +273,26 @@ function LoginPage() {
                       setEmail(e.target.value);
                       setError("");
                     }}
-                    className="bg-white/5 border-white/10"
+                    className="bg-white/5 border-white/10 h-10 text-xs"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
+                <div className="space-y-1.5">
+                  <Label htmlFor="password" className="text-xs font-semibold text-muted-foreground">
+                    Password
+                  </Label>
                   <div className="relative">
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       required
-                      placeholder="••••••••"
+                      placeholder="At least 6 characters"
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
                         setError("");
                       }}
-                      className="bg-white/5 border-white/10 pr-10"
+                      className="bg-white/5 border-white/10 pr-10 h-10 text-xs"
                     />
                     <button
                       type="button"
@@ -264,20 +305,22 @@ function LoginPage() {
                 </div>
 
                 {mode === "signup" && isCloud && (
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="confirmPassword" className="text-xs font-semibold text-muted-foreground">
+                      Confirm Password
+                    </Label>
                     <div className="relative">
                       <Input
                         id="confirmPassword"
                         type={showConfirmPassword ? "text" : "password"}
                         required
-                        placeholder="••••••••"
+                        placeholder="Re-enter password"
                         value={confirmPassword}
                         onChange={(e) => {
                           setConfirmPassword(e.target.value);
                           setError("");
                         }}
-                        className="bg-white/5 border-white/10 pr-10"
+                        className="bg-white/5 border-white/10 pr-10 h-10 text-xs"
                       />
                       <button
                         type="button"
@@ -296,7 +339,9 @@ function LoginPage() {
               </>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="code">Verification Code</Label>
+                <Label htmlFor="code" className="text-xs font-semibold text-muted-foreground">
+                  Verification Code
+                </Label>
                 <Input
                   id="code"
                   type="text"
@@ -331,23 +376,20 @@ function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className={`w-full mt-2 group ${
+              className={`w-full h-11 text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer mt-2 ${
                 mode === "signup" && isCloud
-                  ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                  : ""
+                  ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+                  : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary/20"
               }`}
             >
               {loading ? (
                 <Loader2 className="size-4 animate-spin" />
+              ) : mode === "signup" && isCloud ? (
+                "Start 7-Day Free Trial"
+              ) : requireCode ? (
+                "Verify Code"
               ) : (
-                <>
-                  {requireCode
-                    ? "Verify Code"
-                    : mode === "signup" && isCloud
-                    ? "Create Account & Start 7-Day Trial"
-                    : "Sign in"}{" "}
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-                </>
+                "Sign In"
               )}
             </Button>
 
@@ -358,6 +400,40 @@ function LoginPage() {
               >
                 {error}
               </p>
+            )}
+
+            {isCloud && !requireCode && !codeUnavailable && (
+              <div className="text-center pt-2">
+                {mode === "signup" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Already have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("login");
+                        setError("");
+                      }}
+                      className="text-primary hover:underline font-semibold cursor-pointer"
+                    >
+                      Sign In
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Don't have an account?{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("signup");
+                        setError("");
+                      }}
+                      className="text-emerald-400 hover:underline font-semibold cursor-pointer"
+                    >
+                      Start 7-Day Free Trial
+                    </button>
+                  </p>
+                )}
+              </div>
             )}
           </form>
         )}
