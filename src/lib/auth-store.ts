@@ -72,6 +72,17 @@ function toState(u: Me): AuthState {
   };
 }
 
+export async function signupWithApi(name: string, email: string, password: string) {
+  const res = await Auth.signup(name, email, password);
+  if (!res.token || !res.user) {
+    throw new Error("Invalid response from sign up server");
+  }
+  setToken(res.token);
+  const state = toState(res.user);
+  persist(state);
+  return state;
+}
+
 export async function loginWithApi(email: string, password: string) {
   try {
     const res = await Auth.login(email, password);

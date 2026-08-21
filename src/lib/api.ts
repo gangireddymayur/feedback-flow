@@ -165,6 +165,12 @@ export type ApiProfile = {
 // =================================================================
 
 export const Auth = {
+  signup: async (name: string, email: string, password: string) => {
+    return await http<{ token: string; user: Me }>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password }),
+    });
+  },
   login: async (email: string, password: string) => {
     return await http<{ token?: string; user?: Me; require_code?: boolean; email?: string }>("/auth/login", {
       method: "POST",

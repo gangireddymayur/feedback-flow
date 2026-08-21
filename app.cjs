@@ -1281,6 +1281,63 @@ async function requireTrialNotExpired(req, res, next) {
 }
 
 app.post(
+  "/api/auth/signup",
+  asyncH(async (req, res) => {
+    if (useSqlite) {
+      return res.status(403).json({ error: "Sign up is only available on the cloud dashboard." });
+    }
+
+    const { name, email, password } = req.body || {};
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    const cleanPassword = String(password || "");
+    const cleanName = String(name || "").trim() || cleanEmail.split("@")[0] || "User";
+
+    if (!cleanEmail || !cleanPassword) {
+      return res.status(400).json({ error: "Email and password are required." });
+    }
+
+    if (cleanPassword.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters long." });
+    }
+
+    const [existing] = await pool.query("SELECT id FROM users WHERE LOWER(email) = ? LIMIT 1", [cleanEmail]);
+    if (existing && existing.length > 0) {
+      return res.status(400).json({ error: "An account with this email address already exists." });
+    }
+
+    const passwordHash = await bcrypt.hash(cleanPassword, 10);
+    const [result] = await pool.query(
+      "INSERT INTO users (name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at) VALUES (?, ?, ?, 'sub', 'active', 'trial', DATE_ADD(NOW(), INTERVAL 7 DAY), 'none', 1, NOW())",
+      [cleanName, cleanEmail, passwordHash],
+    );
+
+    const [rows] = await pool.query(
+      "SELECT id, name, email, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at FROM users WHERE id = ? LIMIT 1",
+      [result.insertId],
+    );
+    const u = rows[0] || {
+      id: result.insertId,
+      name: cleanName,
+      email: cleanEmail,
+      role: "sub",
+      status: "active",
+      subscription_status: "trial",
+      trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      local_mode: "none",
+      max_devices: 1,
+      created_at: new Date().toISOString(),
+    };
+
+    const user = {
+      ...u,
+      trial_info: computeTrialInfo(u),
+    };
+
+    res.status(201).json({ token: signToken(user), user });
+  }),
+);
+
+app.post(
   "/api/auth/login",
   asyncH(async (req, res) => {
     const { email, password, is_local } = req.body || {};
