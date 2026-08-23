@@ -45,7 +45,14 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
     // A local server restart, token expiry, or changed signing secret can
     // invalidate the browser session. Clear it immediately so every query
     // does not keep retrying with the same bad token.
-    if (res.status === 401) setToken(null);
+    if (res.status === 401) {
+      setToken(null);
+      // Leave protected dashboard routes immediately; otherwise mounted
+      // React Query observers can continue sending requests with no token.
+      if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+        window.location.replace("/login");
+      }
+    }
     throw new ApiError(body?.error || res.statusText, res.status, body);
   }
   return body as T;
