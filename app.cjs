@@ -1344,7 +1344,7 @@ app.post(
     const { email, password, is_local } = req.body || {};
     if (!email || !password) return res.status(400).json({ error: "Email and password required" });
     const [rows] = await pool.query(
-      "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, login_code, login_code_expires_at FROM users WHERE email = ? LIMIT 1",
+      "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, login_code, login_code_expires_at, (CASE WHEN login_code_expires_at > NOW() THEN 1 ELSE 0 END) AS is_code_valid FROM users WHERE email = ? LIMIT 1",
       [email.trim().toLowerCase()],
     );
     let u = rows[0];
@@ -1354,13 +1354,7 @@ app.post(
     }
 
     if (useSqlite && ok && u && u.role === "sub" && u.local_mode === "multi") {
-      const [codeRows] = await pool.query(
-        "SELECT id FROM users WHERE email = ? AND login_code IS NOT NULL AND login_code_expires_at > datetime('now') LIMIT 1",
-        [email.trim().toLowerCase()]
-      );
-      const isCodeValid = codeRows && codeRows.length > 0;
-      
-      if (isCodeValid) {
+      if (u.login_code && u.is_code_valid) {
         return res.json({ require_code: true, email: u.email });
       }
     }
@@ -1375,8 +1369,7 @@ app.post(
     }
 
     if (ok && u && u.role === "sub" && isLocal && !useSqlite) {
-      const codeExpiresAt = u.login_code_expires_at ? new Date(u.login_code_expires_at) : null;
-      const isCodeValid = u.login_code && codeExpiresAt && codeExpiresAt.getTime() > Date.now();
+      const isCodeValid = Boolean(u.login_code && u.is_code_valid);
       
       if (!isCodeValid) {
         return res.status(403).json({
@@ -1507,7 +1500,7 @@ app.post(
 
     if (useSqlite) {
       const [rows] = await pool.query(
-        "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, login_code, login_code_expires_at FROM users WHERE email = ? LIMIT 1",
+        "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, login_code, login_code_expires_at, (CASE WHEN login_code_expires_at > datetime('now') THEN 1 ELSE 0 END) AS is_code_valid FROM users WHERE email = ? LIMIT 1",
         [email.trim().toLowerCase()],
       );
       const u = rows[0];
@@ -1519,11 +1512,7 @@ app.post(
           return res.status(401).json({ error: "Your account has been disabled. Please contact the administrator." });
         }
         
-        const [codeRows] = await pool.query(
-          "SELECT id FROM users WHERE email = ? AND login_code = ? AND login_code_expires_at > datetime('now') LIMIT 1",
-          [email.trim().toLowerCase(), code.trim()]
-        );
-        const isCodeValid = codeRows && codeRows.length > 0;
+        const isCodeValid = Boolean(u.login_code && u.login_code === code.trim() && u.is_code_valid);
         
         if (isCodeValid) {
           await pool.query("UPDATE users SET login_code = NULL, login_code_expires_at = NULL WHERE id = ?", [u.id]);
@@ -1609,7 +1598,7 @@ app.post(
     }
 
     const [rows] = await pool.query(
-      "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, login_code, login_code_expires_at FROM users WHERE email = ? LIMIT 1",
+      "SELECT id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, login_code, login_code_expires_at, (CASE WHEN login_code_expires_at > NOW() THEN 1 ELSE 0 END) AS is_code_valid FROM users WHERE email = ? LIMIT 1",
       [email.trim().toLowerCase()],
     );
     const u = rows[0];
@@ -1623,8 +1612,7 @@ app.post(
     }
 
     // Verify the code
-    const codeExpiresAt = u.login_code_expires_at ? new Date(u.login_code_expires_at) : null;
-    const isCodeValid = u.login_code && u.login_code === code.trim() && codeExpiresAt && codeExpiresAt.getTime() > Date.now();
+    const isCodeValid = Boolean(u.login_code && u.login_code === code.trim() && u.is_code_valid);
 
     if (!isCodeValid) {
       return res.status(403).json({ error: "Invalid or expired verification code" });
