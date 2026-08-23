@@ -1,7 +1,9 @@
 // Real-only API client — always calls the live /api/* backend.
 // No mock fallback. If the backend is unreachable, the UI shows an error state.
 
-const TOKEN_KEY = "rms_token";
+// v2 intentionally invalidates tokens created by older Windows builds whose
+// signing/session lifetime was different. Users are prompted to sign in once.
+const TOKEN_KEY = "rms_token_v2";
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;

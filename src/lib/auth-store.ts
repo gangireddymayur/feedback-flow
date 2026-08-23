@@ -19,7 +19,7 @@ export type AuthState = {
   };
 };
 
-const USER_KEY = "rms_user";
+const USER_KEY = "rms_user_v2";
 
 export function getAuth(): AuthState | null {
   if (typeof window === "undefined") return null;
