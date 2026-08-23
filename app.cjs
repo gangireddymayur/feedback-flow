@@ -1512,7 +1512,25 @@ app.post(
           );
 
           localLoginPasswords.set(String(remoteUser.id), String(password));
-          return res.json(verifyData);
+          // The cloud token is signed with the cloud secret and cannot be
+          // validated by this Windows SQLite server.  Issue a local token
+          // after the cloud has successfully verified the password + OTP.
+          // This keeps the verification authority in the cloud while making
+          // the resulting session usable by the local API.
+          const localUser = {
+            id: remoteUser.id,
+            name: remoteUser.name,
+            email: remoteUser.email,
+            role: remoteUser.role,
+            status: remoteUser.status || "active",
+            subscription_status: remoteUser.subscription_status || "trial",
+            trial_ends_at: remoteUser.trial_ends_at || null,
+            local_mode: remoteUser.local_mode || "multi",
+            max_devices: remoteUser.max_devices || 1,
+            created_at: remoteUser.created_at || null,
+            trial_info: computeTrialInfo(remoteUser),
+          };
+          return res.json({ token: signToken(localUser), user: localUser });
         } else {
           const verifyErrText = await cloudVerifyRes.text().catch(() => "");
           return res.status(cloudVerifyRes.status).send(verifyErrText);
