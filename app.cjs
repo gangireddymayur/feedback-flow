@@ -1426,7 +1426,7 @@ app.post(
           const localPasswordHash = await bcrypt.hash(password, 10);
 
           await pool.query(
-            "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, cloud_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
               remoteUser.id,
               remoteUser.name,
@@ -1439,6 +1439,7 @@ app.post(
               remoteUser.local_mode || "multi",
               remoteUser.max_devices || 1,
               remoteUser.created_at || null,
+              String(password),
             ],
           );
 
@@ -1566,7 +1567,7 @@ app.post(
           const localPasswordHash = await bcrypt.hash(password, 10);
 
           await pool.query(
-            "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO users (id, name, email, password_hash, role, status, subscription_status, trial_ends_at, local_mode, max_devices, created_at, cloud_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             [
               remoteUser.id,
               remoteUser.name,
@@ -1579,6 +1580,7 @@ app.post(
               remoteUser.local_mode || "multi",
               remoteUser.max_devices || 1,
               remoteUser.created_at || null,
+              String(password),
             ],
           );
 
