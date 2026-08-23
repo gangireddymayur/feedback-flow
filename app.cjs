@@ -52,6 +52,7 @@ const {
   DB_PASSWORD,
   DB_NAME,
   JWT_SECRET = "change-me-in-plesk-env",
+  JWT_EXPIRES_IN = "30d",
   PORT = 3000,
   NODE_ENV,
 } = process.env;
@@ -1086,7 +1087,7 @@ app.use((req, res, next) => {
 });
 
 const signToken = (user) =>
-  jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
+  jwt.sign({ id: user.id, role: user.role, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
 const signDeviceToken = (device) =>
   jwt.sign({ type: "device", id: device.id, owner_id: device.owner_id }, JWT_SECRET, {

@@ -39,7 +39,13 @@ async function http<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const text = await res.text();
   const body = text ? safeJson(text) : null;
-  if (!res.ok) throw new ApiError(body?.error || res.statusText, res.status, body);
+  if (!res.ok) {
+    // A local server restart, token expiry, or changed signing secret can
+    // invalidate the browser session. Clear it immediately so every query
+    // does not keep retrying with the same bad token.
+    if (res.status === 401) setToken(null);
+    throw new ApiError(body?.error || res.statusText, res.status, body);
+  }
   return body as T;
 }
 

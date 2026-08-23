@@ -125,6 +125,10 @@ export async function refreshAuth() {
     persist(state);
     return state;
   } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      setToken(null);
+      persist(null);
+    }
     console.error("Refresh auth failed:", e);
     return null;
   }
