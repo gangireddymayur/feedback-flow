@@ -1,1 +1,1 @@
-2026-07-04 23:00:00 - Force Plesk Passenger Node.js app restart to load devices debug endpoint
+2026-08-23 21:00:00 - Force Plesk IISNode/Passenger restart to load SQL OTP expiry fix
