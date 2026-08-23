@@ -99,7 +99,15 @@ export async function loginWithApi(email: string, password: string) {
   } catch (err) {
     // If the server returned 403 with code_required, surface that instead of an error
     if (err instanceof ApiError && err.body?.code_required) {
+      // Do not let an older session keep dashboard queries running while the
+      // user is completing verification on this Windows server.
+      setToken(null);
+      persist(null);
       return { require_code: true, no_code_available: true, email };
+    }
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      setToken(null);
+      persist(null);
     }
     throw err;
   }
