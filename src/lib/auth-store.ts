@@ -103,7 +103,7 @@ export async function loginWithApi(email: string, password: string) {
       // user is completing verification on this Windows server.
       setToken(null);
       persist(null);
-      return { require_code: true, no_code_available: true, email };
+      return { require_code: true, email };
     }
     if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
       setToken(null);
