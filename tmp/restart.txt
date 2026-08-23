@@ -1,1 +1,1 @@
-2026-08-23 21:00:00 - Force Plesk IISNode/Passenger restart to load SQL OTP expiry fix
+2026-08-23 21:06:00 - Force Plesk IISNode/Passenger restart to load entitlements sync endpoint

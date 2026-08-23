@@ -1353,6 +1353,21 @@ app.post(
       ok = await bcrypt.compare(password, u.password_hash);
     }
 
+    if (req.body?.is_entitlements_sync) {
+      if (!u || !ok || u.status === "disabled") {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      return res.json({
+        user: {
+          id: u.id,
+          max_devices: u.max_devices,
+          subscription_status: u.subscription_status,
+          trial_ends_at: u.trial_ends_at,
+          created_at: u.created_at,
+        },
+      });
+    }
+
     if (useSqlite && ok && u && u.role === "sub" && u.local_mode === "multi") {
       if (u.login_code && u.is_code_valid) {
         return res.json({ require_code: true, email: u.email });
@@ -1660,7 +1675,7 @@ async function syncUserEntitlementsLocalHelper(userId) {
     const cloudResponse = await fetch(`${CLOUD_URL.replace(/\/+$/, "")}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: localUser.email, password }),
+      body: JSON.stringify({ email: localUser.email, password, is_entitlements_sync: true }),
     });
 
     if (!cloudResponse.ok) return null;
@@ -1754,7 +1769,7 @@ app.post(
       cloudResponse = await fetch(`${CLOUD_URL.replace(/\/+$/, "")}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: localUser.email, password }),
+        body: JSON.stringify({ email: localUser.email, password, is_entitlements_sync: true }),
       });
     } catch {
       return res.status(503).json({
