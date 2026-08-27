@@ -65,23 +65,27 @@ function SettingsPage() {
 
   React.useEffect(() => {
     if (!auth) return;
+    const rawSb = profileQ.data?.profile.show_brand_header;
+    const parsedSb = rawSb === 1 || rawSb === true || rawSb === "1" || String(rawSb).toLowerCase() === "true" ? 1 : 0;
     setFormState({
       name: auth.name,
       organization: profileQ.data?.profile.organization ?? "",
       timezone: "IST",
       avatar_url: profileQ.data?.profile.avatar_url ?? "",
-      show_brand_header: profileQ.data?.profile.show_brand_header ?? 0,
+      show_brand_header: parsedSb,
       brand_header_placement: profileQ.data?.profile.brand_header_placement ?? "top",
     });
   }, [auth, profileQ.data]);
 
   const originalState = React.useMemo(() => {
     if (!profileQ.data) return null;
+    const rawSb = profileQ.data.profile.show_brand_header;
+    const parsedSb = rawSb === 1 || rawSb === true || rawSb === "1" || String(rawSb).toLowerCase() === "true" ? 1 : 0;
     return {
       organization: profileQ.data.profile.organization ?? "",
       timezone: "IST",
       avatar_url: profileQ.data.profile.avatar_url ?? "",
-      show_brand_header: profileQ.data.profile.show_brand_header ?? 0,
+      show_brand_header: parsedSb,
       brand_header_placement: profileQ.data.profile.brand_header_placement ?? "top",
     };
   }, [profileQ.data]);
